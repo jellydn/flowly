@@ -6,7 +6,7 @@ import type {
   RepositoryReader,
   StepBudget,
 } from './repository.ts';
-import { noInspectionBudget, summarizeInput, wrapWithBudget } from './repository.ts';
+import { markBudgetFreeTool, noInspectionBudget, summarizeInput, wrapWithBudget } from './repository.ts';
 
 const MAX_RETURNED_LINES = 400;
 
@@ -15,7 +15,7 @@ export function createReadFileTool(
   budget: StepBudget | undefined,
   debug: DebugLogger,
 ) {
-  return defineTool({
+  const tool = defineTool({
     name: 'read_file',
     description:
       'Read a bounded line range from one text file inside the configured repository. Use when an exact file path is already known and surrounding context is needed. Returns numbered lines, total line count, and an inspection budget snapshot. At most 400 lines are returned per call.',
@@ -83,4 +83,5 @@ export function createReadFileTool(
       }
     },
   });
+  return budget === undefined ? markBudgetFreeTool(tool) : tool;
 }

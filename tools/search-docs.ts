@@ -6,7 +6,7 @@ import type {
   RepositoryReader,
   StepBudget,
 } from './repository.ts';
-import { noInspectionBudget, summarizeInput, wrapWithBudget } from './repository.ts';
+import { markBudgetFreeTool, noInspectionBudget, summarizeInput, wrapWithBudget } from './repository.ts';
 
 const MAX_MATCHES = 50;
 
@@ -24,7 +24,7 @@ export function createSearchDocsTool(
   budget: StepBudget | undefined,
   debug: DebugLogger,
 ) {
-  return defineTool({
+  const tool = defineTool({
     name: 'search_docs',
     description:
       'Search documentation files (Markdown, text, README, AGENTS, CHANGELOG, docs/**) for a literal string. Use when looking for documented architecture, configuration, or design explanations whose path is unknown. Returns matching repository-relative paths, line numbers, and line excerpts, plus an inspection budget snapshot. Excludes dependencies and generated build output. Results are leads—read the matching documentation before drawing conclusions.',
@@ -101,4 +101,5 @@ export function createSearchDocsTool(
       }
     },
   });
+  return budget === undefined ? markBudgetFreeTool(tool) : tool;
 }

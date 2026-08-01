@@ -6,7 +6,7 @@ import type {
   RepositoryReader,
   StepBudget,
 } from './repository.ts';
-import { noInspectionBudget, summarizeInput, wrapWithBudget } from './repository.ts';
+import { markBudgetFreeTool, noInspectionBudget, summarizeInput, wrapWithBudget } from './repository.ts';
 
 const MAX_MATCHES = 50;
 
@@ -15,7 +15,7 @@ export function createSearchCodeTool(
   budget: StepBudget | undefined,
   debug: DebugLogger,
 ) {
-  return defineTool({
+  const tool = defineTool({
     name: 'search_code',
     description:
       'Search first-party text and source files for a literal string. Use when looking for a symbol, phrase, configuration, or implementation whose path is unknown. Returns matching repository-relative paths, line numbers, and line excerpts, plus an inspection budget snapshot. Excludes dependencies and generated build output. Results are leads, not proof—read the matching files before drawing conclusions.',
@@ -92,4 +92,5 @@ export function createSearchCodeTool(
       }
     },
   });
+  return budget === undefined ? markBudgetFreeTool(tool) : tool;
 }

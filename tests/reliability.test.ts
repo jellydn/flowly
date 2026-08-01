@@ -6,6 +6,7 @@ import {
   createDebugLogger,
   createRepositoryReader,
   createStepBudget,
+  markBudgetFreeTool,
 } from '../tools/repository.ts';
 import { createListFilesTool } from '../tools/list-files.ts';
 import { createReadFileTool } from '../tools/read-file.ts';
@@ -171,6 +172,23 @@ describe('runWithRetry', () => {
     );
     assert.equal(result, 'success');
     assert.equal(calls, 2);
+  });
+
+  test('cancellation interrupts retry backoff', async () => {
+    const controller = new AbortController();
+    const neverSleep: SleepFn = () => new Promise<void>(() => {});
+    const promise = runWithRetry(
+      'cancelled-op',
+      async () => {
+        throw new ExternalServiceError('HTTP 503');
+      },
+      fastRetry,
+      noReliabilityLog(),
+      neverSleep,
+      controller.signal,
+    );
+    setTimeout(() => controller.abort(new Error('cancelled')), 1);
+    await assert.rejects(promise, /cancel/i);
   });
 
   test('all retry attempts fail with transient errors', async () => {
@@ -438,7 +456,7 @@ describe('wrapToolWithReliability', () => {
       },
     };
     const wrapped = wrapToolWithReliability(
-      rawTool, budget, noDebug(), fastRetry, noReliabilityLog(), noFailureInjection, instantSleep,
+      markBudgetFreeTool(rawTool), budget, noDebug(), fastRetry, noReliabilityLog(), noFailureInjection, instantSleep,
     );
     const result = (await wrapped.run({
       toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
@@ -463,7 +481,7 @@ describe('wrapToolWithReliability', () => {
       },
     };
     const wrapped = wrapToolWithReliability(
-      rawTool, budget, noDebug(), fastRetry, noReliabilityLog(), noFailureInjection, instantSleep,
+      markBudgetFreeTool(rawTool), budget, noDebug(), fastRetry, noReliabilityLog(), noFailureInjection, instantSleep,
     );
     await assert.rejects(
       wrapped.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: 'x.ts', startLine: 1 } }) as Promise<unknown>,
@@ -490,12 +508,52 @@ describe('wrapToolWithReliability', () => {
       },
     };
     const wrapped = wrapToolWithReliability(
-      rawTool, budget, noDebug(), fastRetry, noReliabilityLog(), noFailureInjection, instantSleep,
+      markBudgetFreeTool(rawTool), budget, noDebug(), fastRetry, noReliabilityLog(), noFailureInjection, instantSleep,
     );
     await assert.rejects(
       wrapped.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { query: 'x', path: '.', caseSensitive: false } }) as Promise<unknown>,
       /failed/i,
     );
+  });
+
+  test('cancellation remains an abort instead of a safe tool error', async () => {
+    const budget = createStepBudget(8);
+    const controller = new AbortController();
+    let resolveStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      resolveStarted = resolve;
+    });
+    const rawTool: ToolDefinition = {
+      name: 'read_file',
+      description: 'test',
+      input: undefined,
+      output: undefined,
+      async run({ signal }) {
+        resolveStarted();
+        await new Promise<void>((_, reject) => {
+          const onAbort = () => {
+            signal?.removeEventListener('abort', onAbort);
+            reject(new Error('operation cancelled'));
+          };
+          if (signal?.aborted) onAbort();
+          else signal?.addEventListener('abort', onAbort, { once: true });
+        });
+        return { output: {} };
+      },
+    };
+    const wrapped = wrapToolWithReliability(
+      markBudgetFreeTool(rawTool), budget, noDebug(), { ...fastRetry, timeoutMs: 100 },
+      noReliabilityLog(), noFailureInjection, instantSleep,
+    );
+    const promise = wrapped.run({
+      toolCallId: 'test',
+      log: { info() {}, warn() {}, error() {} },
+      data: { path: 'x.ts', startLine: 1 },
+      signal: controller.signal,
+    });
+    await started;
+    controller.abort(new Error('cancelled'));
+    await assert.rejects(Promise.resolve(promise as unknown), /cancel/i);
   });
 
   test('retries do not consume additional budget', async () => {
@@ -519,7 +577,7 @@ describe('wrapToolWithReliability', () => {
       },
     };
     const wrapped = wrapToolWithReliability(
-      rawTool, budget, noDebug(), fastRetry, noReliabilityLog(), noFailureInjection, instantSleep,
+      markBudgetFreeTool(rawTool), budget, noDebug(), fastRetry, noReliabilityLog(), noFailureInjection, instantSleep,
     );
     await wrapped.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { query: 'x', path: '.', caseSensitive: false } });
     assert.equal(rawCalls, 3);
@@ -536,7 +594,7 @@ describe('fallback', () => {
   test('primary tool fails transiently, fallback read_file succeeds', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
-    const readFile = createReadFileTool(repository, budget, noDebug());
+    const readFile = createReadFileTool(repository, undefined, noDebug());
     const failingSearch: ToolDefinition = {
       name: 'search_code',
       description: 'test',
@@ -547,8 +605,8 @@ describe('fallback', () => {
       },
     };
     const result = await executeWithFallback(
-      failingSearch,
-      readFile,
+      markBudgetFreeTool(failingSearch),
+      markBudgetFreeTool(readFile),
       { query: 'auth', path: '.', caseSensitive: false },
       'src/auth.ts',
       'search_with_fallback',
@@ -560,6 +618,8 @@ describe('fallback', () => {
     assert.equal(result.primarySucceeded, false);
     assert.equal(result.fallbackUsed, true);
     assert.equal(result.fallbackSucceeded, true);
+    assert.equal(result.inspection.used, 2);
+    assert.equal(budget.used, 2);
     assert.ok(result.partialMessage?.includes('fallback'));
   });
 
@@ -585,8 +645,8 @@ describe('fallback', () => {
       },
     };
     const result = await executeWithFallback(
-      failingSearch,
-      failingRead,
+      markBudgetFreeTool(failingSearch),
+      markBudgetFreeTool(failingRead),
       { query: 'auth', path: '.', caseSensitive: false },
       'nonexistent.ts',
       'search_with_fallback',
@@ -598,14 +658,123 @@ describe('fallback', () => {
     assert.equal(result.primarySucceeded, false);
     assert.equal(result.fallbackUsed, true);
     assert.equal(result.fallbackSucceeded, false);
+    assert.equal(budget.used, 2);
     assert.ok(result.partialMessage);
     assert.match(result.partialMessage, /retry/i);
+  });
+
+  test('malformed fallback output is rejected safely', async () => {
+    const repository = await createRepositoryReader(root);
+    const budget = createStepBudget(8);
+    const malformedRead: ToolDefinition = {
+      name: 'read_file',
+      description: 'test',
+      input: undefined,
+      output: undefined,
+      async run() {
+        return { output: { garbage: true } };
+      },
+    };
+    const failingSearch: ToolDefinition = {
+      name: 'search_code',
+      description: 'test',
+      input: undefined,
+      output: undefined,
+      async run() {
+        throw new ExternalServiceError('HTTP 503');
+      },
+    };
+    const result = await executeWithFallback(
+      markBudgetFreeTool(failingSearch),
+      markBudgetFreeTool(malformedRead),
+      { query: 'auth', path: '.', caseSensitive: false },
+      'src/auth.ts',
+      'search_with_fallback',
+      budget,
+      noDebug(),
+      fastRetry,
+      noReliabilityLog(),
+      { sleep: instantSleep },
+    );
+    assert.equal(result.fallbackUsed, true);
+    assert.equal(result.fallbackSucceeded, false);
+    assert.match(result.partialMessage ?? '', /fallback file read also failed/i);
+    assert.equal(budget.used, 2);
+  });
+
+  test('failure injection applies to fallback through the shared resilience path', async () => {
+    const repository = await createRepositoryReader(root);
+    const budget = createStepBudget(8);
+    const readFile = createReadFileTool(repository, undefined, noDebug());
+    const failingSearch: ToolDefinition = {
+      name: 'search_code',
+      description: 'test',
+      input: undefined,
+      output: undefined,
+      async run() {
+        throw new ExternalServiceError('HTTP 503');
+      },
+    };
+    const result = await executeWithFallback(
+      markBudgetFreeTool(failingSearch),
+      markBudgetFreeTool(readFile),
+      { query: 'auth', path: '.', caseSensitive: false },
+      'src/auth.ts',
+      'search_with_fallback',
+      budget,
+      noDebug(),
+      fastRetry,
+      noReliabilityLog(),
+      {
+        injector: createFailureInjector({ SIMULATE_MALFORMED_RESPONSE: 'true' }),
+        sleep: instantSleep,
+      },
+    );
+    assert.equal(result.fallbackUsed, true);
+    assert.equal(result.fallbackSucceeded, false);
+    assert.equal(budget.used, 2);
+  });
+
+  test('fallback rejects a locally reliable tool to prevent nested resilience', async () => {
+    const budget = createStepBudget(8);
+    const rawSearch: ToolDefinition = {
+      name: 'search_code',
+      description: 'test',
+      input: undefined,
+      output: undefined,
+      async run() {
+        throw new ExternalServiceError('HTTP 503');
+      },
+    };
+    const reliableSearch = wrapToolWithReliability(
+      markBudgetFreeTool(rawSearch),
+      budget,
+      noDebug(),
+      fastRetry,
+      noReliabilityLog(),
+      noFailureInjection,
+      instantSleep,
+    );
+    await assert.rejects(
+      executeWithFallback(
+        reliableSearch,
+        undefined,
+        { query: 'auth', path: '.', caseSensitive: false },
+        undefined,
+        'search_with_fallback',
+        budget,
+        noDebug(),
+        fastRetry,
+        noReliabilityLog(),
+      ),
+      /must be marked as budget-free/i,
+    );
   });
 
   test('permanent error does not trigger fallback', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
-    const readFile = createReadFileTool(repository, budget, noDebug());
+    const readFile = createReadFileTool(repository, undefined, noDebug());
     const authFailingSearch: ToolDefinition = {
       name: 'search_code',
       description: 'test',
@@ -616,8 +785,8 @@ describe('fallback', () => {
       },
     };
     const result = await executeWithFallback(
-      authFailingSearch,
-      readFile,
+      markBudgetFreeTool(authFailingSearch),
+      markBudgetFreeTool(readFile),
       { query: 'auth', path: '.', caseSensitive: false },
       'src/auth.ts',
       'search_with_fallback',

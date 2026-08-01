@@ -1,6 +1,7 @@
 import { defineTool, type ToolDefinition } from '@flue/runtime';
 import { invokeTool } from './tool-invocation.ts';
 import type { DebugLogger, InspectionMetadata, StepBudget } from '../tools/repository.ts';
+import { isBudgetFreeTool } from '../tools/repository.ts';
 import { summarizeInput, wrapWithBudget } from '../tools/repository.ts';
 import { classifyError, type ReliabilityError } from './errors.ts';
 import { runWithRetry, type RetryConfig, type SleepFn, defaultSleep } from './retry.ts';
@@ -16,6 +17,8 @@ import {
 } from './validation.ts';
 
 export type ToolValidator<T> = (output: unknown) => ValidationResult<T>;
+
+const reliableTools = new WeakSet<object>();
 
 const validators: Record<string, ToolValidator<unknown>> = {
   list_files: validateListResult,
@@ -60,6 +63,94 @@ export function createReliableInspectionTool(
  * *logical* call (not per retry attempt), so retries do not multiply budget
  * consumption.
  */
+export type ReliableAttemptOptions = {
+  inspection?: InspectionMetadata;
+  debug?: DebugLogger;
+  signal?: AbortSignal;
+};
+
+export async function runReliableAttempt(
+  rawTool: ToolDefinition,
+  data: Record<string, unknown>,
+  operation: string,
+  retryConfig: RetryConfig,
+  reliabilityLog: ReliabilityLogger,
+  injector: FailureInjector = noFailureInjection,
+  sleep: SleepFn = defaultSleep,
+  options: ReliableAttemptOptions = {},
+): Promise<unknown> {
+  if (reliableTools.has(rawTool)) {
+    throw new Error('Resilience tools cannot be wrapped or retried twice.');
+  }
+  if (!isBudgetFreeTool(rawTool)) {
+    throw new Error('Tool must be marked as a budget-free raw tool first.');
+  }
+
+  const result = await runWithRetry(
+    operation,
+    async (retrySignal) => {
+      const combinedSignal = options.signal
+        ? AbortSignal.any([retrySignal, options.signal])
+        : retrySignal;
+
+      if (injector.shouldTimeout(rawTool.name)) {
+        await new Promise<void>((_, reject) => {
+          const onAbort = () => {
+            combinedSignal.removeEventListener('abort', onAbort);
+            reject(new Error('timeout: operation aborted'));
+          };
+          if (combinedSignal.aborted) {
+            onAbort();
+          } else {
+            combinedSignal.addEventListener('abort', onAbort, { once: true });
+          }
+        });
+      }
+
+      const injected = injector.maybeFail(rawTool.name, 0);
+      if (injected) throw injected;
+
+      const rawOutput = await invokeTool<unknown>(rawTool, {
+        toolCallId: `retry-${rawTool.name}`,
+        data,
+        signal: combinedSignal,
+      });
+
+      if (injector.shouldMalform(rawTool.name)) {
+        return {
+          __malformed: true,
+          garbage: '###not-json###',
+          partial: 'garbled',
+        };
+      }
+      return rawOutput;
+    },
+    retryConfig,
+    reliabilityLog,
+    sleep,
+    options.signal,
+  );
+
+  const normalizedResult = options.inspection
+    ? attachInspection(result, options.inspection)
+    : result;
+  const validator = validators[rawTool.name];
+  if (validator) {
+    const validation = validator(normalizedResult);
+    if (!validation.ok) throw validation.error;
+  }
+  if (options.debug && options.inspection) {
+    options.debug.log({
+      tool: rawTool.name,
+      status: 'success',
+      inputSummary: summarizeInput(data),
+      count: countResult(rawTool.name, normalizedResult),
+      inspection: options.inspection,
+    });
+  }
+  return normalizedResult;
+}
+
 export function wrapToolWithReliability(
   rawTool: ToolDefinition,
   budget: StepBudget,
@@ -69,9 +160,10 @@ export function wrapToolWithReliability(
   injector: FailureInjector = noFailureInjection,
   sleep: SleepFn = defaultSleep,
 ): ToolDefinition {
-  const validator = validators[rawTool.name];
-
-  return defineTool({
+  if (!isBudgetFreeTool(rawTool)) {
+    throw new Error('Tool must be marked as a budget-free raw tool first.');
+  }
+  const wrapped = defineTool({
     name: rawTool.name,
     description: rawTool.description,
     input: rawTool.input,
@@ -84,71 +176,21 @@ export function wrapToolWithReliability(
       const inputSummary = summarizeInput(data);
 
       try {
-        const result = await runWithRetry(
+        const result = await runReliableAttempt(
+          rawTool,
+          data as Record<string, unknown>,
           rawTool.name,
-          async (retrySignal) => {
-            if (injector.shouldTimeout(rawTool.name)) {
-              // Hang until the timeout fires
-              await new Promise<void>(() => {});
-              throw new Error('timeout');
-            }
-
-            const injected = injector.maybeFail(rawTool.name, 0);
-            if (injected) throw injected;
-
-            const combinedSignal = retrySignal.aborted
-              ? retrySignal
-              : signal && signal.aborted
-                ? signal
-                : retrySignal;
-
-            const rawOutput = await invokeTool<unknown>(rawTool, {
-              toolCallId: `retry-${rawTool.name}`,
-              data: data as Record<string, unknown>,
-              signal: combinedSignal,
-            });
-
-            if (injector.shouldMalform(rawTool.name)) {
-              return {
-                __malformed: true,
-                garbage: '###not-json###',
-                partial: 'garbled',
-              };
-            }
-
-            return rawOutput;
-          },
           retryConfig,
           reliabilityLog,
+          injector,
           sleep,
+          { signal, inspection, debug },
         );
 
-        const normalizedResult = attachInspection(result, inspection);
-
-        // Validate the output
-        if (validator) {
-          const validation = validator(normalizedResult);
-          if (!validation.ok) {
-            debug.log({
-              tool: rawTool.name,
-              status: 'error',
-              inputSummary,
-              inspection,
-            });
-            throw validation.error;
-          }
-        }
-
-        debug.log({
-          tool: rawTool.name,
-          status: 'success',
-          inputSummary,
-          count: countResult(rawTool.name, normalizedResult),
-          inspection,
-        });
-
-        return { output: normalizedResult };
+        return { output: result };
       } catch (error) {
+        if (signal?.aborted) throw error;
+
         debug.log({
           tool: rawTool.name,
           status: 'error',
@@ -165,6 +207,8 @@ export function wrapToolWithReliability(
       }
     },
   });
+  reliableTools.add(wrapped);
+  return wrapped;
 }
 
 /**

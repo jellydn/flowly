@@ -77,6 +77,18 @@ export type InspectionMetadata = {
  * reliability seam attaches the snapshot to each tool result so the model can
  * see whether it may continue.
  */
+const budgetFreeTools = new WeakSet<object>();
+
+/** Mark a tool as safe for resilience-owned budget accounting. */
+export function markBudgetFreeTool<T extends object>(tool: T): T {
+  budgetFreeTools.add(tool);
+  return tool;
+}
+
+export function isBudgetFreeTool(tool: object): boolean {
+  return budgetFreeTools.has(tool);
+}
+
 export type StepBudget = {
   limit: number;
   used: number;
