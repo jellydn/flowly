@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>flue-repo-assistant — a bounded, read-only repository analysis agent</title>
-<meta name="description" content="A minimal Flue agent that inspects a local Git repository using three read-only tools and an evidence-first observe→act→reflect loop. Reference implementation for safe, bounded AI tool use.">
+<meta name="description" content="A minimal Flue 2.0 agent that inspects a local Git repository using four read-only tools and an evidence-first observe→act→reflect loop. Reference implementation for safe, bounded AI tool use.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -193,10 +193,10 @@
         <div>
           <div class="hero-badge">
             <span class="hero-badge-dot"></span>
-            Reference implementation · Flue 1.0 beta
+            Reference implementation · Flue 2.0
           </div>
           <h1>Ask your codebase <span>anything</span>. Get evidence, not guesses.</h1>
-          <p class="hero-desc">A read-only AI agent that inspects any Git repository using three typed tools and an <strong style="color:var(--teal)">observe → act → reflect</strong> loop. Every answer comes with file-and-line citations. No hallucination. No write access. No network.</p>
+          <p class="hero-desc">A read-only AI agent that inspects any Git repository using four typed tools and an <strong style="color:var(--teal)">observe → act → reflect</strong> loop. Every answer comes with file-and-line citations. No hallucination. No write access. No network.</p>
           <div class="hero-actions">
             <a href="#start" class="btn btn-primary">Get started</a>
             <a href="https://github.com/jellydn/flue-repo-assistant" class="btn btn-secondary">View on GitHub</a>
@@ -262,7 +262,8 @@
         <div class="loop-diagram">
 <pre>Question ──▶ ┌──────────────┐       ┌────────────────────────────┐
               │ Flue harness │──────▶│ list_files / read_file /  │
-              │ + LLM        │◀──────│ search_code (read-only)   │
+              │ + LLM        │◀──────│ search_code / search_docs │
+              │              │       │ (read-only)               │
               └──────┬───────┘       └─────────────┬──────────────┘
                      │                             │
                      │ reflect                     ▼
@@ -285,7 +286,7 @@
         <div class="feature-card">
           <div class="feature-icon">🔒</div>
           <h3>Read-only tools</h3>
-          <p>Three typed tools — <code>list_files</code>, <code>read_file</code>, <code>search_code</code> — use Node's read-only filesystem APIs. No shell, no Git, no network.</p>
+          <p>Four typed tools — <code>list_files</code>, <code>read_file</code>, <code>search_code</code>, and <code>search_docs</code> — use Node's read-only filesystem APIs. No shell, no Git, no network.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">📐</div>
@@ -295,7 +296,7 @@
         <div class="feature-card">
           <div class="feature-icon">⏱️</div>
           <h3>Inspection budget</h3>
-          <p>Shared 1–20 call budget across all three tools. After exhaustion, the agent must answer from collected evidence — no infinite loops.</p>
+          <p>Shared 1–20 call budget across all four inspection tools. After exhaustion, the agent must answer from collected evidence — no infinite loops.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">📄</div>
@@ -305,7 +306,7 @@
         <div class="feature-card">
           <div class="feature-icon">🏖️</div>
           <h3>Restricted sandbox</h3>
-          <p>Flue's default filesystem and shell tools are removed. The agent can only access the repository through the three custom tools.</p>
+          <p>Flue's default filesystem and shell tools are removed. The agent can only access the repository through the four custom inspection tools.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">🧪</div>
@@ -328,7 +329,7 @@
          │
     ┌────┼────────────┬────────────────┐
     ▼    ▼            ▼                ▼
-<span class="arch-highlight">tools/list-files.ts</span>  <span class="arch-highlight">tools/read-file.ts</span>  <span class="arch-highlight">tools/search-code.ts</span>
+<span class="arch-highlight">tools/list-files.ts</span>  <span class="arch-highlight">tools/read-file.ts</span>  <span class="arch-highlight">tools/search-code.ts</span>  <span class="arch-highlight">tools/search-docs.ts</span>
          │            │                │
          └────────────┼────────────────┘
                       │

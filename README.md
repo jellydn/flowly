@@ -7,7 +7,8 @@
 
 `flue-repo-assistant` is a small, read-only agent for learning the core agent
 loop: **observe → act → reflect**. It uses Flue to decide when to list files,
-read source, search code, or answer with the evidence already collected.
+read source, search code, search documentation, or answer with the evidence
+already collected.
 
 The default target is [jellydn/oak](https://github.com/jellydn/oak), a large
 Rust-focused monorepo for privacy-preserving distributed systems.
@@ -15,7 +16,8 @@ Rust-focused monorepo for privacy-preserving distributed systems.
 ## Features
 
 - One Flue agent
-- Four typed, read-only tools (`list_files`, `read_file`, `search_code`, `search_docs`)
+- Four typed, read-only tools (`list_files`, `read_file`, `search_code`,
+  `search_docs`)
 - Bounded investigation loop with evidence collection and deduplication
 - Grounded answers with file citations and confidence levels
 - One reusable Agent Skill
@@ -32,7 +34,8 @@ Question
    ▼
 ┌──────────────┐       ┌────────────────────────────┐
 │ Flue harness │──────▶│ list_files / read_file /  │
-│ + LLM        │◀──────│ search_code (read-only)   │
+│ + LLM        │◀──────│ search_code / search_docs │
+│              │       │ (read-only)               │
 └──────┬───────┘       └─────────────┬──────────────┘
        │                             │
        │ reflect                     ▼
@@ -81,8 +84,7 @@ npm start -- --input '{"message":"What is the architecture of oak?"}'
 Or invoke Flue directly:
 
 ```bash
-npx flue run repo-assistant \
-  --input '{"message":"Find the main application entry point for the Oak Containers hello-world host."}'
+npx flue run agents/repo-assistant.ts -m "Find the main application entry point for the Oak Containers hello-world host."
 ```
 
 ## Three test questions
@@ -104,7 +106,7 @@ exists.
 | -------------------------- | ----------------------------- | ------------------------------------------ |
 | `REPOSITORY_PATH`          | `../oak`                      | Only repository the tools may inspect      |
 | `REPO_ASSISTANT_MODEL`     | `openrouter/qwen/qwen3-coder` | Flue model specifier                       |
-| `REPO_ASSISTANT_MAX_STEPS` | `8`                           | Shared list/read/search call budget (1–20) |
+| `REPO_ASSISTANT_MAX_STEPS` | `8`                           | Shared inspection-call budget (1–20)      |
 | `REPO_ASSISTANT_DEBUG`     | `false`                       | Log one safe line per tool call            |
 
 To inspect another checkout:
@@ -116,34 +118,34 @@ REPOSITORY_PATH=/absolute/path/to/repo \
 
 ## How the bound works
 
-Every `list_files`, `read_file`, or `search_code` call consumes one shared
-inspection step. Tool results include `used` and `remaining`; after the limit,
-all three tools reject further calls and the instructions require the agent to
-answer from collected evidence. Each tool result carries an `inspection`
-object of the shape `{ used, remaining, limit }` so the model can see whether
+Every `list_files`, `read_file`, `search_code`, or `search_docs` call consumes
+one shared inspection step. Tool results include `used` and `remaining`; after
+that limit, all four inspection tools reject further calls and the instructions
+require the agent to answer from collected evidence. Each tool result carries an
+`inspection` object of the shape `{ used, remaining, limit }` so the model can see whether
 it may continue; errors are wrapped with the same snapshot. The agent also
 configures a 120-second
 submission deadline and allows only the initial execution attempt. Flue checks
 the deadline cooperatively at turn boundaries; it does not preempt an in-flight
 model request or custom tool, so elapsed runtime can exceed two minutes.
 
-Flue 1.0 beta does **not** currently expose a public `maxSteps` or `maxTurns`
+Flue 2.0 does **not** currently expose a public `maxSteps` or `maxTurns`
 agent option. This project therefore bounds repository inspection calls—not
 internal model turns—and documents that distinction rather than relying on a
 nonexistent setting.
 
 ## Read-only guarantees
 
-The agent's only application-data capabilities are three custom tools. They use
-Node's read-only filesystem APIs and expose no shell, write, Git, or network
-operation. A restricted in-memory sandbox removes Flue's default model-facing
-filesystem and shell tools.
+The agent's only application-data capabilities are four custom inspection
+tools. They use Node's read-only filesystem APIs and expose no shell, write,
+Git, or network operation. A restricted in-memory sandbox removes Flue's default
+model-facing filesystem and shell tools.
 
 Flue still appends its framework-owned `activate_skill` and `task` tools. This
 project has no declared subagent profiles and explicitly instructs the agent not
-to delegate. An implicit task would inherit the same three tool instances and
-shared budget; it cannot reset the inspection limit or access the host checkout
-through the sandbox.
+to delegate. An implicit task would inherit the same four inspection tool
+instances and shared budget; it cannot reset the inspection limit or access the
+host checkout through the sandbox.
 
 The repository boundary is application-controlled, not model-controlled:
 
@@ -171,6 +173,7 @@ the agent loop.**
 | Tool | Select when |
 | ---- | ----------- |
 | `list_files` | The repository structure or a file path is unknown. |
+| `search_docs` | You are looking for documented architecture, configuration, or design context. |
 | `search_code` | You are looking for a symbol, phrase, configuration, or implementation whose path is unknown. |
 | `read_file` | An exact file path is already known and surrounding context is needed. |
 
@@ -203,9 +206,9 @@ snapshot:
 ```
 
 The model observes the result, reflects on whether it has enough evidence, and
-either calls the next tool or answers. `search_code` results name candidate
-files and line numbers; the model then calls `read_file` on the strongest
-candidate. `inspection.remaining` tells the model whether it can keep
+either calls the next tool or answers. `search_docs` and `search_code` results
+name candidate files and line numbers; the model then calls `read_file` on the
+strongest candidate. `inspection.remaining` tells the model whether it can keep
 inspecting. When the budget is exhausted, every tool rejects further calls with
 an error that repeats the snapshot, and the agent answers from collected
 evidence.
@@ -292,9 +295,10 @@ continuing—the stretch-goal dynamic replanning loop.
 | `replan` | No | Revise the plan when a step returns no results |
 | `reflect_plan` | No | State whether steps could be simplified or merged |
 
-The three inspection tools (`list_files`, `read_file`, `search_code`) still
-consume the shared budget as before. Planning tools are meta-tools that
-structure the agent's reasoning without inspecting the repository.
+The four inspection tools (`list_files`, `read_file`, `search_code`,
+`search_docs`) still consume the shared budget as before. Planning tools are
+meta-tools that structure the agent's reasoning without inspecting the
+repository.
 
 ### Programmatic planner and executor
 
@@ -668,7 +672,9 @@ flue-repo-assistant/
 │   ├── run-eval.sh
 │   └── fixtures/sample-repo/   # bundled evaluation fixture
 ├── sandbox.ts
+├── app.ts                    # Flue 2 route map
 ├── flue.config.ts
+├── vite.config.ts            # Flue 2 Vite build integration
 └── README.md
 ```
 
@@ -682,7 +688,7 @@ npm run check
 
 - `npm run typecheck` — `tsc`
 - `npm test` — `tsx --test tests/*.test.ts` (Node's built-in test runner)
-- `npm run build` — `flue build` (emits `dist/`, gitignored)
+- `npm run build` — `vite build` (emits `dist/`, gitignored)
 
 ## Learning notes
 
