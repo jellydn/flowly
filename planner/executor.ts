@@ -2,26 +2,14 @@ import { defineTool } from '@flue/runtime';
 import * as v from 'valibot';
 import type { DebugLogger, StepBudget } from '../tools/repository.ts';
 import { summarizeInput } from '../tools/repository.ts';
-import {
-  runExecutionLoop,
-  type ExecutionLoopAdapter,
-  type ToolRegistry,
-} from '../investigation/tool-call.ts';
+import type { ToolRegistry } from '../investigation/tool-call.ts';
+import { replacePlan } from './plan-store.ts';
 import type { PlanStore } from './plan-store.ts';
 import { PLAN_TOOL_NAMES } from '../tools/contracts.ts';
-import { normalizePlan } from './planner.ts';
-import type {
-  ExecutionResult,
-  ExecutionStatus,
-  Plan,
-  PlanStepInput,
-  PlanTool,
-} from './types.ts';
+import { createPlanRun, normalizePlan } from './plan-run.ts';
 
-type PlannerExecutionMetadata = {
-  stepId: number;
-  tool: PlanTool;
-};
+export { isEmptyResult } from './plan-run.ts';
+import type { ExecutionResult, Plan } from './types.ts';
 
 /**
  * Programmatic executor: run each plan step against the matching tool.
@@ -36,106 +24,9 @@ export async function executePlan(
   tools: ToolRegistry,
   signal?: AbortSignal,
 ): Promise<ExecutionResult[]> {
-  const results: ExecutionResult[] = [];
-  const adapter: ExecutionLoopAdapter<ExecutionResult[], PlannerExecutionMetadata> = {
-    next(iteration) {
-      const step = plan.steps[iteration];
-      if (!step) return { type: 'stop', reason: 'completed' };
-      if (step.tool === 'answer') {
-        results.push({
-          stepId: step.id,
-          status: 'success',
-          tool: 'answer',
-          summary: 'Final answer step (no tool call needed)',
-        });
-        return { type: 'stop', reason: 'completed' };
-      }
-      if (!step.input || Object.keys(step.input).length === 0) {
-        return {
-          type: 'skip',
-          tool: step.tool,
-          metadata: { stepId: step.id, tool: step.tool },
-          reason: 'No concrete input; skipped in programmatic execution',
-        };
-      }
-      return {
-        type: 'call',
-        tool: step.tool,
-        input: step.input,
-        toolCallId: `exec-${step.id}`,
-        metadata: { stepId: step.id, tool: step.tool },
-      };
-    },
-    onSkip(action) {
-      results.push({
-        stepId: action.metadata.stepId,
-        status: 'skipped',
-        tool: action.metadata.tool,
-        summary: action.reason,
-      });
-    },
-    onResult(action, call) {
-      const { stepId, tool } = action.metadata;
-      if (!call.ok) {
-        results.push({
-          stepId,
-          status: 'error',
-          tool,
-          summary: call.error,
-        });
-        return;
-      }
-      const output = call.output;
-      const status: ExecutionStatus = isEmptyResult(tool, output)
-        ? 'empty'
-        : 'success';
-      results.push({
-        stepId,
-        status,
-        tool,
-        summary: summarizeResult(tool, output),
-        output,
-      });
-    },
-    finish() {
-      return results;
-    },
-  };
-
-  return runExecutionLoop(tools, adapter, {
-    maxIterations: plan.steps.length,
-    signal,
-  });
-}
-
-/** Detect empty results for replanning decisions. */
-export function isEmptyResult(tool: PlanTool, output: unknown): boolean {
-  if (tool === 'search_code' || tool === 'search_docs') {
-    const matches = (output as { matches?: unknown[] })?.matches;
-    return Array.isArray(matches) && matches.length === 0;
-  }
-  if (tool === 'list_files') {
-    const entries = (output as { entries?: unknown[] })?.entries;
-    return Array.isArray(entries) && entries.length === 0;
-  }
-  return false;
-}
-
-
-function summarizeResult(tool: PlanTool, output: unknown): string {
-  if (tool === 'search_code' || tool === 'search_docs') {
-    const matches = (output as { matches?: unknown[] })?.matches;
-    return `${Array.isArray(matches) ? matches.length : 0} matches`;
-  }
-  if (tool === 'list_files') {
-    const entries = (output as { entries?: unknown[] })?.entries;
-    return `${Array.isArray(entries) ? entries.length : 0} entries`;
-  }
-  if (tool === 'read_file') {
-    const total = (output as { totalLines?: number })?.totalLines;
-    return total !== undefined ? `${total} lines read` : 'file read';
-  }
-  return 'done';
+  const run = createPlanRun();
+  run.setPlan(plan);
+  return run.execute(tools, signal);
 }
 
 // ---------------------------------------------------------------------------
@@ -163,38 +54,9 @@ export function replan(
   originalPlan: Plan,
   results: ExecutionResult[],
 ): Plan {
-  const executedCount = results.length;
-  const remainingSteps = originalPlan.steps.slice(executedCount);
-  const newSteps: PlanStepInput[] = [];
-
-  // Keep successfully executed steps as context (not re-executed).
-  for (const result of results) {
-    if (result.status === 'empty') {
-      newSteps.push({
-        description: `List repository structure (replanned after empty ${result.tool})`,
-        tool: 'list_files',
-        input: { path: '.', depth: 2 },
-      });
-    }
-  }
-
-  // Carry forward remaining non-answer steps.
-  for (const step of remainingSteps) {
-    if (step.tool !== 'answer') {
-      newSteps.push({
-        description: step.description,
-        tool: step.tool,
-        input: step.input,
-      });
-    }
-  }
-
-  newSteps.push({
-    description: 'Generate the final answer with the evidence collected',
-    tool: 'answer',
-  });
-
-  return normalizePlan(originalPlan.question, newSteps);
+  const run = createPlanRun();
+  run.setPlan(originalPlan);
+  return run.replan(results);
 }
 
 // ---------------------------------------------------------------------------
@@ -230,7 +92,7 @@ export function createReplanTool(
         data.steps,
       );
       const previousResults = store.results;
-      store.setPlan(revised);
+      replacePlan(store, revised);
       const inspection = budget.snapshot();
       const inputSummary = summarizeInput({
         reason: data.reason,
