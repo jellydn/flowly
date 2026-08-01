@@ -1,4 +1,5 @@
 import { defineTool, type ToolDefinition } from '@flue/runtime';
+import { invokeTool } from './tool-invocation.ts';
 import type { DebugLogger, InspectionMetadata, StepBudget } from '../tools/repository.ts';
 import { summarizeInput, wrapWithBudget } from '../tools/repository.ts';
 import { classifyError, type ReliabilityError } from './errors.ts';
@@ -74,13 +75,11 @@ export function wrapToolWithReliability(
                 ? signal
                 : retrySignal;
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const rawOutput = await rawTool.run({
+            const rawOutput = await invokeTool<unknown>(rawTool, {
               toolCallId: `retry-${rawTool.name}`,
-              log: { info() {}, warn() {}, error() {} },
-              data: data as any,
+              data: data as Record<string, unknown>,
               signal: combinedSignal,
-            } as any);
+            });
 
             if (injector.shouldMalform(rawTool.name)) {
               return {
@@ -90,10 +89,7 @@ export function wrapToolWithReliability(
               };
             }
 
-            // Unwrap the v2 tool envelope { output: value }
-            return typeof rawOutput === 'object' && rawOutput !== null && 'output' in rawOutput
-              ? (rawOutput as any).output
-              : rawOutput;
+            return rawOutput;
           },
           retryConfig,
           reliabilityLog,

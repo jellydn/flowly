@@ -1,4 +1,5 @@
 import type { ToolDefinition } from '@flue/runtime';
+import { invokeTool } from '../reliability/tool-invocation.ts';
 import type { StepBudget } from '../tools/repository.ts';
 import type {
   DecisionFn,
@@ -109,16 +110,10 @@ export async function runInvestigation(
 
     // Execute and collect evidence
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rawOutput = await tool.run({
+      const result = await invokeTool<unknown>(tool, {
         toolCallId: `investigation-${action.tool}-${Date.now()}`,
-        log: { info() {}, warn() {}, error() {} },
-        data: action.input as any,
-      } as any);
-      const result = typeof rawOutput === 'object' && rawOutput !== null && 'output' in rawOutput
-        ? (rawOutput as any).output
-        : rawOutput;
+        data: action.input,
+      });
       extractEvidence(action.tool, result, collector);
     } catch (error) {
       errors.push(

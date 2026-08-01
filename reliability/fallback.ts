@@ -1,4 +1,5 @@
 import { defineTool, type ToolDefinition } from '@flue/runtime';
+import { invokeTool } from './tool-invocation.ts';
 import * as v from 'valibot';
 import type { DebugLogger, InspectionMetadata, StepBudget } from '../tools/repository.ts';
 import { summarizeInput } from '../tools/repository.ts';
@@ -52,16 +53,11 @@ export async function executeWithFallback(
     const result = await runWithRetry(
       operation,
       async (signal) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const rawOutput = await primaryTool.run({
+        return invokeTool<unknown>(primaryTool, {
           toolCallId: `fallback-${operation}`,
-          log: { info() {}, warn() {}, error() {} },
-          data: input as any,
+          data: input,
           signal,
-        } as any);
-        return typeof rawOutput === 'object' && rawOutput !== null && 'output' in rawOutput
-          ? (rawOutput as any).output
-          : rawOutput;
+        });
       },
       retryConfig,
       reliabilityLog,
@@ -121,16 +117,11 @@ export async function executeWithFallback(
         const fallbackResult = await runWithRetry(
           `${operation}:fallback`,
           async (signal) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const rawOutput = await fallbackTool.run({
+            return invokeTool<unknown>(fallbackTool, {
               toolCallId: `fallback-${operation}-secondary`,
-              log: { info() {}, warn() {}, error() {} },
-              data: { path: knownPath, startLine: 1 } as any,
+              data: { path: knownPath, startLine: 1 },
               signal,
-            } as any);
-            return typeof rawOutput === 'object' && rawOutput !== null && 'output' in rawOutput
-              ? (rawOutput as any).output
-              : rawOutput;
+            });
           },
           retryConfig,
           reliabilityLog,

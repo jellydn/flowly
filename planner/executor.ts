@@ -3,6 +3,7 @@ import * as v from 'valibot';
 import type { ToolDefinition } from '@flue/runtime';
 import type { DebugLogger, StepBudget } from '../tools/repository.ts';
 import { summarizeInput } from '../tools/repository.ts';
+import { invokeTool } from '../reliability/tool-invocation.ts';
 import type { PlanStore } from './plan-store.ts';
 import { normalizePlan } from './planner.ts';
 import type {
@@ -65,16 +66,11 @@ export async function executePlan(
 
     try {
       signal?.throwIfAborted();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rawOutput = await tool.run({
+      const output = await invokeTool<unknown>(tool, {
         toolCallId: `exec-${step.id}`,
-        log: { info() {}, warn() {}, error() {} },
-        data: step.input as Record<string, any>,
+        data: step.input,
         signal,
-      } as any);
-      const output = typeof rawOutput === 'object' && rawOutput !== null && 'output' in rawOutput
-        ? (rawOutput as any).output
-        : rawOutput;
+      });
       const status: ExecutionStatus = isEmptyResult(step.tool, output)
         ? 'empty'
         : 'success';
