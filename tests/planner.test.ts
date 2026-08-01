@@ -27,6 +27,7 @@ import {
   reflectOnPlan,
 } from '../planner/reflection.ts';
 import type { ExecutionResult, Plan, PlanReflection, PlanStep } from '../planner/types.ts';
+import type { ToolExecutionOutcome } from '../investigation/tool-execution.ts';
 import { createSampleRepo, removeRepo, runTool } from './helpers.ts';
 
 const noDebug = () => createDebugLogger(false);
@@ -129,7 +130,7 @@ describe('executePlan', () => {
   });
 
   test('normalizes invocation failures through the shared result protocol', async () => {
-    let observed: unknown;
+    let observed: ToolExecutionOutcome | undefined;
     const result = await runExecutionLoop(
       {
         read_file: {
@@ -163,11 +164,14 @@ describe('executePlan', () => {
     );
 
     assert.deepEqual(result, { reason: 'done', iterations: 1 });
-    assert.deepEqual(observed, {
-      ok: false,
-      tool: 'read_file',
-      error: 'tool failed',
-    });
+    assert.ok(observed);
+    assert.equal(observed.ok, false);
+    if (!observed.ok) {
+      assert.equal(observed.tool, 'read_file');
+      assert.equal(observed.error, 'tool failed');
+    }
+    assert.equal(observed.metadata.toolCallId, 'shared-error');
+    assert.ok(observed.metadata.durationMs >= 0);
   });
 
   test('stops after adapter preflight rejects a call', async () => {
@@ -196,11 +200,12 @@ describe('executePlan', () => {
           };
         },
         onResult(_action, call) {
-          assert.deepEqual(call, {
-            ok: false,
-            tool: 'read_file',
-            error: 'Inspection budget exhausted',
-          });
+          assert.equal(call.ok, false);
+          if (!call.ok) {
+            assert.equal(call.tool, 'read_file');
+            assert.equal(call.error, 'Inspection budget exhausted');
+          }
+          assert.equal(call.metadata.toolCallId, 'shared-budget');
           return 'budget exhausted';
         },
         finish(reason, iterations) {
