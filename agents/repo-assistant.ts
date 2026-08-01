@@ -2,16 +2,12 @@
 import { useModel, useTool, useSandbox, useSkill } from '@flue/runtime';
 import { restrictedSandbox } from '../sandbox.ts';
 import repositoryAnalysis from '../skills/analyzing-repositories/SKILL.md';
-import { createListFilesTool } from '../tools/list-files.ts';
-import { createReadFileTool } from '../tools/read-file.ts';
 import {
   createDebugLogger,
   createRepositoryReaderSync,
   createStepBudget,
   parseMaxSteps,
 } from '../tools/repository.ts';
-import { createSearchCodeTool } from '../tools/search-code.ts';
-import { createSearchDocsTool } from '../tools/search-docs.ts';
 import { createPlanStore } from '../planner/plan-store.ts';
 import { createPlanTool } from '../planner/planner.ts';
 import { createReplanTool } from '../planner/executor.ts';
@@ -19,7 +15,7 @@ import { createReflectPlanTool } from '../planner/reflection.ts';
 import { createReliabilityLogger } from '../reliability/observability.ts';
 import { createFailureInjector } from '../reliability/failure-injection.ts';
 import { parseRetryConfig } from '../reliability/retry.ts';
-import { createReliableInspectionTool } from '../reliability/resilient-tool.ts';
+import { createInspectionRegistry } from '../tools/inspection-registry.ts';
 
 export const description =
   'Answers architecture and source-code questions about one configured repository using read-only tools. Plans before executing, then reflects on the plan. Retries transient failures with backoff.';
@@ -38,24 +34,16 @@ export function RepoAssistant() {
   const injector = createFailureInjector(env);
   const planStore = createPlanStore();
 
-  // The reliability seam owns raw-tool budget wiring. Each registered tool
-  // consumes one logical inspection call, while retry attempts stay internal.
-  const listFiles = createReliableInspectionTool(
-    (rawBudget, rawDebug) => createListFilesTool(repository, rawBudget, rawDebug),
-    budget, debug, retryConfig, reliabilityLog, injector,
-  );
-  const readFile = createReliableInspectionTool(
-    (rawBudget, rawDebug) => createReadFileTool(repository, rawBudget, rawDebug),
-    budget, debug, retryConfig, reliabilityLog, injector,
-  );
-  const searchCode = createReliableInspectionTool(
-    (rawBudget, rawDebug) => createSearchCodeTool(repository, rawBudget, rawDebug),
-    budget, debug, retryConfig, reliabilityLog, injector,
-  );
-  const searchDocs = createReliableInspectionTool(
-    (rawBudget, rawDebug) => createSearchDocsTool(repository, rawBudget, rawDebug),
-    budget, debug, retryConfig, reliabilityLog, injector,
-  );
+  // The registry owns raw-tool construction, reliability wrapping, and the
+  // single ordered list used for live tool registration.
+  const inspectionRegistry = createInspectionRegistry({
+    repository,
+    budget,
+    debug,
+    retryConfig,
+    reliabilityLog,
+    injector,
+  });
 
   useModel(env.REPO_ASSISTANT_MODEL ?? 'openrouter/qwen/qwen3-coder');
 
@@ -64,10 +52,7 @@ export function RepoAssistant() {
   useTool(createReplanTool(planStore, budget, debug));
   useTool(createReflectPlanTool(planStore, budget, debug));
   // Inspection tools (consume shared budget, wrapped with reliability)
-  useTool(listFiles);
-  useTool(readFile);
-  useTool(searchCode);
-  useTool(searchDocs);
+  for (const tool of inspectionRegistry.list) useTool(tool);
 
   useSandbox(restrictedSandbox);
   useSkill(repositoryAnalysis);
