@@ -1,14 +1,15 @@
 import type { ToolDefinition } from '@flue/runtime';
+import { invokeTool } from '../reliability/tool-invocation.ts';
+
+export {
+  invokeTool,
+  unwrapToolOutput,
+  type ToolInvocation,
+} from '../reliability/tool-invocation.ts';
 
 export type ToolRegistry =
   | Map<string, ToolDefinition>
   | Partial<Record<string, ToolDefinition>>;
-
-export type ToolInvocation = {
-  toolCallId: string;
-  data: Record<string, unknown>;
-  signal?: AbortSignal;
-};
 
 export type ToolExecutionMetadata = {
   toolCallId: string;
@@ -24,46 +25,11 @@ export type ToolExecutionOutcome =
   | ({ ok: true; tool: string; output: unknown } & { metadata: ToolExecutionMetadata })
   | ({ ok: false; tool: string; error: string } & { metadata: ToolExecutionMetadata });
 
-const silentLog = {
-  info() {},
-  warn() {},
-  error() {},
-};
-
-type ToolContext = Parameters<ToolDefinition['run']>[0];
-
 export function resolveTool(
   tools: ToolRegistry,
   toolName: string,
 ): ToolDefinition | undefined {
   return tools instanceof Map ? tools.get(toolName) : tools[toolName];
-}
-
-/**
- * Invoke one Flue v2 tool and return its payload rather than the framework's
- * `{ output: value }` envelope. The framework-specific context cast lives at
- * this seam so callers only provide a tool, call id, input, and signal.
- */
-export async function invokeTool<T>(
-  tool: ToolDefinition,
-  invocation: ToolInvocation,
-): Promise<T> {
-  const context = {
-    toolCallId: invocation.toolCallId,
-    log: silentLog,
-    data: invocation.data,
-    signal: invocation.signal,
-  } as ToolContext;
-  const raw = await tool.run(context) as unknown;
-  return unwrapToolOutput<T>(raw);
-}
-
-/** Unwrap a Flue v2 tool result while tolerating legacy raw payloads. */
-export function unwrapToolOutput<T>(raw: unknown): T {
-  if (raw && typeof raw === 'object' && 'output' in raw) {
-    return (raw as { output: T }).output;
-  }
-  return raw as T;
 }
 
 /**
