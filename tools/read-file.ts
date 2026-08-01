@@ -7,8 +7,9 @@ import type {
   StepBudget,
 } from './repository.ts';
 import { markBudgetFreeTool, noInspectionBudget, summarizeInput, wrapWithBudget } from './repository.ts';
+import { TOOL_LIMITS } from './contracts.ts';
 
-const MAX_RETURNED_LINES = 400;
+const { maxPathLength: MAX_PATH_LENGTH, maxReturnedLines: MAX_RETURNED_LINES } = TOOL_LIMITS;
 
 export function createReadFileTool(
   repository: RepositoryReader,
@@ -18,9 +19,9 @@ export function createReadFileTool(
   const tool = defineTool({
     name: 'read_file',
     description:
-      'Read a bounded line range from one text file inside the configured repository. Use when an exact file path is already known and surrounding context is needed. Returns numbered lines, total line count, and an inspection budget snapshot. At most 400 lines are returned per call.',
+      `Read a bounded line range from one text file inside the configured repository. Use when an exact file path is already known and surrounding context is needed. Returns numbered lines, total line count, and an inspection budget snapshot. At most ${MAX_RETURNED_LINES} lines are returned per call.`,
     input: v.object({
-      path: v.pipe(v.string(), v.minLength(1), v.maxLength(500)),
+      path: v.pipe(v.string(), v.minLength(1), v.maxLength(MAX_PATH_LENGTH)),
       startLine: v.optional(
         v.pipe(v.number(), v.integer(), v.minValue(1)),
         1,

@@ -8,6 +8,7 @@ import type {
 } from './repository.ts';
 import { markBudgetFreeTool, noInspectionBudget, summarizeInput, wrapWithBudget } from './repository.ts';
 import { searchFiles } from './search-utils.ts';
+import { TOOL_LIMITS } from './contracts.ts';
 
 /**
  * search_docs — search documentation files (Markdown, text, README, AGENTS,
@@ -28,8 +29,8 @@ export function createSearchDocsTool(
     description:
       'Search documentation files (Markdown, text, README, AGENTS, CHANGELOG, docs/**) for a literal string. Use when looking for documented architecture, configuration, or design explanations whose path is unknown. Returns matching repository-relative paths, line numbers, and line excerpts, plus an inspection budget snapshot. Excludes dependencies and generated build output. Results are leads—read the matching documentation before drawing conclusions.',
     input: v.object({
-      query: v.pipe(v.string(), v.minLength(2), v.maxLength(200)),
-      path: v.optional(v.pipe(v.string(), v.maxLength(500)), '.'),
+      query: v.pipe(v.string(), v.minLength(2), v.maxLength(TOOL_LIMITS.maxQueryLength)),
+      path: v.optional(v.pipe(v.string(), v.maxLength(TOOL_LIMITS.maxPathLength)), '.'),
       caseSensitive: v.optional(v.boolean(), false),
     }),
     async run({ data, signal }) {

@@ -1,6 +1,8 @@
 import type { RepositoryReader } from './repository.ts';
+import { TOOL_LIMITS } from './contracts.ts';
 
-const MAX_MATCHES = 50;
+const MAX_MATCHES = TOOL_LIMITS.maxSearchMatches;
+const MAX_EXCERPT_LENGTH = TOOL_LIMITS.maxSearchExcerptLength;
 
 type SearchMatch = {
   path: string;
@@ -40,7 +42,7 @@ export async function searchFiles(
       matches.push({
         path: file,
         line: index + 1,
-        excerpt: lines[index].trim().slice(0, 300),
+        excerpt: lines[index].trim().slice(0, MAX_EXCERPT_LENGTH),
       });
       if (matches.length >= MAX_MATCHES) {
         return { matches, truncated: true };

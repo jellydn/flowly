@@ -1,8 +1,9 @@
 import type { Evidence, EvidenceSourceType } from './types.ts';
 import path from 'node:path';
+import { TOOL_LIMITS } from '../tools/contracts.ts';
 
-const MAX_EVIDENCE_ITEMS = 30;
-const MAX_EXCERPT_LENGTH = 500;
+const MAX_EVIDENCE_ITEMS = TOOL_LIMITS.maxEvidenceItems;
+const MAX_EXCERPT_LENGTH = TOOL_LIMITS.maxEvidenceExcerptLength;
 
 const DOC_EXTENSIONS = new Set(['.md', '.markdown', '.txt']);
 
