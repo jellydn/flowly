@@ -1,9 +1,8 @@
 import { defineTool } from '@flue/runtime';
 import * as v from 'valibot';
-import type { ToolDefinition } from '@flue/runtime';
 import type { DebugLogger, StepBudget } from '../tools/repository.ts';
 import { summarizeInput } from '../tools/repository.ts';
-import { invokeTool } from '../reliability/tool-invocation.ts';
+import { executeToolCall, type ToolRegistry } from '../investigation/tool-call.ts';
 import type { PlanStore } from './plan-store.ts';
 import { normalizePlan } from './planner.ts';
 import type {
@@ -24,11 +23,16 @@ import type {
  */
 export async function executePlan(
   plan: Plan,
-  tools: Partial<Record<PlanTool, ToolDefinition>>,
+  tools: ToolRegistry,
   budget: StepBudget,
   debug: DebugLogger,
   signal?: AbortSignal,
 ): Promise<ExecutionResult[]> {
+  // Retain the stable executor signature while the shared call seam owns
+  // invocation policy; these parameters remain available to future policy
+  // adapters without reintroducing direct tool execution here.
+  void budget;
+  void debug;
   const results: ExecutionResult[] = [];
 
   for (const step of plan.steps) {
@@ -43,17 +47,6 @@ export async function executePlan(
       break;
     }
 
-    const tool = tools[step.tool];
-    if (!tool) {
-      results.push({
-        stepId: step.id,
-        status: 'error',
-        tool: step.tool,
-        summary: `Tool ${step.tool} not available`,
-      });
-      continue;
-    }
-
     if (!step.input || Object.keys(step.input).length === 0) {
       results.push({
         stepId: step.id,
@@ -66,11 +59,23 @@ export async function executePlan(
 
     try {
       signal?.throwIfAborted();
-      const output = await invokeTool<unknown>(tool, {
-        toolCallId: `exec-${step.id}`,
-        data: step.input,
+      const call = await executeToolCall(
+        tools,
+        step.tool,
+        step.input,
+        `exec-${step.id}`,
         signal,
-      });
+      );
+      if (!call.ok) {
+        results.push({
+          stepId: step.id,
+          status: 'error',
+          tool: step.tool,
+          summary: call.error,
+        });
+        continue;
+      }
+      const output = call.output;
       const status: ExecutionStatus = isEmptyResult(step.tool, output)
         ? 'empty'
         : 'success';

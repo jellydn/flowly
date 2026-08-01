@@ -1,5 +1,5 @@
 import type { ToolDefinition } from '@flue/runtime';
-import { invokeTool } from '../reliability/tool-invocation.ts';
+import { executeToolCall, type ToolRegistry } from './tool-call.ts';
 import type { StepBudget } from '../tools/repository.ts';
 import type {
   DecisionFn,
@@ -36,7 +36,7 @@ export type InvestigationOptions = {
  */
 export async function runInvestigation(
   question: string,
-  tools: Map<string, ToolDefinition>,
+  tools: ToolRegistry,
   budget: StepBudget,
   decide: DecisionFn,
   options: InvestigationOptions = {},
@@ -85,40 +85,34 @@ export async function runInvestigation(
       continue;
     }
 
-    // Check tool exists
-    const tool = tools.get(action.tool);
-    if (!tool) {
-      errors.push(`Unknown or unsupported tool: ${action.tool}`);
-      iteration += 1;
-      continue;
-    }
-
-    // Check budget
-    if (budget.remaining <= 0) {
-      errors.push('Inspection budget exhausted');
+    // Resolve the tool before applying budget policy. The shared call seam
+    // owns lookup; its preflight hook keeps quota policy ahead of invocation.
+    const call = await executeToolCall(
+      tools,
+      action.tool,
+      action.input,
+      `investigation-${action.tool}-${Date.now()}`,
+      undefined,
+      () => budget.remaining <= 0 ? 'Inspection budget exhausted' : undefined,
+      () => {
+        tracker.record({
+          tool: action.tool,
+          input: action.input,
+          timestamp: Date.now(),
+        });
+        if (!toolsUsed.includes(action.tool)) toolsUsed.push(action.tool);
+      },
+    );
+    if (!call.ok && call.error === 'Inspection budget exhausted') {
+      errors.push(call.error);
       stopReason = 'budget exhausted';
       break;
     }
 
-    // Record the call
-    tracker.record({
-      tool: action.tool,
-      input: action.input,
-      timestamp: Date.now(),
-    });
-    if (!toolsUsed.includes(action.tool)) toolsUsed.push(action.tool);
-
-    // Execute and collect evidence
-    try {
-      const result = await invokeTool<unknown>(tool, {
-        toolCallId: `investigation-${action.tool}-${Date.now()}`,
-        data: action.input,
-      });
-      extractEvidence(action.tool, result, collector);
-    } catch (error) {
-      errors.push(
-        `${action.tool} failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
+    if (!call.ok) {
+      errors.push(call.error);
+    } else {
+      extractEvidence(action.tool, call.output, collector);
     }
 
     iteration += 1;
