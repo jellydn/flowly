@@ -17,6 +17,11 @@ import type {
   PlanTool,
 } from './types.ts';
 
+type PlannerExecutionMetadata = {
+  stepId: number;
+  tool: PlanTool;
+};
+
 /**
  * Programmatic executor: run each plan step against the matching tool.
  *
@@ -31,7 +36,7 @@ export async function executePlan(
   signal?: AbortSignal,
 ): Promise<ExecutionResult[]> {
   const results: ExecutionResult[] = [];
-  const adapter: ExecutionLoopAdapter<ExecutionResult[]> = {
+  const adapter: ExecutionLoopAdapter<ExecutionResult[], PlannerExecutionMetadata> = {
     next(iteration) {
       const step = plan.steps[iteration];
       if (!step) return { type: 'stop', reason: 'completed' };
@@ -48,7 +53,7 @@ export async function executePlan(
         return {
           type: 'skip',
           tool: step.tool,
-          stepId: step.id,
+          metadata: { stepId: step.id, tool: step.tool },
           reason: 'No concrete input; skipped in programmatic execution',
         };
       }
@@ -57,21 +62,19 @@ export async function executePlan(
         tool: step.tool,
         input: step.input,
         toolCallId: `exec-${step.id}`,
-        stepId: step.id,
+        metadata: { stepId: step.id, tool: step.tool },
       };
     },
     onSkip(action) {
-      const tool = action.tool as PlanTool;
       results.push({
-        stepId: requireStepId(action),
+        stepId: action.metadata.stepId,
         status: 'skipped',
-        tool,
+        tool: action.metadata.tool,
         summary: action.reason,
       });
     },
     onResult(action, call) {
-      const tool = action.tool as PlanTool;
-      const stepId = requireStepId(action);
+      const { stepId, tool } = action.metadata;
       if (!call.ok) {
         results.push({
           stepId,
@@ -117,12 +120,6 @@ export function isEmptyResult(tool: PlanTool, output: unknown): boolean {
   return false;
 }
 
-function requireStepId(action: { stepId?: number }): number {
-  if (action.stepId === undefined) {
-    throw new Error('Planner execution action is missing a step ID');
-  }
-  return action.stepId;
-}
 
 function summarizeResult(tool: PlanTool, output: unknown): string {
   if (tool === 'search_code' || tool === 'search_docs') {

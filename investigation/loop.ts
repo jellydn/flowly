@@ -20,6 +20,7 @@ import {
 import { formatAnswer } from './answer.ts';
 
 export const DEFAULT_MAX_ITERATIONS = 5;
+const INSPECTION_BUDGET_EXHAUSTED = 'Inspection budget exhausted';
 
 export type InvestigationOptions = {
   maxIterations?: number;
@@ -51,6 +52,7 @@ export async function runInvestigation(
   const tracker = createCallTracker();
   const errors: string[] = [];
   const toolsUsed: string[] = [];
+  let budgetRejected = false;
   const adapter: ExecutionLoopAdapter<InvestigationResult> = {
     async next(iteration) {
       const state: InvestigationState = {
@@ -88,8 +90,11 @@ export async function runInvestigation(
         type: 'call',
         tool: action.tool,
         input: action.input,
-        toolCallId: `investigation-${action.tool}-${Date.now()}`,
-        preflight: () => budget.remaining <= 0 ? 'Inspection budget exhausted' : undefined,
+        toolCallId: `investigation-${iteration}-${action.tool}`,
+        preflight: () => {
+          budgetRejected = budget.remaining <= 0;
+          return budgetRejected ? INSPECTION_BUDGET_EXHAUSTED : undefined;
+        },
         onResolved: () => {
           tracker.record({
             tool: action.tool,
@@ -106,9 +111,9 @@ export async function runInvestigation(
     onResult(action, call) {
       if (!call.ok) {
         errors.push(call.error);
-        return call.error === 'Inspection budget exhausted'
-          ? 'budget exhausted'
-          : undefined;
+        const stopReason = budgetRejected ? 'budget exhausted' : undefined;
+        budgetRejected = false;
+        return stopReason;
       }
       extractEvidence(action.tool, call.output, collector);
       return undefined;

@@ -16,25 +16,33 @@ export type ToolCallResult =
   | { ok: true; tool: string; output: unknown }
   | { ok: false; tool: string; error: string };
 
-export type ToolExecutionCall = {
+type WithMetadata<Metadata> = [Metadata] extends [never]
+  ? { metadata?: never }
+  : { metadata: Metadata };
+
+export type ToolExecutionCall<Metadata = never> = {
   type: 'call';
   tool: string;
   input: Record<string, unknown>;
   toolCallId: string;
-  stepId?: number;
   preflight?: () => string | undefined;
   onResolved?: () => void;
-};
+} & WithMetadata<Metadata>;
 
-export type ToolExecutionAction =
-  | ToolExecutionCall
-  | { type: 'skip'; tool: string; reason: string; stepId?: number }
+export type ToolExecutionAction<Metadata = never> =
+  | ToolExecutionCall<Metadata>
+  | ({ type: 'skip'; tool: string; reason: string } & WithMetadata<Metadata>)
   | { type: 'stop'; reason: string };
 
-export type ExecutionLoopAdapter<Result> = {
-  next(iteration: number): Promise<ToolExecutionAction> | ToolExecutionAction;
-  onResult(action: ToolExecutionCall, result: ToolCallResult): string | undefined;
-  onSkip?(action: Extract<ToolExecutionAction, { type: 'skip' }>): void;
+export type ExecutionLoopAdapter<Result, Metadata = never> = {
+  next(iteration: number):
+    | Promise<ToolExecutionAction<Metadata>>
+    | ToolExecutionAction<Metadata>;
+  onResult(
+    action: ToolExecutionCall<Metadata>,
+    result: ToolCallResult,
+  ): string | undefined;
+  onSkip?(action: Extract<ToolExecutionAction<Metadata>, { type: 'skip' }>): void;
   finish(reason: string, iterations: number): Result;
 };
 
@@ -43,9 +51,9 @@ export type ExecutionLoopAdapter<Result> = {
  * The adapters choose what to do and interpret results; this module owns
  * iteration limits, cancellation, invocation, and the common call seam.
  */
-export async function runExecutionLoop<Result>(
+export async function runExecutionLoop<Result, Metadata = never>(
   tools: ToolRegistry,
-  adapter: ExecutionLoopAdapter<Result>,
+  adapter: ExecutionLoopAdapter<Result, Metadata>,
   options: { maxIterations: number; signal?: AbortSignal },
 ): Promise<Result> {
   let iteration = 0;

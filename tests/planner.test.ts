@@ -262,7 +262,35 @@ describe('executePlan', () => {
     );
     await started;
     controller.abort(new Error('cancelled'));
-    await assert.rejects(promise, /cancel/i);
+    await assert.rejects(promise, /shared operation cancelled/);
+  });
+
+  test('finishes when the shared loop reaches max iterations', async () => {
+    const result = await runExecutionLoop(
+      {},
+      {
+        next() {
+          return {
+            type: 'call',
+            tool: 'read_file',
+            input: { path: 'src/auth.ts' },
+            toolCallId: 'max-iterations',
+          };
+        },
+        onResult() {
+          return undefined;
+        },
+        finish(reason, iterations) {
+          return { reason, iterations };
+        },
+      },
+      { maxIterations: 2 },
+    );
+
+    assert.deepEqual(result, {
+      reason: 'max iterations reached',
+      iterations: 2,
+    });
   });
 
   test('executes a search → read plan against the fixture repo', async () => {
