@@ -1,5 +1,9 @@
 import type { ToolDefinition } from '@flue/runtime';
-import { executeToolCall, type ToolRegistry } from './tool-call.ts';
+import {
+  runExecutionLoop,
+  type ExecutionLoopAdapter,
+  type ToolRegistry,
+} from './tool-call.ts';
 import type { StepBudget } from '../tools/repository.ts';
 import type {
   DecisionFn,
@@ -47,97 +51,86 @@ export async function runInvestigation(
   const tracker = createCallTracker();
   const errors: string[] = [];
   const toolsUsed: string[] = [];
-  let iteration = 0;
-  let stopReason = '';
+  const adapter: ExecutionLoopAdapter<InvestigationResult> = {
+    async next(iteration) {
+      const state: InvestigationState = {
+        question,
+        iteration,
+        maxIterations,
+        evidence: collector.items,
+        budget: budget.snapshot(),
+        errors: [...errors],
+        callHistory: tracker.history,
+      };
 
-  while (iteration < maxIterations) {
-    options.signal?.throwIfAborted();
-    const state: InvestigationState = {
-      question,
-      iteration,
-      maxIterations,
-      evidence: collector.items,
-      budget: budget.snapshot(),
-      errors: [...errors],
-      callHistory: tracker.history,
-    };
+      let action: InvestigationAction;
+      try {
+        action = await decide(state);
+      } catch (error) {
+        if (options.signal?.aborted) throw error;
+        errors.push(
+          `Decision function failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        return { type: 'stop', reason: 'decision error' };
+      }
 
-    let action: InvestigationAction;
-    try {
-      action = await decide(state);
-      options.signal?.throwIfAborted();
-    } catch (error) {
-      if (options.signal?.aborted) throw error;
-      errors.push(
-        `Decision function failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      stopReason = 'decision error';
-      break;
-    }
-
-    if (action.type === 'stop') {
-      stopReason = action.reason;
-      break;
-    }
-
-    // Block duplicate calls
-    if (tracker.has(action.tool, action.input)) {
-      errors.push(
-        `Duplicate call blocked: ${action.tool} with identical arguments`,
-      );
-      iteration += 1;
-      continue;
-    }
-
-    // Resolve the tool before applying budget policy. The shared call seam
-    // owns lookup; its preflight hook keeps quota policy ahead of invocation.
-    const call = await executeToolCall(
-      tools,
-      action.tool,
-      action.input,
-      `investigation-${action.tool}-${Date.now()}`,
-      options.signal,
-      () => budget.remaining <= 0 ? 'Inspection budget exhausted' : undefined,
-      () => {
-        tracker.record({
+      if (action.type === 'stop') {
+        return action;
+      }
+      if (tracker.has(action.tool, action.input)) {
+        return {
+          type: 'skip',
           tool: action.tool,
-          input: action.input,
-          timestamp: Date.now(),
-        });
-        if (!toolsUsed.includes(action.tool)) toolsUsed.push(action.tool);
-      },
-    );
-    if (!call.ok && call.error === 'Inspection budget exhausted') {
-      errors.push(call.error);
-      stopReason = 'budget exhausted';
-      break;
-    }
-
-    if (!call.ok) {
-      errors.push(call.error);
-    } else {
+          reason: `Duplicate call blocked: ${action.tool} with identical arguments`,
+        };
+      }
+      return {
+        type: 'call',
+        tool: action.tool,
+        input: action.input,
+        toolCallId: `investigation-${action.tool}-${Date.now()}`,
+        preflight: () => budget.remaining <= 0 ? 'Inspection budget exhausted' : undefined,
+        onResolved: () => {
+          tracker.record({
+            tool: action.tool,
+            input: action.input,
+            timestamp: Date.now(),
+          });
+          if (!toolsUsed.includes(action.tool)) toolsUsed.push(action.tool);
+        },
+      };
+    },
+    onSkip(action) {
+      errors.push(action.reason);
+    },
+    onResult(action, call) {
+      if (!call.ok) {
+        errors.push(call.error);
+        return call.error === 'Inspection budget exhausted'
+          ? 'budget exhausted'
+          : undefined;
+      }
       extractEvidence(action.tool, call.output, collector);
-    }
-
-    iteration += 1;
-  }
-
-  if (!stopReason) {
-    stopReason =
-      iteration >= maxIterations ? 'max iterations reached' : 'completed';
-  }
-
-  const answer = formatAnswer(question, collector.items, toolsUsed, errors);
-
-  return {
-    answer,
-    iterations: iteration,
-    evidence: collector.items,
-    errors,
-    toolsUsed,
-    stopReason,
-    callHistory: tracker.history,
+      return undefined;
+    },
+    finish(reason, iterations) {
+      const answer = formatAnswer(question, collector.items, toolsUsed, errors);
+      return {
+        answer,
+        iterations,
+        evidence: collector.items,
+        errors,
+        toolsUsed,
+        stopReason: reason,
+        callHistory: tracker.history,
+      };
+    },
   };
+
+  return runExecutionLoop(tools, adapter, {
+    maxIterations,
+    signal: options.signal,
+  });
 }
 
 /** Convenience: build a tools map from a record of tool definitions. */

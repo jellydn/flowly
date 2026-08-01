@@ -16,6 +16,71 @@ export type ToolCallResult =
   | { ok: true; tool: string; output: unknown }
   | { ok: false; tool: string; error: string };
 
+export type ToolExecutionCall = {
+  type: 'call';
+  tool: string;
+  input: Record<string, unknown>;
+  toolCallId: string;
+  stepId?: number;
+  preflight?: () => string | undefined;
+  onResolved?: () => void;
+};
+
+export type ToolExecutionAction =
+  | ToolExecutionCall
+  | { type: 'skip'; tool: string; reason: string; stepId?: number }
+  | { type: 'stop'; reason: string };
+
+export type ExecutionLoopAdapter<Result> = {
+  next(iteration: number): Promise<ToolExecutionAction> | ToolExecutionAction;
+  onResult(action: ToolExecutionCall, result: ToolCallResult): string | undefined;
+  onSkip?(action: Extract<ToolExecutionAction, { type: 'skip' }>): void;
+  finish(reason: string, iterations: number): Result;
+};
+
+/**
+ * Run one bounded execution protocol for planner and investigation adapters.
+ * The adapters choose what to do and interpret results; this module owns
+ * iteration limits, cancellation, invocation, and the common call seam.
+ */
+export async function runExecutionLoop<Result>(
+  tools: ToolRegistry,
+  adapter: ExecutionLoopAdapter<Result>,
+  options: { maxIterations: number; signal?: AbortSignal },
+): Promise<Result> {
+  let iteration = 0;
+
+  while (iteration < options.maxIterations) {
+    options.signal?.throwIfAborted();
+    const action = await adapter.next(iteration);
+    options.signal?.throwIfAborted();
+
+    if (action.type === 'stop') {
+      return adapter.finish(action.reason, iteration);
+    }
+    if (action.type === 'skip') {
+      adapter.onSkip?.(action);
+      iteration += 1;
+      continue;
+    }
+
+    const result = await executeToolCall(
+      tools,
+      action.tool,
+      action.input,
+      action.toolCallId,
+      options.signal,
+      action.preflight,
+      action.onResolved,
+    );
+    const stopReason = adapter.onResult(action, result);
+    iteration += 1;
+    if (stopReason) return adapter.finish(stopReason, iteration);
+  }
+
+  return adapter.finish('max iterations reached', iteration);
+}
+
 /**
  * Resolve and invoke one repository tool through the common call/result seam.
  * Callers keep their own policy (planning status, duplicate blocking, or

@@ -2,7 +2,11 @@ import { defineTool } from '@flue/runtime';
 import * as v from 'valibot';
 import type { DebugLogger, StepBudget } from '../tools/repository.ts';
 import { summarizeInput } from '../tools/repository.ts';
-import { executeToolCall, type ToolRegistry } from '../investigation/tool-call.ts';
+import {
+  runExecutionLoop,
+  type ExecutionLoopAdapter,
+  type ToolRegistry,
+} from '../investigation/tool-call.ts';
 import type { PlanStore } from './plan-store.ts';
 import { normalizePlan } from './planner.ts';
 import type {
@@ -27,66 +31,74 @@ export async function executePlan(
   signal?: AbortSignal,
 ): Promise<ExecutionResult[]> {
   const results: ExecutionResult[] = [];
-
-  for (const step of plan.steps) {
-    signal?.throwIfAborted();
-    if (step.tool === 'answer') {
-      const result: ExecutionResult = {
-        stepId: step.id,
-        status: 'success',
-        tool: 'answer',
-        summary: 'Final answer step (no tool call needed)',
-      };
-      results.push(result);
-      break;
-    }
-
-    if (!step.input || Object.keys(step.input).length === 0) {
-      results.push({
-        stepId: step.id,
-        status: 'skipped',
-        tool: step.tool,
-        summary: 'No concrete input; skipped in programmatic execution',
-      });
-      continue;
-    }
-
-    try {
-      signal?.throwIfAborted();
-      const call = await executeToolCall(
-        tools,
-        step.tool,
-        step.input,
-        `exec-${step.id}`,
-        signal,
-      );
-      if (!call.ok) {
+  const adapter: ExecutionLoopAdapter<ExecutionResult[]> = {
+    next(iteration) {
+      const step = plan.steps[iteration];
+      if (!step) return { type: 'stop', reason: 'completed' };
+      if (step.tool === 'answer') {
         results.push({
           stepId: step.id,
-          status: 'error',
+          status: 'success',
+          tool: 'answer',
+          summary: 'Final answer step (no tool call needed)',
+        });
+        return { type: 'stop', reason: 'completed' };
+      }
+      if (!step.input || Object.keys(step.input).length === 0) {
+        return {
+          type: 'skip',
           tool: step.tool,
+          stepId: step.id,
+          reason: 'No concrete input; skipped in programmatic execution',
+        };
+      }
+      return {
+        type: 'call',
+        tool: step.tool,
+        input: step.input,
+        toolCallId: `exec-${step.id}`,
+        stepId: step.id,
+      };
+    },
+    onSkip(action) {
+      results.push({
+        stepId: action.stepId ?? results.length + 1,
+        status: 'skipped',
+        tool: action.tool as PlanTool,
+        summary: action.reason,
+      });
+    },
+    onResult(action, call) {
+      if (!call.ok) {
+        results.push({
+          stepId: action.stepId ?? Number(action.toolCallId.slice('exec-'.length)),
+          status: 'error',
+          tool: action.tool as PlanTool,
           summary: call.error,
         });
-        continue;
+        return;
       }
       const output = call.output;
-      const status: ExecutionStatus = isEmptyResult(step.tool, output)
+      const status: ExecutionStatus = isEmptyResult(action.tool as PlanTool, output)
         ? 'empty'
         : 'success';
-      const summary = summarizeResult(step.tool, output);
-      results.push({ stepId: step.id, status, tool: step.tool, summary, output });
-    } catch (error) {
-      if (signal?.aborted) throw error;
       results.push({
-        stepId: step.id,
-        status: 'error',
-        tool: step.tool,
-        summary: error instanceof Error ? error.message : String(error),
+        stepId: action.stepId ?? Number(action.toolCallId.slice('exec-'.length)),
+        status,
+        tool: action.tool as PlanTool,
+        summary: summarizeResult(action.tool as PlanTool, output),
+        output,
       });
-    }
-  }
+    },
+    finish() {
+      return results;
+    },
+  };
 
-  return results;
+  return runExecutionLoop(tools, adapter, {
+    maxIterations: plan.steps.length,
+    signal,
+  });
 }
 
 /** Detect empty results for replanning decisions. */
