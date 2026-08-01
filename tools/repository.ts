@@ -73,9 +73,9 @@ export type InspectionMetadata = {
 };
 
 /**
- * Shared inspection budget consumed by every list_files, read_file, and
- * search_code call. The snapshot returned by `consume` is attached to each
- * tool result so the model can see whether it may continue.
+ * Shared inspection budget consumed once per logical inspection call. The
+ * reliability seam attaches the snapshot to each tool result so the model can
+ * see whether it may continue.
  */
 export type StepBudget = {
   limit: number;
@@ -159,6 +159,10 @@ export function parseMaxSteps(value: string | undefined): number {
   return parsed;
 }
 
+export function noInspectionBudget(): InspectionMetadata {
+  return { used: 0, remaining: 0, limit: 0 };
+}
+
 export function createStepBudget(max: number): StepBudget {
   let used = 0;
   return {
@@ -181,26 +185,6 @@ export function createStepBudget(max: number): StepBudget {
     snapshot() {
       return { limit: max, used, remaining: max - used };
     },
-  };
-}
-
-/**
- * Create a pass-through budget that returns snapshots without incrementing
- * the counter. Used when wrapping tools with the reliability layer: the
- * wrapper consumes the real budget once per logical call, while the inner
- * raw tool uses this pass-through so retries don't multiply consumption.
- */
-export function createPassThroughBudget(budget: StepBudget): StepBudget {
-  return {
-    limit: budget.limit,
-    get used() {
-      return budget.used;
-    },
-    get remaining() {
-      return budget.remaining;
-    },
-    consume: () => budget.snapshot(),
-    snapshot: () => budget.snapshot(),
   };
 }
 

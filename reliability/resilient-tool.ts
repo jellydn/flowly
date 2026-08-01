@@ -24,14 +24,41 @@ const validators: Record<string, ToolValidator<unknown>> = {
   search_docs: validateSearchDocsResult,
 };
 
+export type InspectionToolFactory = (
+  budget: undefined,
+  debug: DebugLogger,
+) => ToolDefinition;
+
+/**
+ * Build a reliable inspection tool from its raw factory. Budget consumption
+ * belongs to this seam; raw tools perform only the repository operation.
+ */
+export function createReliableInspectionTool(
+  factory: InspectionToolFactory,
+  budget: StepBudget,
+  debug: DebugLogger,
+  retryConfig: RetryConfig,
+  reliabilityLog: ReliabilityLogger,
+  injector: FailureInjector = noFailureInjection,
+  sleep: SleepFn = defaultSleep,
+): ToolDefinition {
+  const rawTool = factory(undefined, debug);
+  return wrapToolWithReliability(
+    rawTool,
+    budget,
+    debug,
+    retryConfig,
+    reliabilityLog,
+    injector,
+    sleep,
+  );
+}
+
 /**
  * Wrap an existing tool's `run` with retry, timeout, output validation, and
  * failure injection. The wrapper consumes exactly one inspection step per
  * *logical* call (not per retry attempt), so retries do not multiply budget
  * consumption.
- *
- * The raw tool must be created with a pass-through budget so its internal
- * `consume()` calls are no-ops; the wrapper consumes the real budget once.
  */
 export function wrapToolWithReliability(
   rawTool: ToolDefinition,
@@ -96,9 +123,11 @@ export function wrapToolWithReliability(
           sleep,
         );
 
+        const normalizedResult = attachInspection(result, inspection);
+
         // Validate the output
         if (validator) {
-          const validation = validator(result);
+          const validation = validator(normalizedResult);
           if (!validation.ok) {
             debug.log({
               tool: rawTool.name,
@@ -114,11 +143,11 @@ export function wrapToolWithReliability(
           tool: rawTool.name,
           status: 'success',
           inputSummary,
-          count: countResult(rawTool.name, result),
+          count: countResult(rawTool.name, normalizedResult),
           inspection,
         });
 
-        return { output: result };
+        return { output: normalizedResult };
       } catch (error) {
         debug.log({
           tool: rawTool.name,
@@ -153,6 +182,13 @@ export class SafeToolError extends Error {
     );
     this.name = 'SafeToolError';
   }
+}
+
+function attachInspection(result: unknown, inspection: InspectionMetadata): unknown {
+  if (result && typeof result === 'object' && 'inspection' in result) {
+    return { ...(result as Record<string, unknown>), inspection };
+  }
+  return result;
 }
 
 function countResult(toolName: string, result: unknown): number | undefined {

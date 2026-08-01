@@ -6,13 +6,13 @@ import type {
   RepositoryReader,
   StepBudget,
 } from './repository.ts';
-import { summarizeInput, wrapWithBudget } from './repository.ts';
+import { noInspectionBudget, summarizeInput, wrapWithBudget } from './repository.ts';
 
 const MAX_RETURNED_LINES = 400;
 
 export function createReadFileTool(
   repository: RepositoryReader,
-  budget: StepBudget,
+  budget: StepBudget | undefined,
   debug: DebugLogger,
 ) {
   return defineTool({
@@ -34,7 +34,7 @@ export function createReadFileTool(
       if (data.endLine !== undefined && data.endLine < data.startLine) {
         throw new Error('endLine must be greater than or equal to startLine.');
       }
-      const inspection: InspectionMetadata = budget.consume('read_file');
+      const inspection: InspectionMetadata = budget?.consume('read_file') ?? noInspectionBudget();
       const inputSummary = summarizeInput({
         path: data.path,
         startLine: data.startLine,

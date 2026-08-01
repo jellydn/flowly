@@ -6,13 +6,13 @@ import type {
   RepositoryReader,
   StepBudget,
 } from './repository.ts';
-import { summarizeInput, wrapWithBudget } from './repository.ts';
+import { noInspectionBudget, summarizeInput, wrapWithBudget } from './repository.ts';
 
 const MAX_MATCHES = 50;
 
 export function createSearchCodeTool(
   repository: RepositoryReader,
-  budget: StepBudget,
+  budget: StepBudget | undefined,
   debug: DebugLogger,
 ) {
   return defineTool({
@@ -26,7 +26,7 @@ export function createSearchCodeTool(
     }),
     async run({ data, signal }) {
       signal?.throwIfAborted();
-      const inspection: InspectionMetadata = budget.consume('search_code');
+      const inspection: InspectionMetadata = budget?.consume('search_code') ?? noInspectionBudget();
       const inputSummary = summarizeInput({
         query: data.query,
         path: data.path,

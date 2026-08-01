@@ -6,13 +6,13 @@ import type {
   RepositoryReader,
   StepBudget,
 } from './repository.ts';
-import { summarizeInput, wrapWithBudget } from './repository.ts';
+import { noInspectionBudget, summarizeInput, wrapWithBudget } from './repository.ts';
 
 const MAX_RETURNED_ENTRIES = 500;
 
 export function createListFilesTool(
   repository: RepositoryReader,
-  budget: StepBudget,
+  budget: StepBudget | undefined,
   debug: DebugLogger,
 ) {
   return defineTool({
@@ -31,7 +31,7 @@ export function createListFilesTool(
     }),
     async run({ data, signal }) {
       signal?.throwIfAborted();
-      const inspection: InspectionMetadata = budget.consume('list_files');
+      const inspection: InspectionMetadata = budget?.consume('list_files') ?? noInspectionBudget();
       const inputSummary = summarizeInput({
         path: data.path,
         depth: data.depth,

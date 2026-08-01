@@ -4,7 +4,6 @@ import type { ToolDefinition } from '@flue/runtime';
 import type { InspectionMetadata } from '../tools/repository.ts';
 import {
   createDebugLogger,
-  createPassThroughBudget,
   createRepositoryReader,
   createStepBudget,
 } from '../tools/repository.ts';
@@ -33,7 +32,11 @@ import {
   createFailureInjector,
   noFailureInjection,
 } from '../reliability/failure-injection.ts';
-import { wrapToolWithReliability, SafeToolError } from '../reliability/resilient-tool.ts';
+import {
+  createReliableInspectionTool,
+  wrapToolWithReliability,
+  SafeToolError,
+} from '../reliability/resilient-tool.ts';
 import {
   validateContentSize,
   validateReadResult,
@@ -394,10 +397,13 @@ describe('wrapToolWithReliability', () => {
   test('successful call passes through after validation', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
-    const passThrough = createPassThroughBudget(budget);
-    const rawTool = createReadFileTool(repository, passThrough, noDebug());
-    const wrapped = wrapToolWithReliability(
-      rawTool, budget, noDebug(), fastRetry, noReliabilityLog(), noFailureInjection,
+    const wrapped = createReliableInspectionTool(
+      (rawBudget, rawDebug) => createReadFileTool(repository, rawBudget, rawDebug),
+      budget,
+      noDebug(),
+      fastRetry,
+      noReliabilityLog(),
+      noFailureInjection,
     );
     const result = (await wrapped.run({
       toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
