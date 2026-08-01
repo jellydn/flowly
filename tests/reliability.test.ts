@@ -399,9 +399,10 @@ describe('wrapToolWithReliability', () => {
     const wrapped = wrapToolWithReliability(
       rawTool, budget, noDebug(), fastRetry, noReliabilityLog(), noFailureInjection,
     );
-    const result = await wrapped.run({
-      input: { path: 'src/config.ts', startLine: 1 },
-    }) as { content: string; inspection: InspectionMetadata };
+    const result = (await wrapped.run({
+      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
+      data: { path: 'src/config.ts', startLine: 1 },
+    }) as any).output as { content: string; inspection: InspectionMetadata };
     assert.match(result.content, /PORT/);
     assert.equal(result.inspection.used, 1);
   });
@@ -419,21 +420,24 @@ describe('wrapToolWithReliability', () => {
         rawCalls += 1;
         if (rawCalls === 1) throw new Error('HTTP 503 Service Unavailable');
         return {
-          matches: [{ path: 'x.ts', line: 1, excerpt: 'found' }],
-          filesSearched: 1,
-          query: 'x',
-          path: '.',
-          truncated: false,
-          inspection: { used: 1, remaining: 7, limit: 8 },
+          output: {
+            matches: [{ path: 'x.ts', line: 1, excerpt: 'found' }],
+            filesSearched: 1,
+            query: 'x',
+            path: '.',
+            truncated: false,
+            inspection: { used: 1, remaining: 7, limit: 8 },
+          },
         };
       },
     };
     const wrapped = wrapToolWithReliability(
       rawTool, budget, noDebug(), fastRetry, noReliabilityLog(), noFailureInjection, instantSleep,
     );
-    const result = await wrapped.run({
-      input: { query: 'x', path: '.', caseSensitive: false },
-    }) as { matches: unknown[] };
+    const result = (await wrapped.run({
+      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
+      data: { query: 'x', path: '.', caseSensitive: false },
+    }) as any).output as { matches: unknown[] };
     assert.equal(rawCalls, 2);
     assert.ok(result.matches.length > 0);
   });
@@ -456,7 +460,7 @@ describe('wrapToolWithReliability', () => {
       rawTool, budget, noDebug(), fastRetry, noReliabilityLog(), noFailureInjection, instantSleep,
     );
     await assert.rejects(
-      wrapped.run({ input: { path: 'x.ts', startLine: 1 } }),
+      wrapped.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: 'x.ts', startLine: 1 } }) as Promise<unknown>,
       (err: unknown) => {
         assert.ok(err instanceof Error);
         // The error message should be user-safe (no stack traces)
@@ -476,14 +480,14 @@ describe('wrapToolWithReliability', () => {
       input: undefined,
       output: undefined,
       async run() {
-        return { __malformed: true, garbage: '###' };
+        return { output: { __malformed: true, garbage: '###' } };
       },
     };
     const wrapped = wrapToolWithReliability(
       rawTool, budget, noDebug(), fastRetry, noReliabilityLog(), noFailureInjection, instantSleep,
     );
     await assert.rejects(
-      wrapped.run({ input: { query: 'x', path: '.', caseSensitive: false } }),
+      wrapped.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { query: 'x', path: '.', caseSensitive: false } }) as Promise<unknown>,
       /failed/i,
     );
   });
@@ -501,15 +505,17 @@ describe('wrapToolWithReliability', () => {
         rawCalls += 1;
         if (rawCalls < 3) throw new Error('HTTP 503');
         return {
-          matches: [], filesSearched: 1, query: 'x', path: '.',
-          truncated: false, inspection: budget.snapshot(),
+          output: {
+            matches: [], filesSearched: 1, query: 'x', path: '.',
+            truncated: false, inspection: budget.snapshot(),
+          },
         };
       },
     };
     const wrapped = wrapToolWithReliability(
       rawTool, budget, noDebug(), fastRetry, noReliabilityLog(), noFailureInjection, instantSleep,
     );
-    await wrapped.run({ input: { query: 'x', path: '.', caseSensitive: false } });
+    await wrapped.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { query: 'x', path: '.', caseSensitive: false } });
     assert.equal(rawCalls, 3);
     // Only 1 budget slot consumed, not 3
     assert.equal(budget.used, 1);

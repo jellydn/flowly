@@ -110,7 +110,15 @@ export async function runInvestigation(
     // Execute and collect evidence
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result = await tool.run({ input: action.input as any });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rawOutput = await tool.run({
+        toolCallId: `investigation-${action.tool}-${Date.now()}`,
+        log: { info() {}, warn() {}, error() {} },
+        data: action.input as any,
+      } as any);
+      const result = typeof rawOutput === 'object' && rawOutput !== null && 'output' in rawOutput
+        ? (rawOutput as any).output
+        : rawOutput;
       extractEvidence(action.tool, result, collector);
     } catch (error) {
       errors.push(

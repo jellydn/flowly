@@ -29,35 +29,35 @@ export function createReadFileTool(
         v.pipe(v.number(), v.integer(), v.minValue(1)),
       ),
     }),
-    async run({ input, signal }) {
+    async run({ data, signal }) {
       signal?.throwIfAborted();
-      if (input.endLine !== undefined && input.endLine < input.startLine) {
+      if (data.endLine !== undefined && data.endLine < data.startLine) {
         throw new Error('endLine must be greater than or equal to startLine.');
       }
       const inspection: InspectionMetadata = budget.consume('read_file');
       const inputSummary = summarizeInput({
-        path: input.path,
-        startLine: input.startLine,
-        endLine: input.endLine,
+        path: data.path,
+        startLine: data.startLine,
+        endLine: data.endLine,
       });
       try {
-        const content = await repository.readText(input.path);
+        const content = await repository.readText(data.path);
         const lines = content.split(/\r?\n/);
         const requestedEnd =
-          input.endLine ?? input.startLine + MAX_RETURNED_LINES - 1;
+          data.endLine ?? data.startLine + MAX_RETURNED_LINES - 1;
         const endLine = Math.min(
           requestedEnd,
-          input.startLine + MAX_RETURNED_LINES - 1,
+          data.startLine + MAX_RETURNED_LINES - 1,
           lines.length,
         );
         const selected = lines
-          .slice(input.startLine - 1, endLine)
-          .map((line, index) => `${input.startLine + index}: ${line}`)
+          .slice(data.startLine - 1, endLine)
+          .map((line, index) => `${data.startLine + index}: ${line}`)
           .join('\n');
 
         const result = {
-          path: input.path,
-          startLine: input.startLine,
+          path: data.path,
+          startLine: data.startLine,
           endLine,
           totalLines: lines.length,
           content: selected,
@@ -68,10 +68,10 @@ export function createReadFileTool(
           tool: 'read_file',
           status: 'success',
           inputSummary,
-          count: endLine - input.startLine + 1,
+          count: endLine - data.startLine + 1,
           inspection,
         });
-        return result;
+        return { output: result };
       } catch (error) {
         debug.log({
           tool: 'read_file',

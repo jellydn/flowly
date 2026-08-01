@@ -66,7 +66,15 @@ export async function executePlan(
     try {
       signal?.throwIfAborted();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const output = await tool.run({ input: step.input as Record<string, any>, signal });
+      const rawOutput = await tool.run({
+        toolCallId: `exec-${step.id}`,
+        log: { info() {}, warn() {}, error() {} },
+        data: step.input as Record<string, any>,
+        signal,
+      } as any);
+      const output = typeof rawOutput === 'object' && rawOutput !== null && 'output' in rawOutput
+        ? (rawOutput as any).output
+        : rawOutput;
       const status: ExecutionStatus = isEmptyResult(step.tool, output)
         ? 'empty'
         : 'success';
@@ -201,17 +209,17 @@ export function createReplanTool(
         v.maxLength(10),
       ),
     }),
-    run({ input }) {
+    run({ data }) {
       const revised = normalizePlan(
         store.plan?.question ?? '(replanned)',
-        input.steps,
+        data.steps,
       );
       const previousResults = store.results;
       store.setPlan(revised);
       const inspection = budget.snapshot();
       const inputSummary = summarizeInput({
-        reason: input.reason,
-        stepCount: input.steps.length,
+        reason: data.reason,
+        stepCount: data.steps.length,
       });
       debug.log({
         tool: 'replan',
@@ -221,10 +229,12 @@ export function createReplanTool(
         inspection,
       });
       return {
-        plan: revised,
-        previousResultCount: previousResults.length,
-        message: `Plan revised (${revised.steps.length} steps). Continue execution from the new first step.`,
-        inspection,
+        output: {
+          plan: revised,
+          previousResultCount: previousResults.length,
+          message: `Plan revised (${revised.steps.length} steps). Continue execution from the new first step.`,
+          inspection,
+        },
       };
     },
   });

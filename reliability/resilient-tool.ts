@@ -48,12 +48,12 @@ export function wrapToolWithReliability(
     description: rawTool.description,
     input: rawTool.input,
     output: rawTool.output,
-    async run({ input, signal }) {
+    async run({ data, signal }) {
       signal?.throwIfAborted();
 
       // Consume budget once for this logical call (not per retry)
       const inspection: InspectionMetadata = budget.consume(rawTool.name);
-      const inputSummary = summarizeInput(input);
+      const inputSummary = summarizeInput(data);
 
       try {
         const result = await runWithRetry(
@@ -75,10 +75,12 @@ export function wrapToolWithReliability(
                 : retrySignal;
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const output = await rawTool.run({
-              input: input as any,
+            const rawOutput = await rawTool.run({
+              toolCallId: `retry-${rawTool.name}`,
+              log: { info() {}, warn() {}, error() {} },
+              data: data as any,
               signal: combinedSignal,
-            });
+            } as any);
 
             if (injector.shouldMalform(rawTool.name)) {
               return {
@@ -88,7 +90,10 @@ export function wrapToolWithReliability(
               };
             }
 
-            return output;
+            // Unwrap the v2 tool envelope { output: value }
+            return typeof rawOutput === 'object' && rawOutput !== null && 'output' in rawOutput
+              ? (rawOutput as any).output
+              : rawOutput;
           },
           retryConfig,
           reliabilityLog,
@@ -117,7 +122,7 @@ export function wrapToolWithReliability(
           inspection,
         });
 
-        return result;
+        return { output: result };
       } catch (error) {
         debug.log({
           tool: rawTool.name,

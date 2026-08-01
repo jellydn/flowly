@@ -1,14 +1,13 @@
-import { defineAgent } from '@flue/runtime';
+'use agent';
+import { useModel, useTool, useSandbox, useSkill } from '@flue/runtime';
 import { restrictedSandbox } from '../sandbox.ts';
-import repositoryAnalysis from '../skills/analyzing-repositories/SKILL.md' with {
-  type: 'skill',
-};
+import repositoryAnalysis from '../skills/analyzing-repositories/SKILL.md';
 import { createListFilesTool } from '../tools/list-files.ts';
 import { createReadFileTool } from '../tools/read-file.ts';
 import {
   createDebugLogger,
   createPassThroughBudget,
-  createRepositoryReader,
+  createRepositoryReaderSync,
   createStepBudget,
   parseMaxSteps,
 } from '../tools/repository.ts';
@@ -23,26 +22,12 @@ import { createFailureInjector } from '../reliability/failure-injection.ts';
 import { parseRetryConfig } from '../reliability/retry.ts';
 import { wrapToolWithReliability } from '../reliability/resilient-tool.ts';
 
-type Environment = {
-  REPOSITORY_PATH?: string;
-  REPO_ASSISTANT_MAX_STEPS?: string;
-  REPO_ASSISTANT_MODEL?: string;
-  REPO_ASSISTANT_DEBUG?: string;
-  REPO_ASSISTANT_MAX_ATTEMPTS?: string;
-  REPO_ASSISTANT_INITIAL_DELAY_MS?: string;
-  REPO_ASSISTANT_MAX_DELAY_MS?: string;
-  REPO_ASSISTANT_TIMEOUT_MS?: string;
-  FAIL_FIRST_N_REQUESTS?: string;
-  SIMULATE_TOOL_TIMEOUT?: string;
-  SIMULATE_MALFORMED_RESPONSE?: string;
-  FAIL_OPERATION?: string;
-};
-
 export const description =
   'Answers architecture and source-code questions about one configured repository using read-only tools. Plans before executing, then reflects on the plan. Retries transient failures with backoff.';
 
-export default defineAgent<Environment>(async ({ env }) => {
-  const repository = await createRepositoryReader(
+export function RepoAssistant() {
+  const env = process.env;
+  const repository = createRepositoryReaderSync(
     env.REPOSITORY_PATH ?? '../oak',
   );
   const budget = createStepBudget(parseMaxSteps(env.REPO_ASSISTANT_MAX_STEPS));
@@ -76,26 +61,22 @@ export default defineAgent<Environment>(async ({ env }) => {
     rawSearchDocs, budget, debug, retryConfig, reliabilityLog, injector,
   );
 
-  return {
-    model: env.REPO_ASSISTANT_MODEL ?? 'openrouter/qwen/qwen3-coder',
-    tools: [
-      // Planning tools (do not consume inspection budget)
-      createPlanTool(planStore, budget, debug),
-      createReplanTool(planStore, budget, debug),
-      createReflectPlanTool(planStore, budget, debug),
-      // Inspection tools (consume shared budget, wrapped with reliability)
-      listFiles,
-      readFile,
-      searchCode,
-      searchDocs,
-    ],
-    sandbox: restrictedSandbox,
-    skills: [repositoryAnalysis],
-    durability: {
-      maxAttempts: 1,
-      timeoutMs: 120_000,
-    },
-    instructions: `
+  useModel(env.REPO_ASSISTANT_MODEL ?? 'openrouter/qwen/qwen3-coder');
+
+  // Planning tools (do not consume inspection budget)
+  useTool(createPlanTool(planStore, budget, debug));
+  useTool(createReplanTool(planStore, budget, debug));
+  useTool(createReflectPlanTool(planStore, budget, debug));
+  // Inspection tools (consume shared budget, wrapped with reliability)
+  useTool(listFiles);
+  useTool(readFile);
+  useTool(searchCode);
+  useTool(searchDocs);
+
+  useSandbox(restrictedSandbox);
+  useSkill(repositoryAnalysis);
+
+  return `
 You are a doc-aware, read-only repository analysis agent. You separate planning
 from execution: first declare a plan, then execute it, then reflect. You
 consult both documentation and source code, and you ground every claim in
@@ -200,6 +181,10 @@ result reports used, remaining, and limit. Stop calling inspection tools when
 evidence is sufficient or the budget is exhausted. Do not retry after a
 budget-exhausted error. Retries for transient failures do NOT consume
 additional budget slots.
-`,
-  };
-});
+`;
+}
+
+RepoAssistant.durability = {
+  maxAttempts: 1,
+  timeoutMs: 120_000,
+};

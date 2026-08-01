@@ -29,17 +29,17 @@ export function createListFilesTool(
         2,
       ),
     }),
-    async run({ input, signal }) {
+    async run({ data, signal }) {
       signal?.throwIfAborted();
       const inspection: InspectionMetadata = budget.consume('list_files');
       const inputSummary = summarizeInput({
-        path: input.path,
-        depth: input.depth,
+        path: data.path,
+        depth: data.depth,
       });
       try {
-        const entries = await repository.list(input.path, input.depth);
+        const entries = await repository.list(data.path, data.depth);
         const result = {
-          path: input.path,
+          path: data.path,
           entries: entries.slice(0, MAX_RETURNED_ENTRIES),
           truncated: entries.length > MAX_RETURNED_ENTRIES,
           inspection,
@@ -51,7 +51,7 @@ export function createListFilesTool(
           count: result.entries.length,
           inspection,
         });
-        return result;
+        return { output: result };
       } catch (error) {
         debug.log({
           tool: 'list_files',

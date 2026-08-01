@@ -51,7 +51,18 @@ export async function executeWithFallback(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await runWithRetry(
       operation,
-      async (signal) => primaryTool.run({ input: input as any, signal }),
+      async (signal) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rawOutput = await primaryTool.run({
+          toolCallId: `fallback-${operation}`,
+          log: { info() {}, warn() {}, error() {} },
+          data: input as any,
+          signal,
+        } as any);
+        return typeof rawOutput === 'object' && rawOutput !== null && 'output' in rawOutput
+          ? (rawOutput as any).output
+          : rawOutput;
+      },
       retryConfig,
       reliabilityLog,
     );
@@ -109,11 +120,18 @@ export async function executeWithFallback(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const fallbackResult = await runWithRetry(
           `${operation}:fallback`,
-          async (signal) =>
-            fallbackTool.run({
-              input: { path: knownPath, startLine: 1 } as any,
+          async (signal) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const rawOutput = await fallbackTool.run({
+              toolCallId: `fallback-${operation}-secondary`,
+              log: { info() {}, warn() {}, error() {} },
+              data: { path: knownPath, startLine: 1 } as any,
               signal,
-            }),
+            } as any);
+            return typeof rawOutput === 'object' && rawOutput !== null && 'output' in rawOutput
+              ? (rawOutput as any).output
+              : rawOutput;
+          },
           retryConfig,
           reliabilityLog,
         );

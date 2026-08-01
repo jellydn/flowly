@@ -62,13 +62,13 @@ export function createReflectPlanTool(
         v.pipe(v.string(), v.maxLength(300)),
       ),
     }),
-    run({ input }) {
+    run({ data }) {
       const plan = store.plan;
       const results = store.results;
       const inspection = budget.snapshot();
 
       if (!plan) {
-        const inputSummary = summarizeInput({ couldSimplify: input.couldSimplify });
+        const inputSummary = summarizeInput({ couldSimplify: data.couldSimplify });
         debug.log({
           tool: 'reflect_plan',
           status: 'error',
@@ -76,22 +76,24 @@ export function createReflectPlanTool(
           inspection,
         });
         return {
-          error: 'No plan recorded. Call create_plan first.',
-          reflection: null,
-          summary: '',
-          inspection,
+          output: {
+            error: 'No plan recorded. Call create_plan first.',
+            reflection: null,
+            summary: '',
+            inspection,
+          },
         };
       }
 
       const reflection = reflectOnPlan(
         plan,
         results,
-        input.couldSimplify,
-        input.simplificationNote,
+        data.couldSimplify,
+        data.simplificationNote,
       );
       store.setReflection(reflection);
       const inputSummary = summarizeInput({
-        couldSimplify: input.couldSimplify,
+        couldSimplify: data.couldSimplify,
         steps: results.length,
       });
       debug.log({
@@ -102,10 +104,12 @@ export function createReflectPlanTool(
         inspection,
       });
       return {
-        error: null,
-        reflection,
-        summary: formatReflection(reflection),
-        inspection,
+        output: {
+          error: null,
+          reflection,
+          summary: formatReflection(reflection),
+          inspection,
+        },
       };
     },
   });

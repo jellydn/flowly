@@ -33,19 +33,19 @@ export function createSearchDocsTool(
       path: v.optional(v.pipe(v.string(), v.maxLength(500)), '.'),
       caseSensitive: v.optional(v.boolean(), false),
     }),
-    async run({ input, signal }) {
+    async run({ data, signal }) {
       signal?.throwIfAborted();
       const inspection: InspectionMetadata = budget.consume('search_docs');
       const inputSummary = summarizeInput({
-        query: input.query,
-        path: input.path,
-        caseSensitive: input.caseSensitive,
+        query: data.query,
+        path: data.path,
+        caseSensitive: data.caseSensitive,
       });
       try {
-        const files = await repository.documentationFiles(input.path);
-        const needle = input.caseSensitive
-          ? input.query
-          : input.query.toLowerCase();
+        const files = await repository.documentationFiles(data.path);
+        const needle = data.caseSensitive
+          ? data.query
+          : data.query.toLowerCase();
         const matches: Array<{ path: string; line: number; excerpt: string }> =
           [];
 
@@ -59,7 +59,7 @@ export function createSearchDocsTool(
           }
           const lines = content.split(/\r?\n/);
           for (let index = 0; index < lines.length; index += 1) {
-            const haystack = input.caseSensitive
+            const haystack = data.caseSensitive
               ? lines[index]
               : lines[index].toLowerCase();
             if (haystack.includes(needle)) {
@@ -75,8 +75,8 @@ export function createSearchDocsTool(
         }
 
         const result = {
-          query: input.query,
-          path: input.path,
+          query: data.query,
+          path: data.path,
           matches,
           filesSearched: files.length,
           truncated: matches.length >= MAX_MATCHES,
@@ -89,7 +89,7 @@ export function createSearchDocsTool(
           count: result.matches.length,
           inspection,
         });
-        return result;
+        return { output: result };
       } catch (error) {
         debug.log({
           tool: 'search_docs',

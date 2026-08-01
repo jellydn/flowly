@@ -65,9 +65,10 @@ describe('search_docs tool', () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const tool = createSearchDocsTool(repository, budget, noDebug());
-    const result = (await tool.run({
-      input: { query: 'authentication', path: '.', caseSensitive: false },
-    })) as SearchDocsResult;
+    const result = ((await tool.run({
+      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
+      data: { query: 'authentication', path: '.', caseSensitive: false },
+    })) as any).output as SearchDocsResult;
     assert.ok(result.matches.length > 0);
     // Should find matches in README.md, AGENTS.md, and docs/architecture.md
     const paths = new Set(result.matches.map((m) => m.path));
@@ -80,9 +81,10 @@ describe('search_docs tool', () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const tool = createSearchDocsTool(repository, budget, noDebug());
-    const result = (await tool.run({
-      input: { query: 'login', path: '.', caseSensitive: false },
-    })) as SearchDocsResult;
+    const result = ((await tool.run({
+      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
+      data: { query: 'login', path: '.', caseSensitive: false },
+    })) as any).output as SearchDocsResult;
     // node_modules/ignored.js is NOT a doc file, so it should never appear
     assert.ok(
       result.matches.every((m) => !m.path.includes('node_modules')),
@@ -93,9 +95,10 @@ describe('search_docs tool', () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const tool = createSearchDocsTool(repository, budget, noDebug());
-    const result = (await tool.run({
-      input: { query: 'doesnotexistxyz', path: '.', caseSensitive: false },
-    })) as SearchDocsResult;
+    const result = ((await tool.run({
+      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
+      data: { query: 'doesnotexistxyz', path: '.', caseSensitive: false },
+    })) as any).output as SearchDocsResult;
     assert.deepEqual(result.matches, []);
     assert.equal(result.truncated, false);
     assert.ok(result.filesSearched > 0);
@@ -106,7 +109,8 @@ describe('search_docs tool', () => {
     const budget = createStepBudget(8);
     const tool = createSearchDocsTool(repository, budget, noDebug());
     await tool.run({
-      input: { query: 'architecture', path: '.', caseSensitive: false },
+      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
+      data: { query: 'architecture', path: '.', caseSensitive: false },
     });
     assert.equal(budget.used, 1);
   });
@@ -115,9 +119,10 @@ describe('search_docs tool', () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const tool = createSearchDocsTool(repository, budget, noDebug());
-    const result = (await tool.run({
-      input: { query: 'layered design', path: '.', caseSensitive: false },
-    })) as SearchDocsResult;
+    const result = ((await tool.run({
+      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
+      data: { query: 'layered design', path: '.', caseSensitive: false },
+    })) as any).output as SearchDocsResult;
     const archHit = result.matches.find((m) => m.path === 'docs/architecture.md');
     assert.ok(archHit, 'should find docs/architecture.md');
   });
@@ -128,9 +133,9 @@ describe('search_docs tool', () => {
     const searchDocs = createSearchDocsTool(repository, budget, noDebug());
     const searchCode = createSearchCodeTool(repository, budget, noDebug());
     const readFile = createReadFileTool(repository, budget, noDebug());
-    await searchDocs.run({ input: { query: 'auth', path: '.', caseSensitive: false } });
-    await searchCode.run({ input: { query: 'login', path: '.', caseSensitive: false } });
-    await readFile.run({ input: { path: 'src/config.ts', startLine: 1 } });
+    await searchDocs.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { query: 'auth', path: '.', caseSensitive: false } });
+    await searchCode.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { query: 'login', path: '.', caseSensitive: false } });
+    await readFile.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: 'src/config.ts', startLine: 1 } });
     assert.equal(budget.used, 3);
     assert.equal(budget.remaining, 0);
   });

@@ -206,13 +206,13 @@ export function createPlanTool(
         v.maxLength(10),
       ),
     }),
-    run({ input }) {
-      const plan = normalizePlan(input.question, input.steps);
+    run({ data }) {
+      const plan = normalizePlan(data.question, data.steps);
       store.setPlan(plan);
       const inspection = budget.snapshot();
       const inputSummary = summarizeInput({
-        question: input.question,
-        stepCount: input.steps.length,
+        question: data.question,
+        stepCount: data.steps.length,
       });
       debug.log({
         tool: 'create_plan',
@@ -222,9 +222,11 @@ export function createPlanTool(
         inspection,
       });
       return {
-        plan,
-        message: `Plan with ${plan.steps.length} steps recorded. Execute each step using the corresponding tool, then call reflect_plan.`,
-        inspection,
+        output: {
+          plan,
+          message: `Plan with ${plan.steps.length} steps recorded. Execute each step using the corresponding tool, then call reflect_plan.`,
+          inspection,
+        },
       };
     },
   });

@@ -25,7 +25,7 @@ import {
   reflectOnPlan,
 } from '../planner/reflection.ts';
 import type { ExecutionResult, Plan, PlanReflection, PlanStep } from '../planner/types.ts';
-import { createSampleRepo, removeRepo } from './helpers.ts';
+import { createSampleRepo, removeRepo, runTool } from './helpers.ts';
 
 const noDebug = () => createDebugLogger(false);
 let root: string;
@@ -294,16 +294,14 @@ describe('create_plan tool', () => {
     const store = createPlanStore();
     const budget = createStepBudget(8);
     const tool = createPlanTool(store, budget, noDebug());
-    const result = await tool.run({
-      input: {
+    const result = await runTool<{ plan: Plan; message: string; inspection: InspectionMetadata }>(tool, {
         question: 'How does auth work?',
         steps: [
           { description: 'Search for auth', tool: 'search_code', input: { query: 'auth' } },
           { description: 'Read the auth file', tool: 'read_file' },
           { description: 'Answer', tool: 'answer' },
         ],
-      },
-    }) as { plan: Plan; message: string; inspection: InspectionMetadata };
+      });
     assert.ok(store.plan);
     assert.equal(store.plan.question, 'How does auth work?');
     assert.equal(store.plan.steps.length, 3);
@@ -321,26 +319,22 @@ describe('replan tool', () => {
     const planTool = createPlanTool(store, budget, noDebug());
     const replanTool = createReplanTool(store, budget, noDebug());
 
-    await planTool.run({
-      input: {
+    await runTool(planTool, {
         question: 'Find X',
         steps: [
           { description: 'Search for X', tool: 'search_code', input: { query: 'X' } },
           { description: 'Answer', tool: 'answer' },
         ],
-      },
-    });
+      });
     store.addResult({ stepId: 1, status: 'empty', tool: 'search_code', summary: '0 matches' });
 
-    const result = await replanTool.run({
-      input: {
+    const result = await runTool<{ plan: Plan; previousResultCount: number; message: string; inspection: InspectionMetadata }>(replanTool, {
         reason: 'Search returned no results',
         steps: [
           { description: 'List files', tool: 'list_files', input: { path: '.' } },
           { description: 'Answer', tool: 'answer' },
         ],
-      },
-    }) as { plan: Plan; previousResultCount: number; message: string; inspection: InspectionMetadata };
+      });
     assert.equal(result.plan.steps.length, 2);
     assert.equal(result.plan.steps[0].tool, 'list_files');
     assert.equal(result.previousResultCount, 1);
@@ -355,20 +349,16 @@ describe('reflect_plan tool', () => {
     const planTool = createPlanTool(store, budget, noDebug());
     const reflectTool = createReflectPlanTool(store, budget, noDebug());
 
-    await planTool.run({
-      input: {
+    await runTool(planTool, {
         question: 'Test',
         steps: [
           { description: 'Search', tool: 'search_code', input: { query: 'x' } },
           { description: 'Answer', tool: 'answer' },
         ],
-      },
-    });
+      });
     store.addResult({ stepId: 1, status: 'success', tool: 'search_code', summary: '2 matches' });
 
-    const result = await reflectTool.run({
-      input: { couldSimplify: true, simplificationNote: 'Could merge steps' },
-    }) as { error: string | null; reflection: PlanReflection | null; summary: string; inspection: InspectionMetadata };
+    const result = await runTool<{ error: string | null; reflection: PlanReflection | null; summary: string; inspection: InspectionMetadata }>(reflectTool, { couldSimplify: true, simplificationNote: 'Could merge steps' });
     assert.equal(result.error, null);
     assert.ok(result.reflection);
     assert.equal(result.reflection.totalSteps, 2);
@@ -382,9 +372,7 @@ describe('reflect_plan tool', () => {
     const store = createPlanStore();
     const budget = createStepBudget(8);
     const reflectTool = createReflectPlanTool(store, budget, noDebug());
-    const result = await reflectTool.run({
-      input: { couldSimplify: false, simplificationNote: '' },
-    }) as { error: string | null; reflection: null; summary: string; inspection: InspectionMetadata };
+    const result = await runTool<{ error: string | null; reflection: null; summary: string; inspection: InspectionMetadata }>(reflectTool, { couldSimplify: false, simplificationNote: '' });
     assert.ok(result.error);
     assert.equal(result.reflection, null);
   });
@@ -409,16 +397,14 @@ describe('full plan-execute-reflect cycle', () => {
 
     // Plan
     const planTool = createPlanTool(store, budget, debug);
-    await planTool.run({
-      input: {
+    await runTool(planTool, {
         question: 'Find where user authentication is implemented and explain the flow.',
         steps: [
           { description: 'Search for auth code', tool: 'search_code', input: { query: 'login', path: '.', caseSensitive: false } },
           { description: 'Read the auth file', tool: 'read_file', input: { path: 'src/auth.ts', startLine: 1 } },
           { description: 'Answer', tool: 'answer' },
         ],
-      },
-    });
+      });
     assert.ok(store.plan);
 
     // Execute
@@ -429,9 +415,7 @@ describe('full plan-execute-reflect cycle', () => {
 
     // Reflect
     const reflectTool = createReflectPlanTool(store, budget, debug);
-    const reflectResult = await reflectTool.run({
-      input: { couldSimplify: false, simplificationNote: '' },
-    }) as { error: string | null; reflection: PlanReflection | null; summary: string; inspection: InspectionMetadata };
+    const reflectResult = await runTool<{ error: string | null; reflection: PlanReflection | null; summary: string; inspection: InspectionMetadata }>(reflectTool, { couldSimplify: false, simplificationNote: '' });
     assert.equal(reflectResult.error, null);
     assert.equal(reflectResult.reflection?.executedSteps, 3);
     assert.equal(reflectResult.reflection?.successfulSteps, 3);
@@ -452,15 +436,13 @@ describe('full plan-execute-reflect cycle', () => {
 
     // Plan with a query that won't match
     const planTool = createPlanTool(store, budget, debug);
-    await planTool.run({
-      input: {
+    await runTool(planTool, {
         question: 'Find payment processing.',
         steps: [
           { description: 'Search for payment', tool: 'search_code', input: { query: 'payment_processor', path: '.', caseSensitive: false } },
           { description: 'Answer', tool: 'answer' },
         ],
-      },
-    });
+      });
 
     // Execute
     const firstResults = await executePlan(store.plan!, tools, budget, debug);
@@ -469,16 +451,14 @@ describe('full plan-execute-reflect cycle', () => {
 
     // Replan
     const replanTool = createReplanTool(store, budget, debug);
-    await replanTool.run({
-      input: {
+    await runTool(replanTool, {
         reason: 'No payment_processor matches; trying broader search',
         steps: [
           { description: 'Search for payment', tool: 'search_code', input: { query: 'payment', path: '.', caseSensitive: false } },
           { description: 'Read the matching file', tool: 'read_file', input: { path: 'src/utils/notes.md', startLine: 1 } },
           { description: 'Answer: no payment implementation found', tool: 'answer' },
         ],
-      },
-    });
+      });
 
     // Execute revised plan
     const revisedResults = await executePlan(store.plan!, tools, budget, debug);
@@ -500,11 +480,9 @@ describe('plan tool debug logging', () => {
     console.error = (...args: unknown[]) => lines.push(args.join(' '));
     try {
       const tool = createPlanTool(store, budget, createDebugLogger(true));
-      await tool.run({
-        input: {
-          question: 'Test',
-          steps: [{ description: 'Answer', tool: 'answer' }],
-        },
+      await runTool(tool, {
+        question: 'Test',
+        steps: [{ description: 'Answer', tool: 'answer' }],
       });
     } finally {
       console.error = original;

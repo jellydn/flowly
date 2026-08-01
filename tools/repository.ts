@@ -1,4 +1,5 @@
 import { open, readdir, realpath, stat } from 'node:fs/promises';
+import { realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 const DEFAULT_MAX_STEPS = 8;
@@ -327,6 +328,21 @@ export async function createRepositoryReader(
 ): Promise<RepositoryReader> {
   const root = await realpath(path.resolve(configuredPath));
   const metadata = await stat(root);
+  if (!metadata.isDirectory()) {
+    throw new Error('REPOSITORY_PATH must point to a directory.');
+  }
+  return new RepositoryReader(root);
+}
+
+/**
+ * Synchronous variant of {@link createRepositoryReader} for contexts where the
+ * agent function must return synchronously (Flue v2 agent functions).
+ */
+export function createRepositoryReaderSync(
+  configuredPath: string,
+): RepositoryReader {
+  const root = realpathSync(path.resolve(configuredPath));
+  const metadata = statSync(root);
   if (!metadata.isDirectory()) {
     throw new Error('REPOSITORY_PATH must point to a directory.');
   }

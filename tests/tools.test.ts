@@ -60,7 +60,7 @@ describe('list_files', () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const tool = createListFilesTool(repository, budget, noDebug());
-    const result = (await tool.run({ input: { path: '.', depth: 3 } })) as ListResult;
+    const result = ((await tool.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: '.', depth: 3 } })) as any).output as ListResult;
     assert.equal(result.inspection.used, 1);
     assert.equal(result.inspection.remaining, 7);
     assert.equal(result.inspection.limit, 8);
@@ -74,7 +74,7 @@ describe('list_files', () => {
   test('skips ignored dependency directories', async () => {
     const repository = await createRepositoryReader(root);
     const tool = createListFilesTool(repository, createStepBudget(8), noDebug());
-    const result = (await tool.run({ input: { path: '.', depth: 3 } })) as ListResult;
+    const result = ((await tool.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: '.', depth: 3 } })) as any).output as ListResult;
     assert(!result.entries.some((e) => e.path.includes('node_modules')));
   });
 
@@ -84,7 +84,7 @@ describe('list_files', () => {
     try {
       const repository = await createRepositoryReader(root);
       const tool = createListFilesTool(repository, createStepBudget(8), noDebug());
-      const result = (await tool.run({ input: { path: 'src', depth: 1 } })) as ListResult;
+      const result = ((await tool.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: 'src', depth: 1 } })) as any).output as ListResult;
       assert(!result.entries.some((e) => e.path === 'src/link.ts'));
     } finally {
       await rm(link, { force: true });
@@ -96,11 +96,11 @@ describe('list_files', () => {
     const budget = createStepBudget(8);
     const tool = createListFilesTool(repository, budget, noDebug());
     await assert.rejects(
-      async () => tool.run({ input: { path: '../outside', depth: 1 } }),
+      async () => tool.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: '../outside', depth: 1 } }),
       /list_files failed.*escapes/,
     );
     await assert.rejects(
-      async () => tool.run({ input: { path: '/etc', depth: 1 } }),
+      async () => tool.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: '/etc', depth: 1 } }),
       /list_files failed.*relative/,
     );
     assert.equal(budget.used, 2);
@@ -112,7 +112,7 @@ describe('read_file', () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const tool = createReadFileTool(repository, budget, noDebug());
-    const result = (await tool.run({ input: { path: 'src/config.ts', startLine: 1 } })) as ReadResult;
+    const result = ((await tool.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: 'src/config.ts', startLine: 1 } })) as any).output as ReadResult;
     assert.equal(result.inspection.used, 1);
     assert.equal(result.startLine, 1);
     assert.equal(result.totalLines, 5);
@@ -124,11 +124,11 @@ describe('read_file', () => {
     const repository = await createRepositoryReader(root);
     const tool = createReadFileTool(repository, createStepBudget(8), noDebug());
     await assert.rejects(
-      async () => tool.run({ input: { path: '../outside.ts', startLine: 1 } }),
+      async () => tool.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: '../outside.ts', startLine: 1 } }),
       /read_file failed.*escapes/,
     );
     await assert.rejects(
-      async () => tool.run({ input: { path: '/etc/hosts', startLine: 1 } }),
+      async () => tool.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: '/etc/hosts', startLine: 1 } }),
       /read_file failed.*relative/,
     );
   });
@@ -140,7 +140,7 @@ describe('read_file', () => {
       const repository = await createRepositoryReader(root);
       const tool = createReadFileTool(repository, createStepBudget(8), noDebug());
       await assert.rejects(
-        async () => tool.run({ input: { path: 'big.ts', startLine: 1 } }),
+        async () => tool.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: 'big.ts', startLine: 1 } }),
         /read_file failed.*read limit/,
       );
     } finally {
@@ -154,7 +154,7 @@ describe('read_file', () => {
     try {
       const repository = await createRepositoryReader(root);
       const tool = createReadFileTool(repository, createStepBudget(8), noDebug());
-      const result = (await tool.run({ input: { path: 'long.ts', startLine: 1 } })) as ReadResult;
+      const result = ((await tool.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: 'long.ts', startLine: 1 } })) as any).output as ReadResult;
       assert.equal(result.endLine - result.startLine + 1, 400);
       assert.equal(result.truncated, true);
       assert.equal(result.totalLines, 501);
@@ -167,7 +167,7 @@ describe('read_file', () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const tool = createReadFileTool(repository, budget, noDebug());
-    await tool.run({ input: { path: 'src/auth.ts', startLine: 1 } });
+    await tool.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: 'src/auth.ts', startLine: 1 } });
     assert.equal(budget.used, 1);
   });
 });
@@ -177,9 +177,10 @@ describe('search_code', () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const tool = createSearchCodeTool(repository, budget, noDebug());
-    const result = (await tool.run({
-      input: { query: 'login', path: '.', caseSensitive: false },
-    })) as SearchResult;
+    const result = ((await tool.run({
+      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
+      data: { query: 'login', path: '.', caseSensitive: false },
+    })) as any).output as SearchResult;
     assert.equal(result.inspection.used, 1);
     assert.ok(result.matches.some((m) => m.path === 'src/auth.ts' && m.line === 2));
     assert.ok(result.matches.some((m) => m.path === 'src/index.ts' && m.line === 2));
@@ -191,9 +192,10 @@ describe('search_code', () => {
   test('returns file paths and line numbers', async () => {
     const repository = await createRepositoryReader(root);
     const tool = createSearchCodeTool(repository, createStepBudget(8), noDebug());
-    const result = (await tool.run({
-      input: { query: 'issueToken', path: '.', caseSensitive: true },
-    })) as SearchResult;
+    const result = ((await tool.run({
+      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
+      data: { query: 'issueToken', path: '.', caseSensitive: true },
+    })) as any).output as SearchResult;
     const hit = result.matches.find((m) => m.path === 'src/services/user-service.ts');
     assert.ok(hit);
     assert.equal(hit.line, 1);
@@ -205,9 +207,10 @@ describe('search_code', () => {
     try {
       const repository = await createRepositoryReader(root);
       const tool = createSearchCodeTool(repository, createStepBudget(8), noDebug());
-      const result = (await tool.run({
-        input: { query: 'uniquemarker', path: '.', caseSensitive: false },
-      })) as SearchResult;
+      const result = ((await tool.run({
+        toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
+        data: { query: 'uniquemarker', path: '.', caseSensitive: false },
+      })) as any).output as SearchResult;
       assert.equal(result.matches.length, 50);
       assert.equal(result.truncated, true);
       assert.ok(result.matches.every((m) => m.path === 'many.ts'));
@@ -222,9 +225,10 @@ describe('search_code', () => {
     try {
       const repository = await createRepositoryReader(root);
       const tool = createSearchCodeTool(repository, createStepBudget(8), noDebug());
-      const result = (await tool.run({
-        input: { query: 'noise', path: '.', caseSensitive: false },
-      })) as SearchResult;
+      const result = ((await tool.run({
+        toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
+        data: { query: 'noise', path: '.', caseSensitive: false },
+      })) as any).output as SearchResult;
       assert(!result.matches.some((m) => m.path.includes('node_modules')));
       assert(!result.matches.some((m) => m.path === 'big-search.ts'));
     } finally {
@@ -235,9 +239,10 @@ describe('search_code', () => {
   test('handles zero matches clearly', async () => {
     const repository = await createRepositoryReader(root);
     const tool = createSearchCodeTool(repository, createStepBudget(8), noDebug());
-    const result = (await tool.run({
-      input: { query: 'doesnotexistxyz', path: '.', caseSensitive: false },
-    })) as SearchResult;
+    const result = ((await tool.run({
+      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
+      data: { query: 'doesnotexistxyz', path: '.', caseSensitive: false },
+    })) as any).output as SearchResult;
     assert.deepEqual(result.matches, []);
     assert.equal(result.truncated, false);
     assert.ok(result.filesSearched > 0);
@@ -247,7 +252,7 @@ describe('search_code', () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const tool = createSearchCodeTool(repository, budget, noDebug());
-    await tool.run({ input: { query: 'PORT', path: '.', caseSensitive: true } });
+    await tool.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { query: 'PORT', path: '.', caseSensitive: true } });
     assert.equal(budget.used, 1);
   });
 });
@@ -259,9 +264,9 @@ describe('shared budget', () => {
     const list = createListFilesTool(repository, budget, noDebug());
     const read = createReadFileTool(repository, budget, noDebug());
     const search = createSearchCodeTool(repository, budget, noDebug());
-    await list.run({ input: { path: '.', depth: 2 } });
-    await read.run({ input: { path: 'src/config.ts', startLine: 1 } });
-    await search.run({ input: { query: 'login', path: '.', caseSensitive: false } });
+    await list.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: '.', depth: 2 } });
+    await read.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: 'src/config.ts', startLine: 1 } });
+    await search.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { query: 'login', path: '.', caseSensitive: false } });
     assert.equal(budget.used, 3);
     assert.equal(budget.remaining, 0);
   });
@@ -272,13 +277,13 @@ describe('shared budget', () => {
     const list = createListFilesTool(repository, budget, noDebug());
     const read = createReadFileTool(repository, budget, noDebug());
     const search = createSearchCodeTool(repository, budget, noDebug());
-    await list.run({ input: { path: '.', depth: 1 } });
+    await list.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: '.', depth: 1 } });
     await assert.rejects(
-      async () => read.run({ input: { path: 'src/config.ts', startLine: 1 } }),
+      async () => read.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: 'src/config.ts', startLine: 1 } }),
       /budget exhausted/,
     );
     await assert.rejects(
-      async () => search.run({ input: { query: 'login', path: '.', caseSensitive: false } }),
+      async () => search.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { query: 'login', path: '.', caseSensitive: false } }),
       /budget exhausted/,
     );
   });
@@ -287,10 +292,10 @@ describe('shared budget', () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(1);
     const list = createListFilesTool(repository, budget, noDebug());
-    await list.run({ input: { path: '.', depth: 1 } });
+    await list.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: '.', depth: 1 } });
     assert.equal(budget.used, 1);
     await assert.rejects(
-      async () => list.run({ input: { path: '.', depth: 1 } }),
+      async () => list.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: '.', depth: 1 } }),
       /budget exhausted/,
     );
     assert.equal(budget.used, 1);
@@ -309,7 +314,7 @@ describe('debug logging', () => {
     };
     try {
       const read = createReadFileTool(repository, budget, createDebugLogger(true));
-      await read.run({ input: { path: 'src/config.ts', startLine: 1 } });
+      await read.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: 'src/config.ts', startLine: 1 } });
     } finally {
       console.error = original;
     }
