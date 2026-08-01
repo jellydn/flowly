@@ -248,6 +248,24 @@ describe('search_code', () => {
     assert.ok(result.filesSearched > 0);
   });
 
+  test('surfaces file-read failures instead of returning false negative results', async () => {
+    const repository = {
+      sourceFiles: async () => ['src/unreadable.ts'],
+      readText: async () => {
+        throw new Error('permission denied');
+      },
+    } as any;
+    const tool = createSearchCodeTool(repository, createStepBudget(8), noDebug());
+    await assert.rejects(
+      async () => tool.run({
+        toolCallId: 'test',
+        log: { info() {}, warn() {}, error() {} },
+        data: { query: 'login', path: '.', caseSensitive: false },
+      }),
+      /search_code failed.*permission denied/,
+    );
+  });
+
   test('consumes exactly one inspection step', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);

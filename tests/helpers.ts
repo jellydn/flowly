@@ -2,35 +2,19 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { ToolDefinition } from '@flue/runtime';
+import { invokeTool } from '../reliability/tool-invocation.ts';
 
-/**
- * Minimal tool context for direct tool.run() calls in tests.
- * v2's ToolContext requires toolCallId and log; tests don't need real ones.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function toolContext(data: Record<string, unknown>, signal?: AbortSignal): any {
-  return {
-    toolCallId: 'test',
-    log: { info() {}, warn() {}, error() {} },
-    data,
-    signal,
-  };
-}
-
-/**
- * Run a tool with a test context and unwrap the v2 envelope ({ output: value }).
- */
+/** Run a tool through the shared Flue v2 invocation adapter. */
 export async function runTool<T>(
   tool: ToolDefinition,
   data: Record<string, unknown>,
   signal?: AbortSignal,
 ): Promise<T> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const raw = await tool.run(toolContext(data, signal)) as any;
-  if (raw && typeof raw === 'object' && 'output' in raw) {
-    return raw.output as T;
-  }
-  return raw as T;
+  return invokeTool<T>(tool, {
+    toolCallId: 'test',
+    data,
+    signal,
+  });
 }
 
 /**

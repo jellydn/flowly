@@ -1,4 +1,5 @@
 import type { ToolDefinition } from '@flue/runtime';
+import { executeToolCall, type ToolRegistry } from './tool-call.ts';
 import type { StepBudget } from '../tools/repository.ts';
 import type {
   DecisionFn,
@@ -18,6 +19,7 @@ export const DEFAULT_MAX_ITERATIONS = 5;
 
 export type InvestigationOptions = {
   maxIterations?: number;
+  signal?: AbortSignal;
 };
 
 /**
@@ -35,7 +37,7 @@ export type InvestigationOptions = {
  */
 export async function runInvestigation(
   question: string,
-  tools: Map<string, ToolDefinition>,
+  tools: ToolRegistry,
   budget: StepBudget,
   decide: DecisionFn,
   options: InvestigationOptions = {},
@@ -49,6 +51,7 @@ export async function runInvestigation(
   let stopReason = '';
 
   while (iteration < maxIterations) {
+    options.signal?.throwIfAborted();
     const state: InvestigationState = {
       question,
       iteration,
@@ -62,7 +65,9 @@ export async function runInvestigation(
     let action: InvestigationAction;
     try {
       action = await decide(state);
+      options.signal?.throwIfAborted();
     } catch (error) {
+      if (options.signal?.aborted) throw error;
       errors.push(
         `Decision function failed: ${error instanceof Error ? error.message : String(error)}`,
       );
@@ -84,46 +89,34 @@ export async function runInvestigation(
       continue;
     }
 
-    // Check tool exists
-    const tool = tools.get(action.tool);
-    if (!tool) {
-      errors.push(`Unknown or unsupported tool: ${action.tool}`);
-      iteration += 1;
-      continue;
-    }
-
-    // Check budget
-    if (budget.remaining <= 0) {
-      errors.push('Inspection budget exhausted');
+    // Resolve the tool before applying budget policy. The shared call seam
+    // owns lookup; its preflight hook keeps quota policy ahead of invocation.
+    const call = await executeToolCall(
+      tools,
+      action.tool,
+      action.input,
+      `investigation-${action.tool}-${Date.now()}`,
+      options.signal,
+      () => budget.remaining <= 0 ? 'Inspection budget exhausted' : undefined,
+      () => {
+        tracker.record({
+          tool: action.tool,
+          input: action.input,
+          timestamp: Date.now(),
+        });
+        if (!toolsUsed.includes(action.tool)) toolsUsed.push(action.tool);
+      },
+    );
+    if (!call.ok && call.error === 'Inspection budget exhausted') {
+      errors.push(call.error);
       stopReason = 'budget exhausted';
       break;
     }
 
-    // Record the call
-    tracker.record({
-      tool: action.tool,
-      input: action.input,
-      timestamp: Date.now(),
-    });
-    if (!toolsUsed.includes(action.tool)) toolsUsed.push(action.tool);
-
-    // Execute and collect evidence
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rawOutput = await tool.run({
-        toolCallId: `investigation-${action.tool}-${Date.now()}`,
-        log: { info() {}, warn() {}, error() {} },
-        data: action.input as any,
-      } as any);
-      const result = typeof rawOutput === 'object' && rawOutput !== null && 'output' in rawOutput
-        ? (rawOutput as any).output
-        : rawOutput;
-      extractEvidence(action.tool, result, collector);
-    } catch (error) {
-      errors.push(
-        `${action.tool} failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
+    if (!call.ok) {
+      errors.push(call.error);
+    } else {
+      extractEvidence(action.tool, call.output, collector);
     }
 
     iteration += 1;

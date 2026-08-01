@@ -1,10 +1,12 @@
-import { defineTool, type ToolDefinition } from '@flue/runtime';
-import * as v from 'valibot';
+import type { ToolDefinition } from '@flue/runtime';
 import type { DebugLogger, InspectionMetadata, StepBudget } from '../tools/repository.ts';
-import { summarizeInput } from '../tools/repository.ts';
-import { classifyError, type ReliabilityError } from './errors.ts';
+import { isBudgetFreeTool } from '../tools/repository.ts';
+import { runReliableAttempt } from './resilient-tool.ts';
+import { classifyError } from './errors.ts';
 import type { ReliabilityLogger } from './observability.ts';
-import { runWithRetry, type RetryConfig } from './retry.ts';
+import type { FailureInjector } from './failure-injection.ts';
+import { noFailureInjection } from './failure-injection.ts';
+import type { RetryConfig, SleepFn } from './retry.ts';
 
 /**
  * Fallback behaviour: when `search_code` repeatedly fails, attempt a direct
@@ -14,9 +16,15 @@ import { runWithRetry, type RetryConfig } from './retry.ts';
  *
  * The fallback is implemented as a tool wrapper around search_code that
  * transparently falls back to read_file. It consumes exactly one inspection
- * step for the primary attempt and, if the fallback is used, one additional
- * step for the read_file call.
+ * step for each logical attempt; retry attempts are handled internally by the
+ * shared resilience module. Raw tools passed here must be budget-free.
  */
+
+export type FallbackOptions = {
+  injector?: FailureInjector;
+  sleep?: SleepFn;
+  signal?: AbortSignal;
+};
 
 export type FallbackResult = {
   primaryTool: string;
@@ -42,29 +50,43 @@ export async function executeWithFallback(
   debug: DebugLogger,
   retryConfig: RetryConfig,
   reliabilityLog: ReliabilityLogger,
+  options: FallbackOptions = {},
 ): Promise<FallbackResult> {
-  const inspection = budget.consume(primaryTool.name);
-  const inputSummary = summarizeInput(input);
-
-  // Try primary (search_code)
+  options.signal?.throwIfAborted();
+  if (!isBudgetFreeTool(primaryTool)) {
+    throw new Error('Primary fallback tool must be marked as budget-free.');
+  }
+  if (fallbackTool && !isBudgetFreeTool(fallbackTool)) {
+    throw new Error('Fallback tool must be marked as budget-free.');
+  }
+  const rawPrimaryTool = primaryTool;
+  const rawFallbackTool = fallbackTool;
+  let inspection: InspectionMetadata;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = await runWithRetry(
+    inspection = budget.consume(rawPrimaryTool.name);
+  } catch (error) {
+    return {
+      primaryTool: rawPrimaryTool.name,
+      primarySucceeded: false,
+      fallbackUsed: false,
+      fallbackSucceeded: false,
+      result: null,
+      partialMessage: error instanceof Error ? error.message : String(error),
+      inspection: budget.snapshot(),
+    };
+  }
+
+  // Try primary (search_code) through the shared resilience module.
+  try {
+    const result = await runReliableAttempt(
+      rawPrimaryTool,
+      input,
       operation,
-      async (signal) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const rawOutput = await primaryTool.run({
-          toolCallId: `fallback-${operation}`,
-          log: { info() {}, warn() {}, error() {} },
-          data: input as any,
-          signal,
-        } as any);
-        return typeof rawOutput === 'object' && rawOutput !== null && 'output' in rawOutput
-          ? (rawOutput as any).output
-          : rawOutput;
-      },
       retryConfig,
       reliabilityLog,
+      options.injector ?? noFailureInjection,
+      options.sleep,
+      { inspection, debug, signal: options.signal },
     );
 
     reliabilityLog.log({
@@ -78,7 +100,7 @@ export async function executeWithFallback(
     });
 
     return {
-      primaryTool: primaryTool.name,
+      primaryTool: rawPrimaryTool.name,
       primarySucceeded: true,
       fallbackUsed: false,
       fallbackSucceeded: false,
@@ -86,6 +108,7 @@ export async function executeWithFallback(
       inspection,
     };
   } catch (primaryError) {
+    if (options.signal?.aborted) throw primaryError;
     const classifiedPrimary = classifyError(primaryError);
 
     // Don't fallback for permanent errors (auth, permission, not found)
@@ -103,7 +126,7 @@ export async function executeWithFallback(
       });
 
       return {
-        primaryTool: primaryTool.name,
+        primaryTool: rawPrimaryTool.name,
         primarySucceeded: false,
         fallbackUsed: false,
         fallbackSucceeded: false,
@@ -114,26 +137,30 @@ export async function executeWithFallback(
     }
 
     // Try fallback (read_file) if we have a known path
-    if (fallbackTool && knownPath) {
+    if (rawFallbackTool && knownPath) {
       try {
-        const fallbackInspection = budget.consume(fallbackTool.name);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const fallbackResult = await runWithRetry(
+        options.signal?.throwIfAborted();
+        if (budget.remaining <= 0) {
+          return {
+            primaryTool: rawPrimaryTool.name,
+            primarySucceeded: false,
+            fallbackUsed: false,
+            fallbackSucceeded: false,
+            result: null,
+            partialMessage: 'The inspection budget is exhausted before the fallback could run.',
+            inspection: budget.snapshot(),
+          };
+        }
+        const fallbackInspection = budget.consume(rawFallbackTool.name);
+        const fallbackResult = await runReliableAttempt(
+          rawFallbackTool,
+          { path: knownPath, startLine: 1 },
           `${operation}:fallback`,
-          async (signal) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const rawOutput = await fallbackTool.run({
-              toolCallId: `fallback-${operation}-secondary`,
-              log: { info() {}, warn() {}, error() {} },
-              data: { path: knownPath, startLine: 1 } as any,
-              signal,
-            } as any);
-            return typeof rawOutput === 'object' && rawOutput !== null && 'output' in rawOutput
-              ? (rawOutput as any).output
-              : rawOutput;
-          },
           retryConfig,
           reliabilityLog,
+          options.injector ?? noFailureInjection,
+          options.sleep,
+          { inspection: fallbackInspection, debug, signal: options.signal },
         );
 
         reliabilityLog.log({
@@ -147,7 +174,7 @@ export async function executeWithFallback(
         });
 
         return {
-          primaryTool: primaryTool.name,
+          primaryTool: rawPrimaryTool.name,
           primarySucceeded: false,
           fallbackUsed: true,
           fallbackSucceeded: true,
@@ -157,6 +184,7 @@ export async function executeWithFallback(
           inspection: fallbackInspection,
         };
       } catch (fallbackError) {
+        if (options.signal?.aborted) throw fallbackError;
         const classifiedFallback = classifyError(fallbackError);
         reliabilityLog.log({
           operation: `${operation}:fallback`,
@@ -171,14 +199,14 @@ export async function executeWithFallback(
         });
 
         return {
-          primaryTool: primaryTool.name,
+          primaryTool: rawPrimaryTool.name,
           primarySucceeded: false,
           fallbackUsed: true,
           fallbackSucceeded: false,
           result: null,
           partialMessage:
             'Repository search is temporarily unavailable and the fallback file read also failed. I could not verify the answer. You can retry the request.',
-          inspection,
+          inspection: budget.snapshot(),
         };
       }
     }
@@ -197,7 +225,7 @@ export async function executeWithFallback(
     });
 
     return {
-      primaryTool: primaryTool.name,
+      primaryTool: rawPrimaryTool.name,
       primarySucceeded: false,
       fallbackUsed: false,
       fallbackSucceeded: false,

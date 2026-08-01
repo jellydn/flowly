@@ -1,8 +1,8 @@
 import { defineTool } from '@flue/runtime';
 import * as v from 'valibot';
-import type { ToolDefinition } from '@flue/runtime';
 import type { DebugLogger, StepBudget } from '../tools/repository.ts';
 import { summarizeInput } from '../tools/repository.ts';
+import { executeToolCall, type ToolRegistry } from '../investigation/tool-call.ts';
 import type { PlanStore } from './plan-store.ts';
 import { normalizePlan } from './planner.ts';
 import type {
@@ -23,14 +23,13 @@ import type {
  */
 export async function executePlan(
   plan: Plan,
-  tools: Partial<Record<PlanTool, ToolDefinition>>,
-  budget: StepBudget,
-  debug: DebugLogger,
+  tools: ToolRegistry,
   signal?: AbortSignal,
 ): Promise<ExecutionResult[]> {
   const results: ExecutionResult[] = [];
 
   for (const step of plan.steps) {
+    signal?.throwIfAborted();
     if (step.tool === 'answer') {
       const result: ExecutionResult = {
         stepId: step.id,
@@ -40,17 +39,6 @@ export async function executePlan(
       };
       results.push(result);
       break;
-    }
-
-    const tool = tools[step.tool];
-    if (!tool) {
-      results.push({
-        stepId: step.id,
-        status: 'error',
-        tool: step.tool,
-        summary: `Tool ${step.tool} not available`,
-      });
-      continue;
     }
 
     if (!step.input || Object.keys(step.input).length === 0) {
@@ -65,22 +53,30 @@ export async function executePlan(
 
     try {
       signal?.throwIfAborted();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rawOutput = await tool.run({
-        toolCallId: `exec-${step.id}`,
-        log: { info() {}, warn() {}, error() {} },
-        data: step.input as Record<string, any>,
+      const call = await executeToolCall(
+        tools,
+        step.tool,
+        step.input,
+        `exec-${step.id}`,
         signal,
-      } as any);
-      const output = typeof rawOutput === 'object' && rawOutput !== null && 'output' in rawOutput
-        ? (rawOutput as any).output
-        : rawOutput;
+      );
+      if (!call.ok) {
+        results.push({
+          stepId: step.id,
+          status: 'error',
+          tool: step.tool,
+          summary: call.error,
+        });
+        continue;
+      }
+      const output = call.output;
       const status: ExecutionStatus = isEmptyResult(step.tool, output)
         ? 'empty'
         : 'success';
       const summary = summarizeResult(step.tool, output);
       results.push({ stepId: step.id, status, tool: step.tool, summary, output });
     } catch (error) {
+      if (signal?.aborted) throw error;
       results.push({
         stepId: step.id,
         status: 'error',
@@ -150,7 +146,6 @@ export function replan(
   const executedCount = results.length;
   const remainingSteps = originalPlan.steps.slice(executedCount);
   const newSteps: PlanStepInput[] = [];
-  let nextId = 1;
 
   // Keep successfully executed steps as context (not re-executed).
   for (const result of results) {

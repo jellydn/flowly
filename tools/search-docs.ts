@@ -6,9 +6,8 @@ import type {
   RepositoryReader,
   StepBudget,
 } from './repository.ts';
-import { summarizeInput, wrapWithBudget } from './repository.ts';
-
-const MAX_MATCHES = 50;
+import { markBudgetFreeTool, noInspectionBudget, summarizeInput, wrapWithBudget } from './repository.ts';
+import { searchFiles } from './search-utils.ts';
 
 /**
  * search_docs — search documentation files (Markdown, text, README, AGENTS,
@@ -21,10 +20,10 @@ const MAX_MATCHES = 50;
  */
 export function createSearchDocsTool(
   repository: RepositoryReader,
-  budget: StepBudget,
+  budget: StepBudget | undefined,
   debug: DebugLogger,
 ) {
-  return defineTool({
+  const tool = defineTool({
     name: 'search_docs',
     description:
       'Search documentation files (Markdown, text, README, AGENTS, CHANGELOG, docs/**) for a literal string. Use when looking for documented architecture, configuration, or design explanations whose path is unknown. Returns matching repository-relative paths, line numbers, and line excerpts, plus an inspection budget snapshot. Excludes dependencies and generated build output. Results are leads—read the matching documentation before drawing conclusions.',
@@ -35,7 +34,7 @@ export function createSearchDocsTool(
     }),
     async run({ data, signal }) {
       signal?.throwIfAborted();
-      const inspection: InspectionMetadata = budget.consume('search_docs');
+      const inspection: InspectionMetadata = budget?.consume('search_docs') ?? noInspectionBudget();
       const inputSummary = summarizeInput({
         query: data.query,
         path: data.path,
@@ -43,43 +42,20 @@ export function createSearchDocsTool(
       });
       try {
         const files = await repository.documentationFiles(data.path);
-        const needle = data.caseSensitive
-          ? data.query
-          : data.query.toLowerCase();
-        const matches: Array<{ path: string; line: number; excerpt: string }> =
-          [];
-
-        for (const file of files) {
-          signal?.throwIfAborted();
-          let content: string;
-          try {
-            content = await repository.readText(file);
-          } catch {
-            continue;
-          }
-          const lines = content.split(/\r?\n/);
-          for (let index = 0; index < lines.length; index += 1) {
-            const haystack = data.caseSensitive
-              ? lines[index]
-              : lines[index].toLowerCase();
-            if (haystack.includes(needle)) {
-              matches.push({
-                path: file,
-                line: index + 1,
-                excerpt: lines[index].trim().slice(0, 300),
-              });
-              if (matches.length >= MAX_MATCHES) break;
-            }
-          }
-          if (matches.length >= MAX_MATCHES) break;
-        }
+        const { matches, truncated } = await searchFiles(
+          repository,
+          files,
+          data.query,
+          data.caseSensitive,
+          signal,
+        );
 
         const result = {
           query: data.query,
           path: data.path,
           matches,
           filesSearched: files.length,
-          truncated: matches.length >= MAX_MATCHES,
+          truncated,
           inspection,
         };
         debug.log({
@@ -91,6 +67,7 @@ export function createSearchDocsTool(
         });
         return { output: result };
       } catch (error) {
+        if (signal?.aborted) throw error;
         debug.log({
           tool: 'search_docs',
           status: 'error',
@@ -101,4 +78,5 @@ export function createSearchDocsTool(
       }
     },
   });
+  return budget === undefined ? markBudgetFreeTool(tool) : tool;
 }

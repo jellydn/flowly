@@ -306,8 +306,8 @@ The `planner/` module also provides deterministic functions for testing:
 
 - `createPlan(question)` — rule-based plan generation (maps question patterns
   to tool sequences)
-- `executePlan(plan, tools, budget, debug)` — runs each step against the
-  matching tool
+- `executePlan(plan, tools, signal?)` — runs each step against the matching
+  tool and propagates cancellation
 - `shouldReplan(results)` / `replan(plan, results)` — detects empty results
   and produces a revised plan
 - `reflectOnPlan(plan, results, couldSimplify, note)` — counts statuses and
@@ -651,7 +651,8 @@ flue-repo-assistant/
 │   ├── read-file.ts
 │   ├── repository.ts
 │   ├── search-code.ts
-│   └── search-docs.ts
+│   ├── search-docs.ts
+│   └── search-utils.ts
 ├── skills/
 │   └── analyzing-repositories/
 │       └── SKILL.md

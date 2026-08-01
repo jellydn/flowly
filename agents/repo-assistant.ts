@@ -6,7 +6,6 @@ import { createListFilesTool } from '../tools/list-files.ts';
 import { createReadFileTool } from '../tools/read-file.ts';
 import {
   createDebugLogger,
-  createPassThroughBudget,
   createRepositoryReaderSync,
   createStepBudget,
   parseMaxSteps,
@@ -20,7 +19,7 @@ import { createReflectPlanTool } from '../planner/reflection.ts';
 import { createReliabilityLogger } from '../reliability/observability.ts';
 import { createFailureInjector } from '../reliability/failure-injection.ts';
 import { parseRetryConfig } from '../reliability/retry.ts';
-import { wrapToolWithReliability } from '../reliability/resilient-tool.ts';
+import { createReliableInspectionTool } from '../reliability/resilient-tool.ts';
 
 export const description =
   'Answers architecture and source-code questions about one configured repository using read-only tools. Plans before executing, then reflects on the plan. Retries transient failures with backoff.';
@@ -39,26 +38,23 @@ export function RepoAssistant() {
   const injector = createFailureInjector(env);
   const planStore = createPlanStore();
 
-  // Raw inspection tools created with a pass-through budget so retries
-  // don't multiply budget consumption; the reliability wrapper consumes once.
-  const passThroughBudget = createPassThroughBudget(budget);
-  const rawListFiles = createListFilesTool(repository, passThroughBudget, debug);
-  const rawReadFile = createReadFileTool(repository, passThroughBudget, debug);
-  const rawSearchCode = createSearchCodeTool(repository, passThroughBudget, debug);
-  const rawSearchDocs = createSearchDocsTool(repository, passThroughBudget, debug);
-
-  // Wrap with reliability: retry, timeout, output validation, failure injection
-  const listFiles = wrapToolWithReliability(
-    rawListFiles, budget, debug, retryConfig, reliabilityLog, injector,
+  // The reliability seam owns raw-tool budget wiring. Each registered tool
+  // consumes one logical inspection call, while retry attempts stay internal.
+  const listFiles = createReliableInspectionTool(
+    (rawBudget, rawDebug) => createListFilesTool(repository, rawBudget, rawDebug),
+    budget, debug, retryConfig, reliabilityLog, injector,
   );
-  const readFile = wrapToolWithReliability(
-    rawReadFile, budget, debug, retryConfig, reliabilityLog, injector,
+  const readFile = createReliableInspectionTool(
+    (rawBudget, rawDebug) => createReadFileTool(repository, rawBudget, rawDebug),
+    budget, debug, retryConfig, reliabilityLog, injector,
   );
-  const searchCode = wrapToolWithReliability(
-    rawSearchCode, budget, debug, retryConfig, reliabilityLog, injector,
+  const searchCode = createReliableInspectionTool(
+    (rawBudget, rawDebug) => createSearchCodeTool(repository, rawBudget, rawDebug),
+    budget, debug, retryConfig, reliabilityLog, injector,
   );
-  const searchDocs = wrapToolWithReliability(
-    rawSearchDocs, budget, debug, retryConfig, reliabilityLog, injector,
+  const searchDocs = createReliableInspectionTool(
+    (rawBudget, rawDebug) => createSearchDocsTool(repository, rawBudget, rawDebug),
+    budget, debug, retryConfig, reliabilityLog, injector,
   );
 
   useModel(env.REPO_ASSISTANT_MODEL ?? 'openrouter/qwen/qwen3-coder');

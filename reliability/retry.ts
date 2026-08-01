@@ -70,6 +70,29 @@ export type SleepFn = (ms: number) => Promise<void>;
 export const defaultSleep: SleepFn = (ms) =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
+function sleepWithSignal(
+  sleep: SleepFn,
+  ms: number,
+  signal?: AbortSignal,
+): Promise<void> {
+  if (!signal) return sleep(ms);
+  if (signal.aborted) return Promise.reject(signal.reason);
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener('abort', onAbort);
+      reject(signal.reason);
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+    void sleep(ms).then(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, (error) => {
+      signal.removeEventListener('abort', onAbort);
+      reject(error);
+    });
+  });
+}
+
 /**
  * Run `operation` with retry, exponential backoff + jitter, and a per-attempt
  * timeout. Only transient errors are retried; permanent errors fail
@@ -85,19 +108,24 @@ export async function runWithRetry<T>(
   config: RetryConfig,
   logger: ReliabilityLogger,
   sleep: SleepFn = defaultSleep,
+  parentSignal?: AbortSignal,
 ): Promise<T> {
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= config.maxAttempts; attempt += 1) {
+    parentSignal?.throwIfAborted();
     const start = Date.now();
     const controller = new AbortController();
     const timer = setTimeout(
       () => controller.abort(),
       config.timeoutMs,
     );
+    const signal = parentSignal
+      ? AbortSignal.any([controller.signal, parentSignal])
+      : controller.signal;
 
     try {
-      const result = await fn(controller.signal);
+      const result = await fn(signal);
       const durationMs = Date.now() - start;
       clearTimeout(timer);
       logger.log({
@@ -113,6 +141,7 @@ export async function runWithRetry<T>(
     } catch (error) {
       clearTimeout(timer);
       const durationMs = Date.now() - start;
+      if (parentSignal?.aborted) throw error;
       const classified = classifyError(error);
       const transient = classified.retryable;
 
@@ -139,7 +168,7 @@ export async function runWithRetry<T>(
         config.initialDelayMs,
         config.maxDelayMs,
       );
-      await sleep(delay);
+      await sleepWithSignal(sleep, delay, parentSignal);
     }
   }
 
