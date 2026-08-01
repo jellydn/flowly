@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Read-only repository-analysis agent built on [Flue](https://flueframework.com/) 2.0. The agent observes a single configured repo via three custom read-only tools, then answers with file/line citations.
+Read-only repository-analysis agent built on [Flue](https://flueframework.com/) 2.0. The agent observes a single configured repo via four custom read-only tools, then answers with file/line citations.
 
 ## Commands
 
@@ -21,8 +21,8 @@ Read-only repository-analysis agent built on [Flue](https://flueframework.com/) 
 - `agents/repo-assistant.ts` is the only agent and the entrypoint. It uses the `'use agent'` directive and exports `RepoAssistant()`, which calls hooks (`useModel`, `useTool`, `useSandbox`, `useSkill`) and returns the system prompt synchronously.
 - `app.ts` is the route map required by `vite build` — mounts the agent at `/agents/repo-assistant` via `createAgentRouter`.
 - `vite.config.ts` loads the `@flue/vite` plugin for dev/build.
-- The three tools in `tools/` (`list-files`, `read-file`, `search-code`) are created by factory functions in `tools/repository.ts`, which holds the real `RepositoryReader` (path confinement + budgets) and the shared `StepBudget`. The agent uses `createRepositoryReaderSync` because v2 agent render functions are synchronous.
-- `sandbox.ts` replaces Flue's default filesystem/shell tools with an empty toolset — repository access exists ONLY through the three custom tools. The agent cannot write, run shell, or touch Git/network.
+- The four tools in `tools/` (`list-files`, `read-file`, `search-code`, `search-docs`) are created by factory functions in `tools/repository.ts`, which holds the real `RepositoryReader` (path confinement + budgets) and the shared `StepBudget`. The agent uses `createRepositoryReaderSync` because v2 agent render functions are synchronous.
+- `sandbox.ts` replaces Flue's default filesystem/shell tools with an empty toolset — repository access exists ONLY through the four custom inspection tools. The agent cannot write, run shell, or touch Git/network.
 - `skills/analyzing-repositories/SKILL.md` is loaded via a plain `import ... from '...SKILL.md'` (no import attributes in v2). Flue's Vite plugin validates the frontmatter and packages the skill directory automatically.
 
 ## Constraints worth knowing
