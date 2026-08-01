@@ -7,8 +7,9 @@
  * optionally triggers replanning when a step yields no evidence.
  */
 
-/** Tools a plan step can target. `answer` is a no-op terminal step. */
-export type PlanTool = 'list_files' | 'read_file' | 'search_code' | 'search_docs' | 'answer';
+import type { PlanTool } from '../tools/contracts.ts';
+
+export type { PlanTool } from '../tools/contracts.ts';
 
 /** JSON-compatible tool input fields. */
 export type PlanInput = Record<string, string | number | boolean | null>;

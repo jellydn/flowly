@@ -3,6 +3,7 @@ import * as v from 'valibot';
 import type { DebugLogger, StepBudget } from '../tools/repository.ts';
 import { summarizeInput } from '../tools/repository.ts';
 import type { PlanStore } from './plan-store.ts';
+import { PLAN_TOOL_NAMES } from '../tools/contracts.ts';
 import type { Plan, PlanInput, PlanStep, PlanStepInput, PlanTool } from './types.ts';
 
 /**
@@ -185,7 +186,7 @@ function extractSearchQuery(question: string): string {
 
 const planStepSchema = v.object({
   description: v.pipe(v.string(), v.minLength(1), v.maxLength(200)),
-  tool: v.picklist(['list_files', 'read_file', 'search_code', 'search_docs', 'answer']),
+  tool: v.picklist(PLAN_TOOL_NAMES),
   input: v.optional(v.record(v.string(), v.union([v.string(), v.number(), v.boolean(), v.null()]))),
 });
 
@@ -197,7 +198,7 @@ export function createPlanTool(
   return defineTool({
     name: 'create_plan',
     description:
-      'Declare a 3–5 step execution plan before calling any inspection tool. Each step names a tool (list_files, read_file, search_code, or answer) and describes its goal. Call this first, then execute each step with the corresponding tool. Does not consume the inspection budget.',
+      'Declare a 3–5 step execution plan before calling any inspection tool. Each step names an inspection tool or the terminal answer step and describes its goal. Call this first, then execute each step with the corresponding tool. Does not consume the inspection budget.',
     input: v.object({
       question: v.pipe(v.string(), v.minLength(1), v.maxLength(500)),
       steps: v.pipe(

@@ -1,10 +1,10 @@
 import { open, readdir, realpath, stat } from 'node:fs/promises';
 import { realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { TOOL_LIMITS } from './contracts.ts';
 
 const DEFAULT_MAX_STEPS = 8;
-const MAX_FILE_BYTES = 1_000_000;
-const MAX_WALK_FILES = 10_000;
+const { maxFileBytes: MAX_FILE_BYTES, maxWalkFiles: MAX_WALK_FILES } = TOOL_LIMITS;
 
 const ignoredNames = new Set([
   '.git',

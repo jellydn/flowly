@@ -5,16 +5,16 @@
 ## Tech Debt
 
 **Duplicated model/tool contract knowledge:**
-- Issue: Tool names, limits, planning semantics, and Flue v2 details are repeated across `README.md`, `AGENTS.md`, `skills/analyzing-repositories/SKILL.md`, `eval/README.md`, and the prompt string in `agents/repo-assistant.ts`.
-- Files: `README.md`, `AGENTS.md`, `skills/analyzing-repositories/SKILL.md`, `eval/README.md`, `agents/repo-assistant.ts`.
-- Impact: Future tool or limit changes can leave user docs, skill guidance, and runtime instructions inconsistent. Existing stale comments/tests still mention three tools in `sandbox.ts`, `tools/repository.ts`, and `tests/tools.test.ts` despite four inspection tools being registered.
-- Fix approach: Define a single source of truth for tool metadata/limits or add a documentation consistency check; update the stale comments and test descriptions.
+- Issue: Runtime tool names, planner targets, and repository/evidence limits are now centralized in `tools/contracts.ts`, but model-facing descriptions and user documentation still repeat parts of those contracts.
+- Files: `tools/contracts.ts`, `README.md`, `AGENTS.md`, `skills/analyzing-repositories/SKILL.md`, `eval/README.md`, and `agents/repo-assistant.ts`.
+- Impact: Future tool or limit changes can still leave user docs, skill guidance, and runtime instructions inconsistent even though runtime schemas share a source of truth.
+- Fix approach: Add a documentation/code parity check or generate model-facing descriptions from the shared contract where practical; keep stale-comment and test-description cleanup synchronized with tool registration.
 
 **Large orchestration and test modules:**
 - Issue: Several files combine many responsibilities or contain long suites.
 - Files: `tools/repository.ts` (~350 lines), `agents/repo-assistant.ts` (~190 lines), `tests/reliability.test.ts` (~771 lines), `tests/doc-aware.test.ts` (~598 lines), and `tests/planner.test.ts` (~496 lines).
 - Impact: Review and change isolation become harder; regressions may be difficult to localize.
-- Fix approach: Extract shared constants/metadata from `tools/repository.ts`, split reliability tests by concern, and keep agent composition declarative.
+- Fix approach: Shared inspection constants have been extracted to `tools/contracts.ts`; remaining work is to split reliability tests by concern and keep agent composition declarative.
 
 ## Known Bugs
 
@@ -60,9 +60,9 @@
 
 **Large output and plan limits:**
 - Problem: A walk can inspect up to 10,000 entries, while tool results and evidence have separate caps.
-- Files: `tools/repository.ts`, `tools/list-files.ts`, `investigation/evidence.ts`.
-- Cause: Multiple safety limits are layered but not centrally represented.
-- Improvement path: Centralize limits and expose consistent truncation metadata in every layer.
+- Files: `tools/contracts.ts`, `tools/repository.ts`, `tools/list-files.ts`, `investigation/evidence.ts`.
+- Cause: The hard limits are now centrally represented, but each layer still exposes its own truncation metadata and the limits remain independent.
+- Improvement path: Preserve the shared constants and expose consistent truncation metadata across every result type if downstream consumers need uniform handling.
 
 ## Fragile Areas
 
@@ -79,10 +79,10 @@
 - Test coverage: `tests/reliability.test.ts` is extensive, but no live network/provider integration is present.
 
 **Model-facing prompt/tool parity:**
-- Files: `agents/repo-assistant.ts`, `planner/planner.ts`, `skills/analyzing-repositories/SKILL.md`, `README.md`.
-- Why fragile: The prompt says planning tools support `search_docs`, while some older tool descriptions/comments still enumerate only the original three tools.
+- Files: `agents/repo-assistant.ts`, `planner/planner.ts`, `tools/contracts.ts`, `skills/analyzing-repositories/SKILL.md`, `README.md`.
+- Why fragile: The runtime planner schemas now share canonical tool names, but prompt, skill, and user documentation still enumerate capabilities independently.
 - Safe modification: Search all tool names/limits before changing registration; update code comments, docs, skill, and deterministic tests in one change.
-- Test coverage: `tests/doc-aware.test.ts` covers `search_docs`; no automated assertion verifies prompt text matches registered tools.
+- Test coverage: `tests/doc-aware.test.ts` covers `search_docs`; no automated assertion verifies prompt text matches registered tools or shared limits.
 
 ## Scaling Limits
 
@@ -92,7 +92,7 @@
 - Scaling path: Improve planner prioritization, add budget-aware evidence ranking, or make the limit configurable per request with safe upper bounds.
 
 **Repository/output bounds:**
-- Current capacity: 1 MB per file, up to 400 returned lines, up to 50 search matches, up to 500 returned directory entries, and up to 30 evidence items. See `tools/repository.ts`, `tools/read-file.ts`, `tools/search-code.ts`, `tools/search-docs.ts`, `tools/list-files.ts`, and `investigation/evidence.ts`.
+- Current capacity: The repository and evidence bounds are defined by `TOOL_LIMITS` in `tools/contracts.ts` and consumed by the reader, search/list tools, and evidence collector.
 - Limit: Large monorepos can produce incomplete context or expensive sequential scans.
 - Scaling path: Add indexed/streaming search while retaining path confinement and hard output caps.
 
@@ -116,9 +116,9 @@
 - Files: `app.ts`, `agents/repo-assistant.ts`, `eval/run-eval.sh`, `.github/workflows/ci.yml`.
 
 **Automated documentation/code parity:**
-- Problem: Tool counts, limits, and commands are repeated manually across docs and code.
+- Problem: Tool counts, limits, and commands are still repeated manually across user docs and model-facing guidance, despite runtime contracts now being centralized.
 - Blocks: Confidence that onboarding docs remain synchronized after future changes.
-- Files: `README.md`, `AGENTS.md`, `docs/index.html`, `.env.example`, `tools/`, `agents/repo-assistant.ts`.
+- Files: `README.md`, `AGENTS.md`, `docs/index.html`, `.env.example`, `tools/contracts.ts`, `tools/`, `agents/repo-assistant.ts`.
 
 ## Test Coverage Gaps
 

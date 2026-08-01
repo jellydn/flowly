@@ -8,6 +8,7 @@ import type {
 } from './repository.ts';
 import { markBudgetFreeTool, noInspectionBudget, summarizeInput, wrapWithBudget } from './repository.ts';
 import { searchFiles } from './search-utils.ts';
+import { TOOL_LIMITS } from './contracts.ts';
 
 export function createSearchCodeTool(
   repository: RepositoryReader,
@@ -19,8 +20,8 @@ export function createSearchCodeTool(
     description:
       'Search first-party text and source files for a literal string. Use when looking for a symbol, phrase, configuration, or implementation whose path is unknown. Returns matching repository-relative paths, line numbers, and line excerpts, plus an inspection budget snapshot. Excludes dependencies and generated build output. Results are leads, not proof—read the matching files before drawing conclusions.',
     input: v.object({
-      query: v.pipe(v.string(), v.minLength(2), v.maxLength(200)),
-      path: v.optional(v.pipe(v.string(), v.maxLength(500)), '.'),
+      query: v.pipe(v.string(), v.minLength(2), v.maxLength(TOOL_LIMITS.maxQueryLength)),
+      path: v.optional(v.pipe(v.string(), v.maxLength(TOOL_LIMITS.maxPathLength)), '.'),
       caseSensitive: v.optional(v.boolean(), false),
     }),
     async run({ data, signal }) {

@@ -8,6 +8,7 @@ import {
   type ToolRegistry,
 } from '../investigation/tool-call.ts';
 import type { PlanStore } from './plan-store.ts';
+import { PLAN_TOOL_NAMES } from '../tools/contracts.ts';
 import { normalizePlan } from './planner.ts';
 import type {
   ExecutionResult,
@@ -202,7 +203,7 @@ export function replan(
 
 const planStepSchema = v.object({
   description: v.pipe(v.string(), v.minLength(1), v.maxLength(200)),
-  tool: v.picklist(['list_files', 'read_file', 'search_code', 'search_docs', 'answer']),
+  tool: v.picklist(PLAN_TOOL_NAMES),
   input: v.optional(v.record(v.string(), v.union([v.string(), v.number(), v.boolean(), v.null()]))),
 });
 

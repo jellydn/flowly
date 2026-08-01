@@ -276,7 +276,7 @@ describe('search_code', () => {
 });
 
 describe('shared budget', () => {
-  test('all three tools consume the same budget', async () => {
+  test('all inspection tools consume the same budget', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(3);
     const list = createListFilesTool(repository, budget, noDebug());
