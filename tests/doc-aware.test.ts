@@ -465,6 +465,50 @@ describe('investigation loop', () => {
     assert.ok(result.evidence.length > 0);
   });
 
+  test('propagates cancellation through an in-flight investigation tool call', async () => {
+    const controller = new AbortController();
+    let resolveStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      resolveStarted = resolve;
+    });
+    const tools = buildToolMap({
+      read_file: {
+        name: 'read_file',
+        description: 'test',
+        input: undefined,
+        output: undefined,
+        async run({ signal }) {
+          resolveStarted();
+          await new Promise<void>((_, reject) => {
+            const onAbort = () => {
+              signal?.removeEventListener('abort', onAbort);
+              reject(new Error('operation cancelled'));
+            };
+            if (signal?.aborted) onAbort();
+            else signal?.addEventListener('abort', onAbort, { once: true });
+          });
+          return { output: {} };
+        },
+      },
+    });
+    const decide: DecisionFn = async () => ({
+      type: 'call',
+      tool: 'read_file',
+      input: { path: 'src/auth.ts', startLine: 1 },
+    });
+
+    const promise = runInvestigation(
+      'cancel',
+      tools,
+      createStepBudget(8),
+      decide,
+      { signal: controller.signal },
+    );
+    await started;
+    controller.abort(new Error('cancelled'));
+    await assert.rejects(promise, /cancel/i);
+  });
+
   test('failed tool calls do not crash the loop', async () => {
     const budget = createStepBudget(8);
     const tools = await (await buildTools(root, budget))();

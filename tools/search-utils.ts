@@ -27,14 +27,7 @@ export async function searchFiles(
   for (const file of files) {
     signal?.throwIfAborted();
 
-    let content: string;
-    try {
-      content = await repository.readText(file);
-    } catch (error) {
-      if (signal?.aborted) throw error;
-      continue;
-    }
-
+    const content = await repository.readText(file);
     const lines = content.split(/\r?\n/);
     for (let index = 0; index < lines.length; index += 1) {
       if ((index & 255) === 0) {

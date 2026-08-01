@@ -19,6 +19,7 @@ export const DEFAULT_MAX_ITERATIONS = 5;
 
 export type InvestigationOptions = {
   maxIterations?: number;
+  signal?: AbortSignal;
 };
 
 /**
@@ -50,6 +51,7 @@ export async function runInvestigation(
   let stopReason = '';
 
   while (iteration < maxIterations) {
+    options.signal?.throwIfAborted();
     const state: InvestigationState = {
       question,
       iteration,
@@ -63,7 +65,9 @@ export async function runInvestigation(
     let action: InvestigationAction;
     try {
       action = await decide(state);
+      options.signal?.throwIfAborted();
     } catch (error) {
+      if (options.signal?.aborted) throw error;
       errors.push(
         `Decision function failed: ${error instanceof Error ? error.message : String(error)}`,
       );
@@ -92,7 +96,7 @@ export async function runInvestigation(
       action.tool,
       action.input,
       `investigation-${action.tool}-${Date.now()}`,
-      undefined,
+      options.signal,
       () => budget.remaining <= 0 ? 'Inspection budget exhausted' : undefined,
       () => {
         tracker.record({
