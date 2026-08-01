@@ -35,8 +35,8 @@ flue-repo-assistant/
 
 **`tools/`:**
 - Purpose: Provide the only application-data access to the configured repository.
-- Contains: `RepositoryReader`, shared budget, list/read/code-search/docs-search tool factories.
-- Key files: `tools/repository.ts`, `tools/list-files.ts`, `tools/read-file.ts`, `tools/search-code.ts`, `tools/search-docs.ts`.
+- Contains: `RepositoryReader`, shared budget, canonical tool/limit contracts, and list/read/code-search/docs-search tool factories.
+- Key files: `tools/contracts.ts`, `tools/repository.ts`, `tools/list-files.ts`, `tools/read-file.ts`, `tools/search-code.ts`, `tools/search-docs.ts`.
 
 **`planner/`:**
 - Purpose: Separate model intent from repository inspection and record outcomes.
@@ -91,7 +91,8 @@ flue-repo-assistant/
 - `.github/workflows/ci.yml`: Node version and CI check sequence.
 
 **Core Logic:**
-- `tools/repository.ts`: path confinement, limits, and shared budget.
+- `tools/contracts.ts`: canonical tool names and shared inspection/evidence limits.
+- `tools/repository.ts`: path confinement, repository traversal, and shared budget.
 - `planner/`: planning/execution contracts.
 - `investigation/`: evidence loop and answer semantics.
 - `reliability/`: resilient tool execution.
@@ -126,6 +127,7 @@ flue-repo-assistant/
 - Reliability behavior: `reliability/` with deterministic injected failures and safe logging.
 
 **Utilities:**
+- Shared tool contracts and limits: `tools/contracts.ts`.
 - Shared repository/budget helpers: `tools/repository.ts`.
 - Shared test fixtures and contexts: `tests/helpers.ts`.
 

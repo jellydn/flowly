@@ -8,8 +8,8 @@
 
 **Key Characteristics:**
 - `agents/repo-assistant.ts` composes Flue v2 hooks synchronously and is the single agent entrypoint.
-- Four application inspection tools (`list_files`, `read_file`, `search_code`, `search_docs`) are the only repository data capabilities. See `agents/repo-assistant.ts` and `tools/`.
-- Planning meta-tools (`create_plan`, `replan`, `reflect_plan`) separate intent from inspection. See `planner/`.
+- The inspection capabilities defined by `INSPECTION_TOOL_NAMES` are the only repository data capabilities. See `tools/contracts.ts`, `agents/repo-assistant.ts`, and `tools/`.
+- Planning meta-tools (`create_plan`, `replan`, `reflect_plan`) separate intent from inspection. Canonical plan-tool names are derived from the shared contract module. See `planner/` and `tools/contracts.ts`.
 - Reliability is applied around each inspection tool before registration with Flue. See `reliability/resilient-tool.ts` and `agents/repo-assistant.ts`.
 - The deterministic investigation module mirrors the observe → act → reflect loop for tests and demos without requiring an LLM. See `investigation/loop.ts` and `tests/doc-aware.test.ts`.
 
@@ -26,13 +26,13 @@
 - Purpose: Record a 3–5 step plan, execute concrete steps in deterministic tests, replan after empty search/list results, and reflect on outcomes.
 - Location: `planner/types.ts`, `planner/plan-store.ts`, `planner/planner.ts`, `planner/executor.ts`, `planner/reflection.ts`.
 - Contains: Plan schemas, in-memory `PlanStore`, rule-based planner, programmatic executor, replanning, and model-facing meta-tools.
-- Depends on: Flue tool definitions and shared budget snapshots.
+- Depends on: Flue tool definitions, shared budget snapshots, and the canonical plan-tool contract in `tools/contracts.ts`.
 - Used by: `agents/repo-assistant.ts`, `tests/planner.test.ts`, and the agent prompt.
 
 **Repository access layer:**
 - Purpose: Inspect one local repository under strict path and output constraints.
 - Location: `tools/repository.ts` and `tools/*.ts`.
-- Contains: `RepositoryReader`, `StepBudget`, path confinement, ignored-directory filtering, bounded reads, source/documentation file discovery, and four typed tool factories.
+- Contains: `RepositoryReader`, `StepBudget`, shared inspection limits, canonical tool-name contracts, path confinement, ignored-directory filtering, bounded reads, source/documentation file discovery, and four typed tool factories.
 - Depends on: Node filesystem APIs, Valibot, and Flue's `defineTool`.
 - Used by: The agent, deterministic investigation loop, demos, and tests.
 
@@ -82,9 +82,13 @@
 ## Key Abstractions
 
 **`RepositoryReader`:**
-- Purpose: Canonicalize and confine paths, list entries, read bounded text, and identify searchable/documentation files.
+- Purpose: Canonicalize and confine paths, enforce shared inspection limits, list entries, read bounded text, and identify searchable/documentation files.
 - Examples: `tools/repository.ts`, `tests/repository.test.ts`.
 - Pattern: Application-controlled capability object; all tool factories receive it explicitly.
+
+**`tools/contracts.ts`:**
+- Purpose: Single source of truth for inspection tool names, planner tool targets, and repository/evidence limits.
+- Pattern: Pure constants and derived literal-union types imported by tools, planner, and evidence layers.
 
 **`StepBudget`:**
 - Purpose: Shared inspection-call quota with `{ used, remaining, limit }` snapshots.
