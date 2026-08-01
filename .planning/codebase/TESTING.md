@@ -4,148 +4,77 @@
 
 ## Test Framework
 
-**Runner:**
-- Node.js native `node:test`, executed through `tsx`. See `package.json` and imports in `tests/*.test.ts`.
-- No Jest, Vitest, Playwright, or separate assertion framework is configured.
-- Config: `package.json` scripts and `tsconfig.json`; no dedicated test config file.
+- Node.js native `node:test` with `node:assert/strict`, executed through `tsx`.
+- No Jest, Vitest, Playwright, lint runner, or numeric coverage threshold is configured.
+- `npm test` runs `tsx --test tests/*.test.ts`.
+- `npm run typecheck` runs strict `tsc`; `npm run build` runs Vite; `npm run check` runs all three in order.
 
-**Assertion Library:**
-- Node's `node:assert/strict`. See `tests/tools.test.ts`, `tests/planner.test.ts`, and `tests/reliability.test.ts`.
+## Test Organization
 
-**Run Commands:**
-```bash
-npm test                 # Run all suites in tests/*.test.ts
-npm run typecheck        # Strict TypeScript check
-npm run check            # typecheck, tests, then Vite build
-npx tsx --test tests/doc-aware.test.ts  # Run one focused suite
-```
-
-Coverage is not configured or required by CI. See `package.json`, `.gitignore`, and `.github/workflows/ci.yml`.
-
-## Test File Organization
-
-**Location:**
-- Separate top-level `tests/` directory, not co-located with implementation. See `tests/`.
-
-**Naming:**
-- `<area>.test.ts`: `tools.test.ts`, `repository.test.ts`, `planner.test.ts`, `doc-aware.test.ts`, `reliability.test.ts`, and `eval-scenarios.test.ts`.
-
-**Structure:**
 ```text
 tests/
-├── helpers.ts
-├── repository.test.ts       # reader, path confinement, budget parsing
-├── tools.test.ts            # list/read/code-search contracts
-├── planner.test.ts          # plans, executor, replanning, reflection
-├── doc-aware.test.ts        # docs search, evidence, citations, loop
-├── reliability.test.ts      # failures, retries, validation, fallback
-└── eval-scenarios.test.ts   # deterministic evaluation sequences
+├── helpers.ts                 # temporary repos, Flue contexts, envelope helper
+├── repository.test.ts         # reader, path confinement, symlinks, budget
+├── tools.test.ts              # list/read/search contracts and safe logging
+├── planner.test.ts            # PlanRun, store compatibility, execution, replan
+├── tool-execution.test.ts     # invocation seam, metadata, cancellation
+├── inspection-registry.test.ts# registry construction/order/shared behavior
+├── repository-search.test.ts  # search scopes and cancellation
+├── doc-aware.test.ts          # docs, evidence, citations, confidence, loop
+├── reliability.test.ts        # errors, retry, timeout, validation, fallback
+└── eval-scenarios.test.ts     # deterministic expected tool sequences
 ```
 
-## Test Structure
+Tests are top-level and named by responsibility. Suites use `describe`/`test`; temporary fixtures are created in `before` and removed in `after` where appropriate.
 
-**Suite Organization:**
-```typescript
-import assert from 'node:assert/strict';
-import { after, before, describe, test } from 'node:test';
+## Fixtures and Dependency Injection
 
-describe('feature', () => {
-  test('behaves as expected', async () => {
-    const result = await runTool(tool, input);
-    assert.equal(result.inspection.used, 1);
-  });
-});
-```
+- `tests/helpers.ts` creates a deterministic repository containing source files, documentation, ignored dependency noise, and misleading negative-search content.
+- Filesystem safety tests use real temporary directories and symlinks rather than mocks.
+- Reliability tests inject sleep functions, failure injectors, raw tool implementations, and captured console output.
+- Investigation tests inject deterministic decision functions and tool maps.
+- Flue v2 contexts are assembled through test helpers and `{ output: value }` envelopes are unwrapped consistently.
 
-See `tests/tools.test.ts`, `tests/planner.test.ts`, and `tests/doc-aware.test.ts`.
+## Coverage by Concern
 
-**Patterns:**
-- Use `before` to create one temporary fixture and `after` to remove it. See `tests/helpers.ts` and `tests/tools.test.ts`.
-- Use `createSampleRepo()` for a deterministic repository containing docs, source, ignored dependency noise, and misleading negative-search content. See `tests/helpers.ts`.
-- Create fresh readers, budgets, and tools inside individual tests to isolate mutable state. See `tests/repository.test.ts` and `tests/planner.test.ts`.
-- Exercise both direct raw tool calls and higher-level planner/investigation flows. See `tests/tools.test.ts`, `tests/planner.test.ts`, and `tests/doc-aware.test.ts`.
+**Repository and tools:**
+- Path traversal, escaping symlinks, ignored directories, file limits, line bounds, literal search, empty results, shared budget, debug logging, and file-read failures.
 
-## Mocking
+**Planning:**
+- Rule-based plan generation, normalization, PlanRun state transitions, historical/current results, executor skips, answer termination, cancellation, replanning, reflection, and compatibility with legacy stores.
 
-**Framework:** Node primitives and dependency injection; no mocking library.
+**Shared execution:**
+- Unknown tools, successful invocation, Flue envelope normalization, input forwarding, metadata, preflight/resolution callbacks, pre-abort behavior, in-flight cancellation, and compatibility exports.
 
-**Patterns:**
-```typescript
-const noDebug = () => createDebugLogger(false);
-const lines: string[] = [];
-const original = console.error;
-console.error = (...args: unknown[]) => lines.push(args.join(' '));
-try {
-  // exercise the logger
-} finally {
-  console.error = original;
-}
-```
+**Registry/search:**
+- Stable inspection registration order, all four wrapped tools, shared budget use, source/documentation scopes, early cancellation, bounded matches, and `filesSearched` behavior.
 
-Reliability tests inject fake sleep functions, failure injectors, and mock operations rather than mocking modules. See `tests/reliability.test.ts` and `reliability/retry.ts`.
+**Reliability:**
+- Error classification, transient retry/backoff, cancellation, timeout, permanent failures, output validation, safe messages, fallback, failure injection, and structured observability.
 
-**What to Mock:**
-- Provider-independent tool inputs/outputs, sleep/backoff, failure injection, console logging, and decision functions. See `tests/reliability.test.ts`, `tests/doc-aware.test.ts`, and `tests/tools.test.ts`.
+**Evidence and answers:**
+- Documentation/code evidence extraction, deduplication, excerpt truncation, confidence levels, citations, insufficient-evidence responses, duplicate-call blocking, early stopping, and iteration limits.
 
-**What NOT to Mock:**
-- RepositoryReader filesystem behavior and path confinement; tests use real temporary directories to verify actual limits. See `tests/repository.test.ts` and `tests/tools.test.ts`.
-- Deterministic planner, evidence, and answer functions; tests exercise their real pure implementations. See `tests/planner.test.ts` and `tests/doc-aware.test.ts`.
+## Running Checks
 
-## Fixtures and Factories
-
-**Test Data:**
-```typescript
-const root = await createSampleRepo();
-const repository = await createRepositoryReader(root);
-const budget = createStepBudget(8);
-const tool = createSearchCodeTool(repository, budget, noDebug());
-const result = await runTool(tool, { query: 'login', path: '.', caseSensitive: false });
-```
-
-**Location:**
-- `tests/helpers.ts` creates temporary fixture repositories and supplies `toolContext()` / `runTool()` helpers for Flue v2 contexts and `{ output: value }` envelopes.
-- `eval/fixtures/sample-repo/` is a committed, smaller live-evaluation fixture.
-
-## Coverage
-
-**Requirements:** None enforced by configuration or CI. The suite is broad but there is no numeric coverage threshold. See `.github/workflows/ci.yml`.
-
-**View Coverage:**
 ```bash
-# No coverage script is configured; use npm test for behavioral coverage.
+npm run typecheck
 npm test
+npm run build
+npm run check
+npx tsx --test tests/repository-search.test.ts
+npx tsx --test tests/tool-execution.test.ts
 ```
 
-## Test Types
+The deterministic suite does not require an LLM key. `eval/run-eval.sh` is the manual/live model-driven evaluation path and requires a configured provider key.
 
-**Unit Tests:**
-- Pure planner, reflection, call-tracker, evidence, answer, error classification, retry, validation, and parsing behavior. See `tests/planner.test.ts`, `tests/doc-aware.test.ts`, and `tests/reliability.test.ts`.
+## Gaps
 
-**Integration Tests:**
-- Tool factories against real temporary repositories; planner/executor against the fixture; resilient wrapper and fallback flows. See `tests/tools.test.ts`, `tests/repository.test.ts`, `tests/planner.test.ts`, and `tests/reliability.test.ts`.
-
-**E2E Tests:**
-- No automated end-to-end browser or live-provider suite. `eval/run-eval.sh` supports manual/live model observation and explicitly avoids fake deterministic LLM assertions. See `eval/README.md`.
-
-## Common Patterns
-
-**Async Testing:**
-```typescript
-await assert.rejects(
-  async () => tool.run(toolContext({ path: '../outside' })),
-  /escapes/,
-);
-```
-
-See `tests/tools.test.ts` and `tests/repository.test.ts`.
-
-**Error Testing:**
-```typescript
-assert.throws(() => budget.consume('search_code'), /budget exhausted/);
-assert.equal(classified.retryable, false);
-```
-
-See `tests/repository.test.ts` and `tests/reliability.test.ts`.
+- No automated test exercises the live Flue route, `RepoAssistant()` initialization under runtime conditions, or an actual provider request.
+- No numeric coverage reporting or threshold is enforced.
+- Prompt/tool-contract parity is documented but not mechanically tested.
+- Concurrent hostile repository mutation and prompt-injection content have limited targeted coverage.
+- Search behavior for unusual documentation formats and very large repositories is not covered by a performance suite.
 
 ---
 

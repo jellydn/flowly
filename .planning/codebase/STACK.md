@@ -5,71 +5,58 @@
 ## Languages
 
 **Primary:**
-- TypeScript (strict, ES modules) - Agent, tools, planning, investigation, reliability layers, and tests. See `tsconfig.json`, `agents/`, `tools/`, `planner/`, `investigation/`, and `reliability/`.
+- TypeScript with strict checking and ES modules. Application code, tools, planning, investigation, reliability, and tests are TypeScript. See `tsconfig.json`, `agents/`, `tools/`, `planner/`, `investigation/`, and `reliability/`.
 
 **Secondary:**
-- Markdown - User documentation, the repository-analysis skill, evaluation notes, and this codebase map. See `README.md`, `AGENTS.md`, `skills/analyzing-repositories/SKILL.md`, and `eval/README.md`.
-- HTML/CSS - Static project showcase page. See `docs/index.html`.
-- YAML - GitHub Actions CI configuration. See `.github/workflows/ci.yml`.
-- JSON - Package metadata, lockfile, and Renovate configuration. See `package.json`, `package-lock.json`, and `renovate.json`.
+- Markdown for user and agent documentation, evaluation notes, and this map.
+- HTML/CSS for the static showcase in `docs/index.html`.
+- YAML for GitHub Actions configuration.
+- JSON for package metadata, lockfile, and Renovate configuration.
+- Shell scripts for deterministic demos and evaluation launchers in `demo/` and `eval/`.
 
 ## Runtime
 
-**Environment:**
-- Node.js `>=22.19.0` for development and runtime. CI pins Node `24.18.1`. See `package.json` and `.github/workflows/ci.yml`.
-- ECMAScript modules via `"type": "module"`. See `package.json`.
+- Node.js `>=22.19.0` is required locally; CI pins Node `24.18.1`. See `package.json` and `.github/workflows/ci.yml`.
+- ECMAScript modules are enabled through `package.json` (`"type": "module"`).
+- npm is the package manager. The committed lockfile and CI use `npm ci`.
 
-**Package Manager:**
-- npm, with `package-lock.json` committed and `npm ci` used in CI. See `package-lock.json` and `.github/workflows/ci.yml`.
+## Frameworks and Build Tools
 
-## Frameworks
+- **Flue 2.0** (`@flue/runtime`, `@flue/cli`, `@flue/vite`) provides agent hooks, typed tools, model/sandbox/skill integration, routing, CLI execution, and Vite packaging. See `agents/repo-assistant.ts`, `app.ts`, `vite.config.ts`, and `package.json`.
+- **Hono** is used by the route map through the Flue runtime dependency tree. See `app.ts`.
+- **Vite 8.x** builds the Flue application and packages the imported skill. See `vite.config.ts` and `flue.config.ts`.
+- **TypeScript 7.x** runs with `strict`, `noEmit`, ES2024, and bundler module resolution. See `tsconfig.json`.
+- **tsx** executes TypeScript tests using Node's native `node:test` runner.
 
-**Core:**
-- Flue `2.0` (`@flue/runtime`, `@flue/cli`) - Agent runtime, typed tools, model/sandbox/skill hooks, routing, and CLI execution. See `agents/repo-assistant.ts`, `app.ts`, and `package.json`.
-- Hono (transitive dependency resolved through the Flue runtime tree; not declared directly in `package.json`) - Lightweight route container used by the Flue v2 route map. See `app.ts`, `package.json`, and `package-lock.json`.
+## Runtime Dependencies
 
-**Testing:**
-- Node's built-in `node:test` runner, launched through `tsx`. See `package.json` and `tests/*.test.ts`.
-
-**Build/Dev:**
-- Vite `8.x` with `@flue/vite` - Bundles the Flue v2 application and packages the imported skill. See `vite.config.ts`, `flue.config.ts`, and `package.json`.
-- TypeScript `7.x` with `tsc --noEmit` - Strict static checking. See `tsconfig.json` and `package.json`.
-- `tsx` - Executes TypeScript test files. See `package.json`.
-
-## Key Dependencies
-
-**Critical:**
-- `@flue/runtime` `^2.0.0` - Agent hooks, tool definitions, sandbox support, routing, and runtime configuration. See `agents/repo-assistant.ts`, `sandbox.ts`, `app.ts`, and `flue.config.ts`.
-- `@flue/cli` `^2.0.0` - `flue run agents/repo-assistant.ts` entrypoint. See `package.json` and `AGENTS.md`.
-- `valibot` `^1.1.0` - Runtime schemas for tool and planning inputs. See `tools/*.ts` and `planner/*.ts`.
-
-**Infrastructure:**
-- `just-bash` `^3.1.0` - Creates the in-memory Flue session environment while exposing no model-facing shell tools. See `sandbox.ts`.
-- `vite` `^8.2.0` and `@flue/vite` `^2.0.0` - Build integration. See `vite.config.ts` and `package.json`.
+- `@flue/runtime` `^2.0.0`: agent runtime, tool definitions, sandbox support, skill loading, and routing.
+- `@flue/cli` `^2.0.0`: `flue run` command used by the CLI entrypoint.
+- `@flue/vite` `^2.0.0`: Vite integration for Flue agents and skills.
+- `just-bash` `^3.1.0`: in-memory sandbox implementation with no model-facing shell tools.
+- `valibot` `^1.1.0`: runtime schemas for tool and planning inputs.
+- `vite` `^8.2.0`, `tsx` `^4.20.6`, and `typescript` `^7.0.0`: build and development tooling.
 
 ## Configuration
 
-**Environment:**
-- `REPOSITORY_PATH` selects the only checkout the custom tools may inspect; it defaults to `../oak`. See `.env.example`, `agents/repo-assistant.ts`, and `tools/repository.ts`.
-- `REPO_ASSISTANT_MODEL` selects the Flue model, defaulting to `openrouter/qwen/qwen3-coder`. See `.env.example` and `agents/repo-assistant.ts`.
-- `OPENROUTER_API_KEY` is required by the default provider. See `.env.example` and `README.md`.
-- `REPO_ASSISTANT_MAX_STEPS` controls the shared inspection budget from 1–20, default 8. See `.env.example` and `tools/repository.ts`.
-- Reliability settings include `REPO_ASSISTANT_MAX_ATTEMPTS`, `REPO_ASSISTANT_INITIAL_DELAY_MS`, `REPO_ASSISTANT_MAX_DELAY_MS`, and `REPO_ASSISTANT_TIMEOUT_MS`. See `.env.example` and `reliability/retry.ts`.
-- `REPO_ASSISTANT_DEBUG` enables safe tool/reliability logs; failure-injection variables are demo/test controls. See `.env.example`, `tools/repository.ts`, and `reliability/failure-injection.ts`.
+**Environment variables:**
+- `REPOSITORY_PATH`: configured repository root; defaults to `../oak`.
+- `REPO_ASSISTANT_MODEL`: Flue model specifier; defaults to `openrouter/qwen/qwen3-coder`.
+- `OPENROUTER_API_KEY`: provider key required by the documented default model.
+- `REPO_ASSISTANT_MAX_STEPS`: shared inspection budget, constrained to 1–20 and defaulting to 8.
+- `REPO_ASSISTANT_DEBUG`: enables sanitized tool and reliability logs.
+- `REPO_ASSISTANT_MAX_ATTEMPTS`, `REPO_ASSISTANT_INITIAL_DELAY_MS`, `REPO_ASSISTANT_MAX_DELAY_MS`, and `REPO_ASSISTANT_TIMEOUT_MS`: reliability policy controls.
+- `FAIL_FIRST_N_REQUESTS`, `SIMULATE_TOOL_TIMEOUT`, `SIMULATE_MALFORMED_RESPONSE`, and `FAIL_OPERATION`: deterministic failure-injection/demo controls.
 
-**Build:**
-- `flue.config.ts` sets the runtime target to Node.
-- `vite.config.ts` enables the `@flue/vite` plugin.
-- `tsconfig.json` uses ES2024, bundler resolution, strict checking, no emit, and `.ts` extension imports.
-- `app.ts` is the Vite/Flue route map.
+**Build/runtime configuration:**
+- `flue.config.ts` targets Node.
+- `vite.config.ts` enables the Flue Vite plugin.
+- `app.ts` mounts `/agents/repo-assistant` and `/api/ping`.
+- `tsconfig.json` includes application and test TypeScript, allows `.ts` imports, and emits nothing.
 
 ## Platform Requirements
 
-**Development:**
-- Node.js `>=22.19.0`, npm, an installed dependency tree, an LLM provider key, and a local repository checkout. See `AGENTS.md` and `README.md`.
-
-**Production:**
-- Node-targeted Flue application; no deployment platform or persistent service is configured in this repository. CI only runs checks on Ubuntu. See `flue.config.ts` and `.github/workflows/ci.yml`.
+Development requires Node.js 22.19+, npm dependencies, an LLM provider key for live runs, and a local checkout to inspect. CI runs `npm ci` followed by `npm run check` on Ubuntu. No production hosting or persistent database is configured in this repository.
 
 ---
 
