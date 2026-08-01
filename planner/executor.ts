@@ -61,32 +61,35 @@ export async function executePlan(
       };
     },
     onSkip(action) {
+      const tool = action.tool as PlanTool;
       results.push({
-        stepId: action.stepId ?? results.length + 1,
+        stepId: requireStepId(action),
         status: 'skipped',
-        tool: action.tool as PlanTool,
+        tool,
         summary: action.reason,
       });
     },
     onResult(action, call) {
+      const tool = action.tool as PlanTool;
+      const stepId = requireStepId(action);
       if (!call.ok) {
         results.push({
-          stepId: action.stepId ?? Number(action.toolCallId.slice('exec-'.length)),
+          stepId,
           status: 'error',
-          tool: action.tool as PlanTool,
+          tool,
           summary: call.error,
         });
         return;
       }
       const output = call.output;
-      const status: ExecutionStatus = isEmptyResult(action.tool as PlanTool, output)
+      const status: ExecutionStatus = isEmptyResult(tool, output)
         ? 'empty'
         : 'success';
       results.push({
-        stepId: action.stepId ?? Number(action.toolCallId.slice('exec-'.length)),
+        stepId,
         status,
-        tool: action.tool as PlanTool,
-        summary: summarizeResult(action.tool as PlanTool, output),
+        tool,
+        summary: summarizeResult(tool, output),
         output,
       });
     },
@@ -112,6 +115,13 @@ export function isEmptyResult(tool: PlanTool, output: unknown): boolean {
     return Array.isArray(entries) && entries.length === 0;
   }
   return false;
+}
+
+function requireStepId(action: { stepId?: number }): number {
+  if (action.stepId === undefined) {
+    throw new Error('Planner execution action is missing a step ID');
+  }
+  return action.stepId;
 }
 
 function summarizeResult(tool: PlanTool, output: unknown): string {
