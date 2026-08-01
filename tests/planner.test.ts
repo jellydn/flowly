@@ -19,6 +19,7 @@ import {
   replan,
   shouldReplan,
 } from '../planner/executor.ts';
+import { runExecutionLoop } from '../investigation/tool-call.ts';
 import {
   createReflectPlanTool,
   formatReflection,
@@ -99,6 +100,199 @@ describe('normalizePlan', () => {
 // ---------------------------------------------------------------------------
 
 describe('executePlan', () => {
+  test('shared execution loop preserves adapter skips and stops', async () => {
+    const skipped: string[] = [];
+    const result = await runExecutionLoop(
+      {},
+      {
+        next(iteration) {
+          return iteration === 0
+            ? { type: 'skip', tool: 'read_file', reason: 'input deferred' }
+            : { type: 'stop', reason: 'adapter complete' };
+        },
+        onResult() {},
+        onSkip(action) {
+          skipped.push(action.reason);
+        },
+        finish(reason, iterations) {
+          return { reason, iterations, skipped: skipped.length };
+        },
+      },
+      { maxIterations: 3 },
+    );
+    assert.deepEqual(result, {
+      reason: 'adapter complete',
+      iterations: 1,
+      skipped: 1,
+    });
+  });
+
+  test('normalizes invocation failures through the shared result protocol', async () => {
+    let observed: unknown;
+    const result = await runExecutionLoop(
+      {
+        read_file: {
+          name: 'read_file',
+          description: 'test',
+          input: undefined,
+          output: undefined,
+          async run() {
+            throw new Error('tool failed');
+          },
+        },
+      },
+      {
+        next() {
+          return {
+            type: 'call',
+            tool: 'read_file',
+            input: { path: 'missing.ts' },
+            toolCallId: 'shared-error',
+          };
+        },
+        onResult(_action, call) {
+          observed = call;
+          return 'done';
+        },
+        finish(reason, iterations) {
+          return { reason, iterations };
+        },
+      },
+      { maxIterations: 1 },
+    );
+
+    assert.deepEqual(result, { reason: 'done', iterations: 1 });
+    assert.deepEqual(observed, {
+      ok: false,
+      tool: 'read_file',
+      error: 'tool failed',
+    });
+  });
+
+  test('stops after adapter preflight rejects a call', async () => {
+    let invoked = false;
+    const result = await runExecutionLoop(
+      {
+        read_file: {
+          name: 'read_file',
+          description: 'test',
+          input: undefined,
+          output: undefined,
+          async run() {
+            invoked = true;
+            return { output: {} };
+          },
+        },
+      },
+      {
+        next() {
+          return {
+            type: 'call',
+            tool: 'read_file',
+            input: { path: 'src/auth.ts' },
+            toolCallId: 'shared-budget',
+            preflight: () => 'Inspection budget exhausted',
+          };
+        },
+        onResult(_action, call) {
+          assert.deepEqual(call, {
+            ok: false,
+            tool: 'read_file',
+            error: 'Inspection budget exhausted',
+          });
+          return 'budget exhausted';
+        },
+        finish(reason, iterations) {
+          return { reason, iterations };
+        },
+      },
+      { maxIterations: 3 },
+    );
+
+    assert.deepEqual(result, { reason: 'budget exhausted', iterations: 1 });
+    assert.equal(invoked, false);
+  });
+
+  test('propagates cancellation from the shared invocation seam', async () => {
+    const controller = new AbortController();
+    let resolveStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      resolveStarted = resolve;
+    });
+    const tools: Partial<Record<string, ToolDefinition>> = {
+      read_file: {
+        name: 'read_file',
+        description: 'test',
+        input: undefined,
+        output: undefined,
+        async run({ signal }) {
+          resolveStarted();
+          await new Promise<void>((_, reject) => {
+            const onAbort = () => {
+              signal?.removeEventListener('abort', onAbort);
+              reject(new Error('shared operation cancelled'));
+            };
+            if (signal?.aborted) onAbort();
+            else signal?.addEventListener('abort', onAbort, { once: true });
+          });
+          return { output: {} };
+        },
+      },
+    };
+
+    const promise = runExecutionLoop(
+      tools,
+      {
+        next() {
+          return {
+            type: 'call',
+            tool: 'read_file',
+            input: { path: 'src/auth.ts' },
+            toolCallId: 'shared-cancel',
+          };
+        },
+        onResult() {
+          return undefined;
+        },
+        finish() {
+          return undefined;
+        },
+      },
+      { maxIterations: 1, signal: controller.signal },
+    );
+    await started;
+    controller.abort(new Error('cancelled'));
+    await assert.rejects(promise, /shared operation cancelled/);
+  });
+
+  test('finishes when the shared loop reaches max iterations', async () => {
+    const result = await runExecutionLoop(
+      {},
+      {
+        next() {
+          return {
+            type: 'call',
+            tool: 'read_file',
+            input: { path: 'src/auth.ts' },
+            toolCallId: 'max-iterations',
+          };
+        },
+        onResult() {
+          return undefined;
+        },
+        finish(reason, iterations) {
+          return { reason, iterations };
+        },
+      },
+      { maxIterations: 2 },
+    );
+
+    assert.deepEqual(result, {
+      reason: 'max iterations reached',
+      iterations: 2,
+    });
+  });
+
   test('executes a search → read plan against the fixture repo', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);

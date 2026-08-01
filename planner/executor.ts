@@ -2,7 +2,11 @@ import { defineTool } from '@flue/runtime';
 import * as v from 'valibot';
 import type { DebugLogger, StepBudget } from '../tools/repository.ts';
 import { summarizeInput } from '../tools/repository.ts';
-import { executeToolCall, type ToolRegistry } from '../investigation/tool-call.ts';
+import {
+  runExecutionLoop,
+  type ExecutionLoopAdapter,
+  type ToolRegistry,
+} from '../investigation/tool-call.ts';
 import type { PlanStore } from './plan-store.ts';
 import { normalizePlan } from './planner.ts';
 import type {
@@ -12,6 +16,11 @@ import type {
   PlanStepInput,
   PlanTool,
 } from './types.ts';
+
+type PlannerExecutionMetadata = {
+  stepId: number;
+  tool: PlanTool;
+};
 
 /**
  * Programmatic executor: run each plan step against the matching tool.
@@ -27,66 +36,75 @@ export async function executePlan(
   signal?: AbortSignal,
 ): Promise<ExecutionResult[]> {
   const results: ExecutionResult[] = [];
-
-  for (const step of plan.steps) {
-    signal?.throwIfAborted();
-    if (step.tool === 'answer') {
-      const result: ExecutionResult = {
-        stepId: step.id,
-        status: 'success',
-        tool: 'answer',
-        summary: 'Final answer step (no tool call needed)',
-      };
-      results.push(result);
-      break;
-    }
-
-    if (!step.input || Object.keys(step.input).length === 0) {
-      results.push({
-        stepId: step.id,
-        status: 'skipped',
-        tool: step.tool,
-        summary: 'No concrete input; skipped in programmatic execution',
-      });
-      continue;
-    }
-
-    try {
-      signal?.throwIfAborted();
-      const call = await executeToolCall(
-        tools,
-        step.tool,
-        step.input,
-        `exec-${step.id}`,
-        signal,
-      );
-      if (!call.ok) {
+  const adapter: ExecutionLoopAdapter<ExecutionResult[], PlannerExecutionMetadata> = {
+    next(iteration) {
+      const step = plan.steps[iteration];
+      if (!step) return { type: 'stop', reason: 'completed' };
+      if (step.tool === 'answer') {
         results.push({
           stepId: step.id,
-          status: 'error',
+          status: 'success',
+          tool: 'answer',
+          summary: 'Final answer step (no tool call needed)',
+        });
+        return { type: 'stop', reason: 'completed' };
+      }
+      if (!step.input || Object.keys(step.input).length === 0) {
+        return {
+          type: 'skip',
           tool: step.tool,
+          metadata: { stepId: step.id, tool: step.tool },
+          reason: 'No concrete input; skipped in programmatic execution',
+        };
+      }
+      return {
+        type: 'call',
+        tool: step.tool,
+        input: step.input,
+        toolCallId: `exec-${step.id}`,
+        metadata: { stepId: step.id, tool: step.tool },
+      };
+    },
+    onSkip(action) {
+      results.push({
+        stepId: action.metadata.stepId,
+        status: 'skipped',
+        tool: action.metadata.tool,
+        summary: action.reason,
+      });
+    },
+    onResult(action, call) {
+      const { stepId, tool } = action.metadata;
+      if (!call.ok) {
+        results.push({
+          stepId,
+          status: 'error',
+          tool,
           summary: call.error,
         });
-        continue;
+        return;
       }
       const output = call.output;
-      const status: ExecutionStatus = isEmptyResult(step.tool, output)
+      const status: ExecutionStatus = isEmptyResult(tool, output)
         ? 'empty'
         : 'success';
-      const summary = summarizeResult(step.tool, output);
-      results.push({ stepId: step.id, status, tool: step.tool, summary, output });
-    } catch (error) {
-      if (signal?.aborted) throw error;
       results.push({
-        stepId: step.id,
-        status: 'error',
-        tool: step.tool,
-        summary: error instanceof Error ? error.message : String(error),
+        stepId,
+        status,
+        tool,
+        summary: summarizeResult(tool, output),
+        output,
       });
-    }
-  }
+    },
+    finish() {
+      return results;
+    },
+  };
 
-  return results;
+  return runExecutionLoop(tools, adapter, {
+    maxIterations: plan.steps.length,
+    signal,
+  });
 }
 
 /** Detect empty results for replanning decisions. */
@@ -101,6 +119,7 @@ export function isEmptyResult(tool: PlanTool, output: unknown): boolean {
   }
   return false;
 }
+
 
 function summarizeResult(tool: PlanTool, output: unknown): string {
   if (tool === 'search_code' || tool === 'search_docs') {
