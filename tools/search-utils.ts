@@ -10,7 +10,7 @@ type SearchMatch = {
   excerpt: string;
 };
 
-type SearchFilesResult = {
+export type SearchFilesResult = {
   matches: SearchMatch[];
   truncated: boolean;
 };

@@ -7,7 +7,7 @@ import type {
   StepBudget,
 } from './repository.ts';
 import { markBudgetFreeTool, noInspectionBudget, summarizeInput, wrapWithBudget } from './repository.ts';
-import { searchFiles } from './search-utils.ts';
+import { searchRepository } from './repository-search.ts';
 import { TOOL_LIMITS } from './contracts.ts';
 
 /**
@@ -42,20 +42,19 @@ export function createSearchDocsTool(
         caseSensitive: data.caseSensitive,
       });
       try {
-        const files = await repository.documentationFiles(data.path);
-        const { matches, truncated } = await searchFiles(
-          repository,
-          files,
-          data.query,
-          data.caseSensitive,
+        const { matches, truncated, filesSearched } = await searchRepository(repository, {
+          scope: 'documentation',
+          path: data.path,
+          query: data.query,
+          caseSensitive: data.caseSensitive,
           signal,
-        );
+        });
 
         const result = {
           query: data.query,
           path: data.path,
           matches,
-          filesSearched: files.length,
+          filesSearched,
           truncated,
           inspection,
         };
