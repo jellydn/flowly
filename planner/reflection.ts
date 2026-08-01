@@ -2,8 +2,12 @@ import { defineTool } from '@flue/runtime';
 import * as v from 'valibot';
 import type { DebugLogger, StepBudget } from '../tools/repository.ts';
 import { summarizeInput } from '../tools/repository.ts';
+import { currentPlanResults } from './plan-store.ts';
 import type { PlanStore } from './plan-store.ts';
+import { createPlanReflection } from './plan-run.ts';
 import type { ExecutionResult, Plan, PlanReflection } from './types.ts';
+
+export { createPlanReflection } from './plan-run.ts';
 
 /**
  * Compute a structured reflection over a completed plan and its results.
@@ -18,16 +22,7 @@ export function reflectOnPlan(
   couldSimplify: boolean,
   simplificationNote = '',
 ): PlanReflection {
-  return {
-    totalSteps: plan.steps.length,
-    executedSteps: results.length,
-    successfulSteps: results.filter((r) => r.status === 'success').length,
-    emptyResults: results.filter((r) => r.status === 'empty').length,
-    failedSteps: results.filter((r) => r.status === 'error').length,
-    skippedSteps: results.filter((r) => r.status === 'skipped').length,
-    couldSimplify,
-    simplificationNote,
-  };
+  return createPlanReflection(plan, results, couldSimplify, simplificationNote);
 }
 
 /** Render a reflection as a one-line summary for logs and debug output. */
@@ -64,7 +59,7 @@ export function createReflectPlanTool(
     }),
     run({ data }) {
       const plan = store.plan;
-      const results = store.results;
+      const results = currentPlanResults(store);
       const inspection = budget.snapshot();
 
       if (!plan) {

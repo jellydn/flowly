@@ -2,25 +2,13 @@ import { defineTool } from '@flue/runtime';
 import * as v from 'valibot';
 import type { DebugLogger, StepBudget } from '../tools/repository.ts';
 import { summarizeInput } from '../tools/repository.ts';
+import { startPlan } from './plan-store.ts';
 import type { PlanStore } from './plan-store.ts';
 import { PLAN_TOOL_NAMES } from '../tools/contracts.ts';
-import type { Plan, PlanInput, PlanStep, PlanStepInput, PlanTool } from './types.ts';
+import { normalizePlan } from './plan-run.ts';
+import type { Plan, PlanInput, PlanStepInput, PlanTool } from './types.ts';
 
-/**
- * Normalize model-provided step inputs into a {@link Plan} with sequential ids.
- */
-export function normalizePlan(
-  question: string,
-  stepInputs: PlanStepInput[],
-): Plan {
-  const steps: PlanStep[] = stepInputs.map((step, index) => ({
-    id: index + 1,
-    description: step.description,
-    tool: step.tool,
-    input: step.input,
-  }));
-  return { question, steps, createdAt: Date.now() };
-}
+export { normalizePlan } from './plan-run.ts';
 
 /**
  * Deterministic, rule-based planner for testing and demonstration.
@@ -210,6 +198,7 @@ export function createPlanTool(
     run({ data }) {
       const plan = normalizePlan(data.question, data.steps);
       store.setPlan(plan);
+      startPlan(store);
       const inspection = budget.snapshot();
       const inputSummary = summarizeInput({
         question: data.question,

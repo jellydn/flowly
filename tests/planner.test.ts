@@ -10,7 +10,8 @@ import {
 import { createListFilesTool } from '../tools/list-files.ts';
 import { createReadFileTool } from '../tools/read-file.ts';
 import { createSearchCodeTool } from '../tools/search-code.ts';
-import { createPlanStore } from '../planner/plan-store.ts';
+import { createPlanStore, replacePlan as replaceStoredPlan } from '../planner/plan-store.ts';
+import { createPlanRun } from '../planner/plan-run.ts';
 import { createPlan, createPlanTool, normalizePlan } from '../planner/planner.ts';
 import {
   createReplanTool,
@@ -495,7 +496,109 @@ describe('reflection', () => {
 // Plan store
 // ---------------------------------------------------------------------------
 
+describe('PlanRun', () => {
+  test('preserves completed results when execution is aborted', async () => {
+    const run = createPlanRun();
+    const controller = new AbortController();
+    let releaseSecond!: () => void;
+    const secondStarted = new Promise<void>((resolve) => {
+      releaseSecond = resolve;
+    });
+    const plan = normalizePlan('abort', [
+      { description: 'First', tool: 'search_code', input: { query: 'auth' } },
+      { description: 'Second', tool: 'search_code', input: { query: 'config' } },
+    ]);
+    run.setPlan(plan);
+    let calls = 0;
+    const tools: Partial<Record<string, ToolDefinition>> = {
+      search_code: {
+        name: 'search_code',
+        description: 'test',
+        input: undefined,
+        output: undefined,
+        async run() {
+          calls += 1;
+          if (calls === 2) await secondStarted;
+          return { output: { matches: [] } };
+        },
+      },
+    };
+
+    const execution = run.execute(tools, controller.signal);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    controller.abort(new Error('cancelled'));
+    releaseSecond();
+    await assert.rejects(execution, /cancel/i);
+    assert.equal(run.currentResults.length, 1);
+    assert.equal(run.currentResults[0].status, 'empty');
+  });
+
+  test('owns execution results and preserves them while replacing a plan', async () => {
+    const run = createPlanRun();
+    const plan = normalizePlan('Find auth', [
+      { description: 'Search', tool: 'search_code', input: { query: 'auth' } },
+      { description: 'Answer', tool: 'answer' },
+    ]);
+    run.setPlan(plan);
+    const results = await run.execute({
+      search_code: {
+        name: 'search_code',
+        description: 'test',
+        input: undefined,
+        output: undefined,
+        async run() {
+          return { output: { matches: [{ file: 'src/auth.ts', line: 1 }] } };
+        },
+      },
+    });
+    assert.equal(results.length, 2);
+    assert.equal(run.results.length, 2);
+
+    const revised = run.replan(results);
+    assert.equal(run.results.length, 2);
+    assert.equal(run.currentResults.length, 0);
+    assert.equal(run.plan, revised);
+    assert.equal(run.reflection, undefined);
+
+    const reflection = run.reflect(false);
+    assert.equal(reflection.totalSteps, 1);
+    assert.equal(reflection.executedSteps, 0);
+  });
+});
+
 describe('PlanStore', () => {
+  test('legacy replacePlan adapter preserves results', () => {
+    const plan1 = normalizePlan('q1', [{ description: 'a', tool: 'answer' }]);
+    const plan2 = normalizePlan('q2', [{ description: 'b', tool: 'answer' }]);
+    const legacy = {
+      plan: undefined as Plan | undefined,
+      results: [] as ExecutionResult[],
+      reflection: undefined as PlanReflection | undefined,
+      setPlan(next: Plan) {
+        this.plan = next;
+        this.results = [];
+        this.reflection = undefined;
+      },
+      addResult(result: ExecutionResult) {
+        this.results = [...this.results, result];
+      },
+      setReflection(next: PlanReflection) {
+        this.reflection = next;
+      },
+      clear() {
+        this.plan = undefined;
+        this.results = [];
+        this.reflection = undefined;
+      },
+    };
+    legacy.setPlan(plan1);
+    const result = { stepId: 1, status: 'success' as const, tool: 'answer' as const, summary: 'ok' };
+    legacy.addResult(result);
+    replaceStoredPlan(legacy, plan2);
+    assert.equal(legacy.plan?.question, 'q2');
+    assert.deepEqual(legacy.results, [result]);
+  });
+
   test('setPlan resets results and reflection', () => {
     const store = createPlanStore();
     const plan1 = normalizePlan('q1', [{ description: 'a', tool: 'answer' }]);
@@ -567,6 +670,13 @@ describe('replan tool', () => {
     assert.equal(result.plan.steps[0].tool, 'list_files');
     assert.equal(result.previousResultCount, 1);
     assert.equal(budget.used, 0);
+
+    const reflectTool = createReflectPlanTool(store, budget, noDebug());
+    const reflection = await runTool<{ reflection: PlanReflection }>(reflectTool, {
+      couldSimplify: false,
+      simplificationNote: '',
+    });
+    assert.equal(reflection.reflection.executedSteps, 0);
   });
 });
 
@@ -636,8 +746,7 @@ describe('full plan-execute-reflect cycle', () => {
     assert.ok(store.plan);
 
     // Execute
-    const results = await executePlan(store.plan, tools);
-    for (const r of results) store.addResult(r);
+    const results = await store.execute(tools);
     assert.equal(budget.used, 2);
     assert.ok(results.some((r) => r.status === 'success'));
 
@@ -673,8 +782,7 @@ describe('full plan-execute-reflect cycle', () => {
       });
 
     // Execute
-    const firstResults = await executePlan(store.plan!, tools);
-    for (const r of firstResults) store.addResult(r);
+    const firstResults = await store.execute(tools);
     assert.equal(shouldReplan(firstResults), true);
 
     // Replan
