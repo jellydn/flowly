@@ -112,7 +112,7 @@ describe('executePlan', () => {
       { description: 'Read auth file', tool: 'read_file', input: { path: 'src/auth.ts', startLine: 1 } },
       { description: 'Answer', tool: 'answer' },
     ]);
-    const results = await executePlan(plan, tools, budget, debug);
+    const results = await executePlan(plan, tools);
     assert.equal(results.length, 3);
     assert.equal(results[0].status, 'success');
     assert.match(results[0].summary, /matches/);
@@ -133,7 +133,7 @@ describe('executePlan', () => {
       { description: 'Read some file', tool: 'read_file' },
       { description: 'Answer', tool: 'answer' },
     ]);
-    const results = await executePlan(plan, tools, budget, noDebug());
+    const results = await executePlan(plan, tools);
     assert.equal(results[0].status, 'skipped');
     assert.equal(results[1].status, 'success');
     assert.equal(budget.used, 0);
@@ -149,7 +149,7 @@ describe('executePlan', () => {
       { description: 'Search for nothing', tool: 'search_code', input: { query: 'doesnotexistxyz', path: '.', caseSensitive: false } },
       { description: 'Answer', tool: 'answer' },
     ]);
-    const results = await executePlan(plan, tools, budget, noDebug());
+    const results = await executePlan(plan, tools);
     assert.equal(results[0].status, 'empty');
     assert.match(results[0].summary, /0 matches/);
   });
@@ -164,10 +164,44 @@ describe('executePlan', () => {
       { description: 'Answer directly', tool: 'answer' },
       { description: 'This should not run', tool: 'search_code', input: { query: 'x', path: '.', caseSensitive: false } },
     ]);
-    const results = await executePlan(plan, tools, budget, noDebug());
+    const results = await executePlan(plan, tools);
     assert.equal(results.length, 1);
     assert.equal(results[0].tool, 'answer');
     assert.equal(budget.used, 0);
+  });
+
+  test('propagates cancellation from an in-flight tool call', async () => {
+    const controller = new AbortController();
+    let resolveStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      resolveStarted = resolve;
+    });
+    let releaseTool!: () => void;
+    const toolReleased = new Promise<void>((resolve) => {
+      releaseTool = resolve;
+    });
+    const tools: Partial<Record<string, ToolDefinition>> = {
+      read_file: {
+        name: 'read_file',
+        description: 'test',
+        input: undefined,
+        output: undefined,
+        async run() {
+          resolveStarted();
+          await toolReleased;
+          return { output: {} };
+        },
+      },
+    };
+    const plan = normalizePlan('cancel', [
+      { description: 'Read file', tool: 'read_file', input: { path: 'src/auth.ts', startLine: 1 } },
+    ]);
+
+    const promise = executePlan(plan, tools, controller.signal);
+    await started;
+    controller.abort(new Error('cancelled'));
+    releaseTool();
+    await assert.rejects(promise, /cancel/i);
   });
 });
 
@@ -219,10 +253,10 @@ describe('replanning', () => {
       { description: 'Search for nothing', tool: 'search_code', input: { query: 'doesnotexistxyz', path: '.', caseSensitive: false } },
       { description: 'Answer', tool: 'answer' },
     ]);
-    const firstResults = await executePlan(original, tools, budget, debug);
+    const firstResults = await executePlan(original, tools);
     assert.equal(shouldReplan(firstResults), true);
     const revised = replan(original, firstResults);
-    const revisedResults = await executePlan(revised, tools, budget, debug);
+    const revisedResults = await executePlan(revised, tools);
     assert.ok(revisedResults.some((r) => r.status === 'success'));
   });
 });
@@ -408,7 +442,7 @@ describe('full plan-execute-reflect cycle', () => {
     assert.ok(store.plan);
 
     // Execute
-    const results = await executePlan(store.plan, tools, budget, debug);
+    const results = await executePlan(store.plan, tools);
     for (const r of results) store.addResult(r);
     assert.equal(budget.used, 2);
     assert.ok(results.some((r) => r.status === 'success'));
@@ -445,7 +479,7 @@ describe('full plan-execute-reflect cycle', () => {
       });
 
     // Execute
-    const firstResults = await executePlan(store.plan!, tools, budget, debug);
+    const firstResults = await executePlan(store.plan!, tools);
     for (const r of firstResults) store.addResult(r);
     assert.equal(shouldReplan(firstResults), true);
 
@@ -461,7 +495,7 @@ describe('full plan-execute-reflect cycle', () => {
       });
 
     // Execute revised plan
-    const revisedResults = await executePlan(store.plan!, tools, budget, debug);
+    const revisedResults = await executePlan(store.plan!, tools);
     assert.ok(revisedResults.some((r) => r.status === 'success'));
     assert.ok(budget.used > 0);
   });

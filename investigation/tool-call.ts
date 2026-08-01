@@ -52,8 +52,10 @@ export async function executeToolCall(
       data: input,
       signal,
     });
+    signal?.throwIfAborted();
     return { ok: true, tool: toolName, output };
   } catch (error) {
+    if (signal?.aborted) throw error;
     return {
       ok: false,
       tool: toolName,

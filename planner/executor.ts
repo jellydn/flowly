@@ -24,18 +24,12 @@ import type {
 export async function executePlan(
   plan: Plan,
   tools: ToolRegistry,
-  budget: StepBudget,
-  debug: DebugLogger,
   signal?: AbortSignal,
 ): Promise<ExecutionResult[]> {
-  // Retain the stable executor signature while the shared call seam owns
-  // invocation policy; these parameters remain available to future policy
-  // adapters without reintroducing direct tool execution here.
-  void budget;
-  void debug;
   const results: ExecutionResult[] = [];
 
   for (const step of plan.steps) {
+    signal?.throwIfAborted();
     if (step.tool === 'answer') {
       const result: ExecutionResult = {
         stepId: step.id,
@@ -82,6 +76,7 @@ export async function executePlan(
       const summary = summarizeResult(step.tool, output);
       results.push({ stepId: step.id, status, tool: step.tool, summary, output });
     } catch (error) {
+      if (signal?.aborted) throw error;
       results.push({
         stepId: step.id,
         status: 'error',
@@ -151,7 +146,6 @@ export function replan(
   const executedCount = results.length;
   const remainingSteps = originalPlan.steps.slice(executedCount);
   const newSteps: PlanStepInput[] = [];
-  let nextId = 1;
 
   // Keep successfully executed steps as context (not re-executed).
   for (const result of results) {

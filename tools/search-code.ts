@@ -7,8 +7,7 @@ import type {
   StepBudget,
 } from './repository.ts';
 import { markBudgetFreeTool, noInspectionBudget, summarizeInput, wrapWithBudget } from './repository.ts';
-
-const MAX_MATCHES = 50;
+import { searchFiles } from './search-utils.ts';
 
 export function createSearchCodeTool(
   repository: RepositoryReader,
@@ -34,43 +33,20 @@ export function createSearchCodeTool(
       });
       try {
         const files = await repository.sourceFiles(data.path);
-        const needle = data.caseSensitive
-          ? data.query
-          : data.query.toLowerCase();
-        const matches: Array<{ path: string; line: number; excerpt: string }> =
-          [];
-
-        for (const file of files) {
-          signal?.throwIfAborted();
-          let content: string;
-          try {
-            content = await repository.readText(file);
-          } catch {
-            continue;
-          }
-          const lines = content.split(/\r?\n/);
-          for (let index = 0; index < lines.length; index += 1) {
-            const haystack = data.caseSensitive
-              ? lines[index]
-              : lines[index].toLowerCase();
-            if (haystack.includes(needle)) {
-              matches.push({
-                path: file,
-                line: index + 1,
-                excerpt: lines[index].trim().slice(0, 300),
-              });
-              if (matches.length >= MAX_MATCHES) break;
-            }
-          }
-          if (matches.length >= MAX_MATCHES) break;
-        }
+        const { matches, truncated } = await searchFiles(
+          repository,
+          files,
+          data.query,
+          data.caseSensitive,
+          signal,
+        );
 
         const result = {
           query: data.query,
           path: data.path,
           matches,
           filesSearched: files.length,
-          truncated: matches.length >= MAX_MATCHES,
+          truncated,
           inspection,
         };
         debug.log({
@@ -82,6 +58,7 @@ export function createSearchCodeTool(
         });
         return { output: result };
       } catch (error) {
+        if (signal?.aborted) throw error;
         debug.log({
           tool: 'search_code',
           status: 'error',
