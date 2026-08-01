@@ -2,68 +2,58 @@
 
 **Analysis Date:** 2026-08-01
 
-## APIs & External Services
+## APIs and External Services
 
 **LLM provider:**
-- OpenRouter is the documented default provider through Flue's model specifier `openrouter/qwen/qwen3-coder`. See `.env.example`, `README.md`, and `agents/repo-assistant.ts`.
-- SDK/Client: Flue runtime and CLI (`@flue/runtime`, `@flue/cli`), not a provider-specific client in application code. See `package.json` and `agents/repo-assistant.ts`.
-- Auth: `OPENROUTER_API_KEY`. See `.env.example`.
+- The documented default model is OpenRouter's `openrouter/qwen/qwen3-coder`, selected through Flue's model specifier. See `.env.example`, `README.md`, and `agents/repo-assistant.ts`.
+- Application code does not import an OpenRouter SDK; Flue's runtime and CLI perform provider communication.
+- Authentication is environment-based through `OPENROUTER_API_KEY`.
 
-**Flue framework services:**
-- Flue's model runtime, tool protocol, sandbox lifecycle, skill loading, and agent routing are consumed through `@flue/runtime`. See `agents/repo-assistant.ts`, `sandbox.ts`, and `app.ts`.
-- Flue's model catalog is referenced for alternate model specifiers. See `README.md` and `.env.example`.
+**Flue services:**
+- `@flue/runtime` supplies model execution, typed tool protocol, sandbox lifecycle, skill loading, durability settings, and agent routing.
+- `@flue/vite` packages the agent and imported `skills/analyzing-repositories/SKILL.md` during the build.
 
 ## Data Storage
 
-**Databases:**
-- None in application code. The agent keeps plan state and evidence in memory for one run. See `planner/plan-store.ts`, `investigation/evidence.ts`, and `investigation/loop.ts`.
+- No database, queue, cache, or persistent application store exists.
+- Plan state is held in memory by `planner/plan-run.ts` / `planner/plan-store.ts` for one agent run.
+- Investigation evidence is held in memory by `investigation/evidence.ts`.
+- Repository content is read from one configured local checkout through Node read-only filesystem APIs in `tools/repository.ts`.
 
-**File Storage:**
-- Local filesystem only: one configured repository checkout is inspected with Node read-only filesystem APIs. See `tools/repository.ts`.
-- Repository paths are canonicalized and confined to the configured root; symlinks escaping the root are rejected. See `tools/repository.ts` and `tests/repository.test.ts`.
+## Repository Boundary
 
-**Caching:**
-- None in application code. Build/runtime artifacts such as `dist/` and `.flue-vite/` are ignored rather than used as application caches. See `.gitignore` and `AGENTS.md`.
+- `RepositoryReader` resolves and confines repository-relative paths, rejects traversal and escaping symlinks, skips VCS/dependency/build/cache directories, rejects oversized/binary reads, and bounds list/search output.
+- `tools/repository-search.ts` centralizes source/documentation scope selection and delegates bounded matching to `tools/search-utils.ts`.
+- There is no remote repository API, Git integration, shell capability, or write capability exposed to the model.
 
-## Authentication & Identity
+## Authentication and Identity
 
-**Auth Provider:**
-- No repository-user authentication or identity system is implemented.
-- Provider authentication is external and environment-based through `OPENROUTER_API_KEY`. See `.env.example` and `README.md`.
+- No end-user authentication, authorization, sessions, or identity provider is implemented.
+- Provider credentials are supplied externally through `OPENROUTER_API_KEY`.
+- The inspected repository is selected by local environment configuration rather than a user account or remote URL.
 
-## Monitoring & Observability
+## Monitoring and Observability
 
-**Error Tracking:**
-- No external error-tracking service is configured. See `package.json` and `.github/workflows/ci.yml`.
+- No external error-tracking or metrics service is configured.
+- Optional stderr logging is enabled by `REPO_ASSISTANT_DEBUG`.
+- `tools/repository.ts` emits sanitized tool events; `reliability/observability.ts` emits structured retry/fallback events without secrets, file contents, absolute paths, or model reasoning.
 
-**Logs:**
-- Optional safe stderr logs are controlled by `REPO_ASSISTANT_DEBUG`. Tool events include sanitized input, status, counts, and budget snapshots. Reliability logs emit structured JSON without secrets, file contents, or absolute paths. See `tools/repository.ts` and `reliability/observability.ts`.
+## CI/CD and Deployment
 
-## CI/CD & Deployment
+- GitHub Actions runs on pushes to `main` and pull requests. CI uses Node `24.18.1`, runs `npm ci`, then `npm run check`. See `.github/workflows/ci.yml`.
+- No deployment workflow or hosting target is configured.
+- `docs/index.html` is a checked-in static showcase, not an application deployment integration.
 
-**Hosting:**
-- No production hosting or deployment target is configured in the repository. The static showcase is a checked-in `docs/index.html`, not a deployment pipeline. See `docs/index.html` and `.github/workflows/ci.yml`.
+## Routes and Callbacks
 
-**CI Pipeline:**
-- GitHub Actions runs on pushes to `main` and pull requests with read-only contents permission. It installs with `npm ci` and runs `npm run check`. See `.github/workflows/ci.yml`.
+- `app.ts` exposes `/agents/repo-assistant` through `createAgentRouter(RepoAssistant)`.
+- `/api/ping` returns `pong` as a basic health route.
+- No application webhooks or outgoing webhook handlers exist.
 
-## Environment Configuration
+## Environment and Secrets
 
-**Required env vars:**
-- `OPENROUTER_API_KEY` for the documented default model. See `.env.example`.
-- `REPOSITORY_PATH` is operationally required to point to an inspectable directory unless the default sibling `../oak` exists. See `agents/repo-assistant.ts` and `tools/repository.ts`.
-- `REPO_ASSISTANT_MODEL` is optional because a default is provided. See `agents/repo-assistant.ts`.
-
-**Secrets location:**
-- Local `.env`, copied from `.env.example`, is ignored by Git. CI does not run live LLM evaluations. See `.gitignore`, `README.md`, and `eval/README.md`.
-
-## Webhooks & Callbacks
-
-**Incoming:**
-- No webhook handlers. The only explicit application routes are the Flue agent route `/agents/repo-assistant` and `/api/ping`. See `app.ts`.
-
-**Outgoing:**
-- No application-level webhooks or callbacks. Flue makes model-provider requests through its runtime when the agent is invoked. See `agents/repo-assistant.ts` and `app.ts`.
+- `.env.example` documents provider, repository, budget, debug, retry, timeout, and failure-injection settings.
+- `.env` is ignored by Git. CI does not require a live provider key because the automated suite uses deterministic fixtures and injected failures.
 
 ---
 

@@ -6,152 +6,101 @@
 
 ```text
 flue-repo-assistant/
-├── agents/                 # Flue v2 agent composition
-├── tools/                  # Repository reader and four inspection tools
-├── planner/                # Plan, execute, replan, and reflect abstractions
-├── investigation/          # Deterministic bounded loop and evidence answers
-├── reliability/            # Retry, timeout, validation, fallback, logging
-├── tests/                  # Node test-runner suites and fixture helpers
-├── demo/                   # Deterministic doc-aware/reliability demos
-├── eval/                   # Evaluation runner and bundled sample repository
-├── skills/                 # Flue Agent Skill package
+├── agents/                 # Flue agent composition and model-facing prompt
+├── tools/                  # Repository reader, contracts, registry, and search tools
+├── planner/                # Plan lifecycle, execution, replanning, reflection
+├── investigation/          # Shared execution loop, evidence, citations, answers
+├── reliability/            # Invocation seam, retry, timeout, validation, fallback
+├── tests/                  # Native node:test suites and temporary fixtures
+├── demo/                   # Deterministic doc-aware and reliability demos
+├── eval/                   # Live evaluation runner and sample repository
+├── skills/                 # Packaged Flue Agent Skill
 ├── docs/                   # Static showcase HTML
 ├── .github/workflows/      # CI workflow
 ├── app.ts                  # Flue route map
 ├── sandbox.ts              # Restricted in-memory sandbox
 ├── flue.config.ts          # Flue runtime target
-├── vite.config.ts          # Flue Vite plugin
+├── vite.config.ts          # Flue Vite integration
 ├── package.json            # Scripts and dependencies
-├── tsconfig.json           # Strict TypeScript config
+├── tsconfig.json           # Strict TypeScript configuration
 └── README.md               # User-facing documentation
 ```
 
-## Directory Purposes
+## Responsibility Directories
 
-**`agents/`:**
-- Purpose: Define the single production agent and its model-facing instructions.
-- Contains: `repo-assistant.ts`.
-- Key files: `agents/repo-assistant.ts` registers hooks, four inspection tools, three planning tools, sandbox, and skill.
+**`agents/`**
+- `repo-assistant.ts`: creates the repository reader, budget, reliability settings, `InspectionRegistry`, planning tools, sandbox, skill, and model configuration.
 
-**`tools/`:**
-- Purpose: Provide the only application-data access to the configured repository.
-- Contains: `RepositoryReader`, shared budget, canonical tool/limit contracts, and list/read/code-search/docs-search tool factories.
-- Key files: `tools/contracts.ts`, `tools/repository.ts`, `tools/list-files.ts`, `tools/read-file.ts`, `tools/search-code.ts`, `tools/search-docs.ts`.
+**`tools/`**
+- `contracts.ts`: canonical inspection/planner names and shared output/evidence limits.
+- `repository.ts`: `RepositoryReader`, path confinement, file discovery, shared budget, and debug logging.
+- `inspection-registry.ts`: constructs and orders the four reliable inspection tools.
+- `repository-search.ts` and `search-utils.ts`: shared bounded source/documentation search policy and matching.
+- `list-files.ts`, `read-file.ts`, `search-code.ts`, `search-docs.ts`: model-facing typed tool factories.
 
-**`planner/`:**
-- Purpose: Separate model intent from repository inspection and record outcomes.
-- Contains: `types.ts`, `plan-store.ts`, `planner.ts`, `executor.ts`, `reflection.ts`.
-- Key files: `planner/planner.ts` and `planner/executor.ts`.
+**`planner/`**
+- `plan-run.ts`: deep plan lifecycle state and shared execution/replan/reflection behavior.
+- `plan-store.ts`: narrow compatibility interface and legacy result-preservation adapters.
+- `planner.ts`: deterministic plan generation and `create_plan` tool.
+- `executor.ts`: programmatic plan execution and `replan` tool.
+- `reflection.ts`: reflection calculation/formatting and `reflect_plan` tool.
+- `types.ts`: plan, step, result, status, and reflection types.
 
-**`investigation/`:**
-- Purpose: Deterministically model bounded observe → act → reflect behavior for tests/demos.
-- Contains: loop, evidence collector, answer formatter, call tracker, and types.
-- Key files: `investigation/loop.ts`, `investigation/evidence.ts`, `investigation/answer.ts`.
+**`investigation/`**
+- `tool-call.ts`: generic bounded execution-loop protocol.
+- `tool-execution.ts`: normalized tool outcomes, resolution, metadata, cancellation, and compatibility exports.
+- `loop.ts`: deterministic investigation adapter.
+- `evidence.ts`, `answer.ts`, `call-tracker.ts`, `types.ts`: evidence, citations, confidence, duplicate-call prevention, and domain types.
 
-**`reliability/`:**
-- Purpose: Harden tool calls and provide testable failure behavior.
-- Contains: error classes, retry policy, validation, resilient wrapper, fallback, observability, and failure injection.
-- Key files: `reliability/resilient-tool.ts`, `reliability/retry.ts`, `reliability/validation.ts`.
+**`reliability/`**
+- `tool-invocation.ts`: Flue v2 context/envelope normalization.
+- `resilient-tool.ts`: reliable inspection-tool construction and execution.
+- `retry.ts`, `errors.ts`, `validation.ts`, `fallback.ts`, `observability.ts`, `failure-injection.ts`: policy and support modules.
 
-**`tests/`:**
-- Purpose: Unit and integration-style coverage against temporary fixture repositories.
-- Contains: separate `.test.ts` suites plus `tests/helpers.ts`.
-- Key files: `tests/tools.test.ts`, `tests/planner.test.ts`, `tests/doc-aware.test.ts`, `tests/reliability.test.ts`.
+**`tests/`**
+- `tools.test.ts`, `repository.test.ts`: repository safety, tool contracts, and budgets.
+- `planner.test.ts`: plan lifecycle, execution, replanning, reflection, and cancellation.
+- `tool-execution.test.ts`: invocation metadata, cancellation, callback behavior, and compatibility exports.
+- `inspection-registry.test.ts`: registry order, tool construction, shared budget, and live tool behavior.
+- `repository-search.test.ts`: search scopes and pre-cancellation.
+- `doc-aware.test.ts`: documentation search, investigation, evidence, citations, and confidence.
+- `reliability.test.ts`: classification, retries, timeouts, validation, fallback, logging, and failure injection.
+- `eval-scenarios.test.ts`: deterministic expected tool sequences.
+- `helpers.ts`: temporary fixture repository, tool contexts, and envelope unwrapping.
 
-**`demo/`:**
-- Purpose: Human-readable deterministic demonstrations.
-- Contains: `demo/doc-aware-demo.ts`, `demo/doc-aware-demo.sh`, and `demo/reliability-demo.sh`.
+## Key Locations
 
-**`eval/`:**
-- Purpose: Model-tool-selection evaluation without asserting nondeterministic LLM output.
-- Contains: `eval/run-eval.sh`, `eval/README.md`, and `eval/fixtures/sample-repo/`.
-
-**`skills/`:**
-- Purpose: Package reusable model guidance for repository analysis.
-- Contains: `skills/analyzing-repositories/SKILL.md`.
-
-**`docs/`:**
-- Purpose: Static product/project showcase, separate from the runtime route map.
-- Contains: `docs/index.html`.
-
-## Key File Locations
-
-**Entry Points:**
-- `agents/repo-assistant.ts`: CLI/Flue agent definition.
-- `app.ts`: HTTP route map for the Flue agent.
-- `demo/doc-aware-demo.ts`: deterministic investigation demo.
-- `eval/run-eval.sh`: live model-driven evaluation launcher.
-
-**Configuration:**
-- `package.json`: scripts, dependency versions, and Node engine.
-- `.env.example`: documented runtime environment variables.
-- `tsconfig.json`: strict compiler settings and included source areas.
-- `flue.config.ts`: Node runtime target.
-- `vite.config.ts`: Flue Vite build integration.
-- `.github/workflows/ci.yml`: Node version and CI check sequence.
-
-**Core Logic:**
-- `tools/contracts.ts`: canonical tool names and shared inspection/evidence limits.
-- `tools/repository.ts`: path confinement, repository traversal, and shared budget.
-- `planner/`: planning/execution contracts.
-- `investigation/`: evidence loop and answer semantics.
-- `reliability/`: resilient tool execution.
-
-**Testing:**
-- `tests/helpers.ts`: temporary fixture repository and tool context helpers.
-- `tests/tools.test.ts`: tool contracts and safety limits.
-- `tests/repository.test.ts`: reader/path/budget behavior.
-- `tests/planner.test.ts`: plan lifecycle and execution.
-- `tests/doc-aware.test.ts`: documentation search, evidence, confidence, and loop behavior.
-- `tests/reliability.test.ts`: error classification, retries, timeout, validation, fallback, and wrapper behavior.
-- `tests/eval-scenarios.test.ts`: deterministic evaluation patterns.
+- Agent entrypoint: `agents/repo-assistant.ts`.
+- Route map: `app.ts`.
+- Runtime/build config: `flue.config.ts`, `vite.config.ts`, `tsconfig.json`.
+- User configuration: `.env.example`, `README.md`, `AGENTS.md`.
+- CI: `.github/workflows/ci.yml`.
+- Skill: `skills/analyzing-repositories/SKILL.md`.
+- Codebase map: `.planning/codebase/`.
 
 ## Naming Conventions
 
-**Files:**
-- Kebab-case for tool files (`search-code.ts`, `read-file.ts`), lower-case descriptive names for other modules (`repository.ts`, `executor.ts`), and `.test.ts` suffix for tests. See `tools/`, `planner/`, and `tests/`.
+- Lowercase descriptive filenames; tool files use kebab-case (`search-code.ts`).
+- Tests use `<area>.test.ts`.
+- Directories are lowercase responsibility names.
+- Functions use descriptive verb-first camelCase; factories use `create*`.
+- Exported types use PascalCase; finite states use string unions.
+- Shared constants use `UPPER_SNAKE_CASE`.
 
-**Directories:**
-- Lowercase nouns by responsibility: `agents`, `tools`, `planner`, `investigation`, `reliability`, `tests`, and `eval`.
+## Where to Add Code
 
-## Where to Add New Code
+- New repository capability: add a focused tool under `tools/`, update `tools/contracts.ts` if names/limits change, register through `InspectionRegistry`, and add safety/reliability tests.
+- New plan behavior: add lifecycle logic to `planner/plan-run.ts` or an adjacent planner module; preserve `PlanStore` compatibility where needed.
+- New execution protocol: extend the shared execution seam rather than duplicating invocation logic in an adapter.
+- New reliability behavior: add to `reliability/` with deterministic injected-failure tests.
+- New evidence behavior: add to `investigation/` with citation/confidence tests.
 
-**New Feature:**
-- Primary code: Add the smallest focused module under the relevant responsibility directory; compose it from `agents/repo-assistant.ts` if it becomes model-facing.
-- Tests: Add or extend the corresponding suite under `tests/`; use `tests/helpers.ts` for temporary fixtures.
+## Generated and Local State
 
-**New Component/Module:**
-- Tool: `tools/<tool-name>.ts`, with a factory receiving `RepositoryReader`, `StepBudget`, and `DebugLogger`; register it in `agents/repo-assistant.ts` and add a reliability validator if needed.
-- Planning behavior: `planner/` with types in `planner/types.ts` and model-facing registration in the agent.
-- Investigation behavior: `investigation/` with evidence/citation tests.
-- Reliability behavior: `reliability/` with deterministic injected failures and safe logging.
-
-**Utilities:**
-- Shared tool contracts and limits: `tools/contracts.ts`.
-- Shared repository/budget helpers: `tools/repository.ts`.
-- Shared test fixtures and contexts: `tests/helpers.ts`.
-
-## Special Directories
-
-**`dist/`, `.flue-vite/`, and `coverage/`:**
-- Purpose: Generated build, Flue, or coverage artifacts.
-- Generated: Yes.
-- Committed: No; ignored by `.gitignore`.
-
-**`.env` and `.env.*` except `.env.example`:**
-- Purpose: Local secrets/runtime configuration.
-- Generated: No, user-managed.
-- Committed: No; ignored by `.gitignore`.
-
-**`eval/fixtures/sample-repo/node_modules/`:**
-- Purpose: Deliberate dependency noise used to verify ignored-directory behavior.
-- Generated: Fixture content, intentionally retained.
-- Committed: Yes/kept by explicit `.gitignore` exceptions; skipped at runtime.
-
-**`.planning/codebase/`:**
-- Purpose: Fresh onboarding and architecture map generated by this codemap run.
-- Generated: Yes.
-- Committed: Not automatically; no commit was requested.
+- `dist/`, `.flue-vite/`, and `coverage/` are generated and ignored.
+- `.env` is user-managed and ignored; `.env.example` is committed.
+- `.freebuff/` is local desktop state and remains unrelated to application source.
+- `.planning/codebase/` is generated documentation; this refresh does not commit it automatically.
 
 ---
 

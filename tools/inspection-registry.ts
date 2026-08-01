@@ -36,6 +36,13 @@ type RawToolFactory = (
   debug: DebugLogger,
 ) => ToolDefinition;
 
+const TOOL_NAMES = [
+  'list_files',
+  'read_file',
+  'search_code',
+  'search_docs',
+] as const satisfies readonly InspectionToolName[];
+
 const rawToolFactories: Readonly<Record<InspectionToolName, RawToolFactory>> = {
   list_files: (repository, debug) => createListFilesTool(repository, undefined, debug),
   read_file: (repository, debug) => createReadFileTool(repository, undefined, debug),
@@ -53,7 +60,7 @@ export function createInspectionRegistry(
   options: InspectionRegistryOptions,
 ): InspectionRegistry {
   const tools = {} as Record<InspectionToolName, ToolDefinition>;
-  for (const name of Object.keys(rawToolFactories) as InspectionToolName[]) {
+  for (const name of TOOL_NAMES) {
     const factory = rawToolFactories[name];
     tools[name] = createReliableInspectionTool(
       (_budget, rawDebug) => factory(options.repository, rawDebug),
@@ -66,7 +73,7 @@ export function createInspectionRegistry(
     );
   }
 
-  const list = Object.values(tools);
+  const list = TOOL_NAMES.map((name) => tools[name]);
   return {
     tools,
     list,
