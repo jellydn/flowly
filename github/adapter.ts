@@ -23,7 +23,12 @@
 
 import { type FileDiff, findFileDiff, hunkForLine, parseUnifiedDiff } from '../review/diff.ts';
 import type { ReviewLimits } from '../review/limits.ts';
-import { type Finding, type FindingClassification, type ReviewResult, safeParseReviewResult } from '../review/schema.ts';
+import {
+  type Finding,
+  type FindingClassification,
+  type ReviewResult,
+  safeParseReviewResult,
+} from '../review/schema.ts';
 import type { ReviewStateStore } from '../review/review-state-store.ts';
 import {
   GitHubApiError,
@@ -197,20 +202,22 @@ async function publishValidatedReview(
     }
   }
 
-  // Persist the review state for incremental reviews. Save even when there
-  // are no findings — an empty state tells the next run that this SHA was
-  // reviewed and found clean, so it can produce a focused incremental diff.
+  // Persist the review state (findings actually shown to the user) for incremental
+  // reviews. Save even when there are no findings — an empty state tells the next
+  // run that this SHA was reviewed and found clean, so it can produce a focused
+  // incremental diff.
   //
   // This is best-effort: the review was already posted to GitHub, so a state-
   // write failure must not cause the run to throw (which could trigger a
   // retry that posts a duplicate review). The next run simply falls back to
   // a full review when no state is found.
   const stateSaveError: string[] = [];
+  const shown = capped.filter((f) => !droppedFindings.some((d) => d.finding === f));
   if (stateStore) {
     try {
       await stateStore.save({
         reviewedHeadSha: headSha,
-        findings: capped,
+        findings: shown,
         reviewedAt: Date.now(),
       });
     } catch (error) {

@@ -4,7 +4,6 @@ import { createReviewPublisher } from '../github/adapter.ts';
 import { GitHubApiError, type GitHubClient, type GitHubReviewPayload } from '../github/client.ts';
 import type { ReviewLimits } from '../review/limits.ts';
 import { DEFAULT_REVIEW_LIMITS } from '../review/limits.ts';
-import { encodeReviewState } from '../review/review-state.ts';
 import type { ReviewStateStore } from '../review/review-state-store.ts';
 
 const DIFF = [
@@ -385,8 +384,12 @@ describe('review publisher', () => {
     const client = createFakeClient();
     const saved: unknown[] = [];
     const stateStore: ReviewStateStore = {
-      async load() { return null; },
-      async save(state) { saved.push(state); },
+      async load() {
+        return null;
+      },
+      async save(state) {
+        saved.push(state);
+      },
     };
     const publisher = createReviewPublisher({
       client,
@@ -422,8 +425,12 @@ describe('review publisher', () => {
   test('saves empty findings state after a clean review', async () => {
     const saved: unknown[] = [];
     const stateStore: ReviewStateStore = {
-      async load() { return null; },
-      async save(state) { saved.push(state); },
+      async load() {
+        return null;
+      },
+      async save(state) {
+        saved.push(state);
+      },
     };
     const publisher = createReviewPublisher({
       client: createFakeClient(),
@@ -449,8 +456,12 @@ describe('review publisher', () => {
   test('saves capped findings in state when findings exceed maxFindings', async () => {
     const saved: unknown[] = [];
     const stateStore: ReviewStateStore = {
-      async load() { return null; },
-      async save(state) { saved.push(state); },
+      async load() {
+        return null;
+      },
+      async save(state) {
+        saved.push(state);
+      },
     };
     const publisher = createReviewPublisher({
       client: createFakeClient(),
@@ -481,8 +492,12 @@ describe('review publisher', () => {
   test('does not save state when review submission fails', async () => {
     const saved: unknown[] = [];
     const stateStore: ReviewStateStore = {
-      async load() { return null; },
-      async save(state) { saved.push(state); },
+      async load() {
+        return null;
+      },
+      async save(state) {
+        saved.push(state);
+      },
     };
     const client = {
       async submitReview() {
@@ -504,7 +519,14 @@ describe('review publisher', () => {
         summary: 's',
         verdict: 'COMMENT',
         findings: [
-          { severity: 'low', path: 'src/auth.ts', line: 11, title: 't', explanation: 'e', confidence: 0.5 },
+          {
+            severity: 'low',
+            path: 'src/auth.ts',
+            line: 11,
+            title: 't',
+            explanation: 'e',
+            confidence: 0.5,
+          },
         ],
       }),
     );
@@ -514,8 +536,12 @@ describe('review publisher', () => {
   test('state-save failure does not throw after successful review', async () => {
     const client = createFakeClient();
     const stateStore: ReviewStateStore = {
-      async load() { return null; },
-      async save() { throw new Error('API unavailable'); },
+      async load() {
+        return null;
+      },
+      async save() {
+        throw new Error('API unavailable');
+      },
     };
     const publisher = createReviewPublisher({
       client,
@@ -530,7 +556,14 @@ describe('review publisher', () => {
       summary: 's',
       verdict: 'COMMENT',
       findings: [
-        { severity: 'low', path: 'src/auth.ts', line: 11, title: 't', explanation: 'e', confidence: 0.5 },
+        {
+          severity: 'low',
+          path: 'src/auth.ts',
+          line: 11,
+          title: 't',
+          explanation: 'e',
+          confidence: 0.5,
+        },
       ],
     });
 
@@ -554,10 +587,22 @@ describe('review publisher', () => {
       verdict: 'COMMENT',
       findings: [],
       previousFindingClassifications: [
-        { path: 'src/auth.ts', line: 11, title: 'SQL injection', status: 'resolved', note: 'Fixed by parameterized query' },
+        {
+          path: 'src/auth.ts',
+          line: 11,
+          title: 'SQL injection',
+          status: 'resolved',
+          note: 'Fixed by parameterized query',
+        },
         { path: 'src/auth.ts', line: 20, title: 'Missing test', status: 'still-present' },
         { path: 'src/old.ts', line: 5, title: 'Dead code', status: 'obsolete' },
-        { path: 'src/utils.ts', line: 30, title: 'Race condition', status: 'uncertain', note: 'Need more context' },
+        {
+          path: 'src/utils.ts',
+          line: 30,
+          title: 'Race condition',
+          status: 'uncertain',
+          note: 'Need more context',
+        },
       ],
     });
 
@@ -567,5 +612,52 @@ describe('review publisher', () => {
     assert.match(body, /⚠️.*still-present.*Missing test/);
     assert.match(body, /🗑️.*obsolete.*Dead code/);
     assert.match(body, /❓.*uncertain.*Race condition/);
+  });
+
+  test('excludes dropped findings from saved state', async () => {
+    const client = createFakeClient();
+    let savedState: any = null;
+    const stateStore: ReviewStateStore = {
+      async load() {
+        return null;
+      },
+      async save(s) {
+        savedState = s;
+      },
+    };
+    const publisher = createReviewPublisher({
+      client,
+      prNumber: 1,
+      headSha: 'head',
+      diffProvider: async () => DIFF,
+      limits,
+      stateStore,
+    });
+
+    await publisher.publish({
+      summary: 's',
+      verdict: 'COMMENT',
+      findings: [
+        {
+          severity: 'low',
+          path: 'src/auth.ts',
+          line: 11,
+          title: 'Valid finding',
+          explanation: 'e',
+          confidence: 0.5,
+        },
+        {
+          severity: 'medium',
+          path: 'src/nonexistent.ts',
+          line: 5,
+          title: 'Dropped finding',
+          explanation: 'e',
+          confidence: 0.5,
+        },
+      ],
+    });
+
+    assert.equal(savedState.findings.length, 1);
+    assert.equal(savedState.findings[0].path, 'src/auth.ts');
   });
 });
