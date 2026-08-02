@@ -9,6 +9,7 @@ import type {
   PrDataSource,
   PrMetadata,
   ReadChangedFileResult,
+  ReviewContextResult,
 } from './pr-data.ts';
 import type { ReviewState } from './review-state.ts';
 import { type ReviewResult, reviewResultSchema } from './schema.ts';
@@ -142,6 +143,19 @@ export function createGetIncrementalDiffTool(dataSource: PrDataSource, limits: R
       const result: IncrementalDiffResult = await dataSource.getIncrementalDiff(
         limits.maxDiffLines,
       );
+      return { output: result };
+    },
+  });
+}
+
+export function createGetReviewContextTool(dataSource: PrDataSource) {
+  return defineTool({
+    name: 'get_review_context',
+    description:
+      'Load repository-specific review context: AGENTS.md, CONTRIBUTING.md, .github/pull_request_template.md, .flue/review-instructions.md, and .flue/repository-learnings.md. Only files that exist are returned. Call this early to understand conventions, test commands, review priorities, and past learnings before analyzing the diff.',
+    input: v.object({}),
+    async run() {
+      const result: ReviewContextResult = await dataSource.getReviewContext();
       return { output: result };
     },
   });

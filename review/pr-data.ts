@@ -9,6 +9,7 @@
  */
 
 import { execFile } from 'node:child_process';
+import { lstatSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { GitHubClient } from '../github/client.ts';
@@ -67,6 +68,25 @@ export type IncrementalDiffResult = {
   totalLines: number;
 };
 
+/**
+ * Result of reading repository-specific review context files. Each entry is
+ * a documentation file found in the checkout, with its path, a human-readable
+ * label, and the (possibly truncated) content. Files that don't exist are
+ * omitted from the array.
+ */
+export type ReviewContextEntry = {
+  path: string;
+  label: string;
+  content: string;
+  truncated: boolean;
+  totalLines: number;
+};
+
+export type ReviewContextResult = {
+  files: ReviewContextEntry[];
+  message: string;
+};
+
 export interface PrDataSource {
   getMetadata(): Promise<PrMetadata>;
   getDiff(maxLines: number): Promise<GetDiffResult>;
@@ -81,6 +101,8 @@ export interface PrDataSource {
   getReviewState(): Promise<ReviewState | null>;
   /** Return the incremental diff since the last reviewed SHA. */
   getIncrementalDiff(maxLines: number): Promise<IncrementalDiffResult>;
+  /** Read repository-specific review context files (AGENTS.md, .flue/*, etc.). */
+  getReviewContext(): Promise<ReviewContextResult>;
 }
 
 export type GitDataSourceOptions = {
@@ -101,6 +123,25 @@ export type GitDataSourceOptions = {
 const MAX_RETURNED_LINES = 400;
 
 /**
+ * Files read by `getReviewContext`, in priority order. Each is a
+ * repository-relative path checked in the working tree. Missing files are
+ * silently skipped — the tool returns only what exists.
+ */
+const REVIEW_CONTEXT_FILES: Array<{ path: string; label: string }> = [
+  { path: 'AGENTS.md', label: 'Project instructions (AGENTS.md)' },
+  { path: 'CONTRIBUTING.md', label: 'Contributing guidelines' },
+  { path: '.github/pull_request_template.md', label: 'Pull request template' },
+  { path: '.flue/review-instructions.md', label: 'Review instructions' },
+  { path: '.flue/repository-learnings.md', label: 'Repository learnings' },
+];
+
+/** Maximum lines read per context file to keep the tool output bounded. */
+const MAX_CONTEXT_FILE_LINES = 200;
+
+/** Maximum bytes read per context file before the file is skipped (1 MB). */
+const MAX_CONTEXT_FILE_BYTES = 1024 * 1024;
+
+/**
  * Real data source backed by `git diff` and the GitHub REST API. The diff and
  * parsed file list are fetched once and cached for the lifetime of the agent
  * run.
@@ -119,6 +160,7 @@ export function createGitDataSource(options: GitDataSourceOptions): PrDataSource
   let cachedFiles: FileDiff[] | null = null;
   let cachedMetadata: PrMetadata | null = null;
   let cachedReviewState: ReviewState | null | undefined = undefined;
+  let cachedReviewContext: ReviewContextResult | null = null;
 
   async function fetchDiff(): Promise<string> {
     if (cachedDiff !== null) return cachedDiff;
@@ -274,6 +316,62 @@ export function createGitDataSource(options: GitDataSourceOptions): PrDataSource
           totalLines: 0,
         };
       }
+    },
+
+    async getReviewContext(): Promise<ReviewContextResult> {
+      if (cachedReviewContext) return cachedReviewContext;
+      const entries: ReviewContextEntry[] = [];
+      const realRoot = (() => {
+        try {
+          return realpathSync(root);
+        } catch {
+          return root;
+        }
+      })();
+
+      for (const { path: relPath, label } of REVIEW_CONTEXT_FILES) {
+        const absolute = path.resolve(root, relPath);
+        // Path confinement: the resolved path must be under root.
+        if (absolute !== root && !absolute.startsWith(`${root}${path.sep}`)) {
+          continue;
+        }
+        let content: string;
+        try {
+          const stat = lstatSync(absolute);
+          // Skip non-regular files (e.g. symlinks) and files exceeding the size cap.
+          if (!stat.isFile() || stat.size > MAX_CONTEXT_FILE_BYTES) {
+            continue;
+          }
+          const canonical = realpathSync(absolute);
+          if (canonical !== realRoot && !canonical.startsWith(`${realRoot}${path.sep}`)) {
+            continue;
+          }
+          content = readFileSync(canonical, 'utf8');
+        } catch {
+          // File doesn't exist or is unreadable — skip silently.
+          continue;
+        }
+        const lines = content.split(/\r?\n/);
+        const truncated = lines.length > MAX_CONTEXT_FILE_LINES;
+        const cappedContent = lines.slice(0, MAX_CONTEXT_FILE_LINES).join('\n');
+        entries.push({
+          path: relPath,
+          label,
+          content: cappedContent,
+          truncated,
+          totalLines: lines.length,
+        });
+      }
+
+      const result: ReviewContextResult = {
+        files: entries,
+        message:
+          entries.length > 0
+            ? `Loaded ${entries.length} repository context file(s). Use them to understand conventions, test commands, and review priorities before analyzing the diff.`
+            : 'No repository context files found (AGENTS.md, CONTRIBUTING.md, .flue/*). Proceed with general review practices.',
+      };
+      cachedReviewContext = result;
+      return result;
     },
   };
 }

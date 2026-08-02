@@ -660,4 +660,88 @@ describe('review publisher', () => {
     assert.equal(savedState.findings.length, 1);
     assert.equal(savedState.findings[0].path, 'src/auth.ts');
   });
+
+  test('renders proposed learnings in the review body', async () => {
+    const client = createFakeClient();
+    const publisher = createReviewPublisher({
+      client,
+      prNumber: 1,
+      headSha: 'head',
+      diffProvider: async () => DIFF,
+      limits,
+    });
+
+    await publisher.publish({
+      summary: 'Review with learnings.',
+      verdict: 'COMMENT',
+      findings: [],
+      proposedLearnings: [
+        {
+          category: 'convention',
+          content: 'Always use parameterized queries for SQL.',
+          justification: 'SQL injection found in 2 PRs.',
+        },
+        {
+          category: 'test-command',
+          content: 'Run npm run check before submitting.',
+          justification: 'CI failures from untested changes.',
+        },
+      ],
+    });
+
+    const body = client.submitted[0].payload.body;
+    assert.match(body, /Proposed repository learnings/);
+    assert.match(body, /\[convention\].*parameterized queries/);
+    assert.match(body, /\[test-command\].*npm run check/);
+    assert.match(body, /SQL injection found in 2 PRs/);
+    assert.match(body, /manually/);
+  });
+
+  test('does not render proposed learnings section when none provided', async () => {
+    const client = createFakeClient();
+    const publisher = createReviewPublisher({
+      client,
+      prNumber: 1,
+      headSha: 'head',
+      diffProvider: async () => DIFF,
+      limits,
+    });
+
+    await publisher.publish({
+      summary: 'Clean review.',
+      verdict: 'COMMENT',
+      findings: [],
+    });
+
+    const body = client.submitted[0].payload.body;
+    assert.doesNotMatch(body, /Proposed repository learnings/);
+  });
+
+  test('normalizes multiline proposed learnings to single lines in review body', async () => {
+    const client = createFakeClient();
+    const publisher = createReviewPublisher({
+      client,
+      prNumber: 1,
+      headSha: 'head',
+      diffProvider: async () => DIFF,
+      limits,
+    });
+
+    await publisher.publish({
+      summary: 'Review with multiline learnings.',
+      verdict: 'COMMENT',
+      findings: [],
+      proposedLearnings: [
+        {
+          category: 'convention',
+          content: 'Line 1\nLine 2',
+          justification: 'Justification line 1\r\nJustification line 2',
+        },
+      ],
+    });
+
+    const body = client.submitted[0].payload.body;
+    assert.match(body, /- \*\*\[convention\]\*\* Line 1 Line 2/);
+    assert.match(body, /— _Justification line 1 Justification line 2_/);
+  });
 });

@@ -39,6 +39,15 @@ describe('encodeReviewState', () => {
     assert.ok(body.includes('abc123def456'));
   });
 
+  test('includes the visible placeholder after the hidden block', () => {
+    const body = encodeReviewState(sampleState);
+    assert.ok(body.includes('_Flue review state (automated; do not edit)._'));
+    // Hidden block comes before the placeholder.
+    const markerEnd = body.indexOf('-->');
+    const placeholder = body.indexOf('_Flue review state');
+    assert.ok(markerEnd > -1 && placeholder > markerEnd);
+  });
+
   test('is detected by isReviewStateComment', () => {
     const body = encodeReviewState(sampleState);
     assert.equal(isReviewStateComment(body), true);
@@ -86,6 +95,12 @@ describe('parseReviewState', () => {
     const parsed = parseReviewState(body);
     assert.deepEqual(parsed, state);
   });
+
+  test('parses a legacy HTML-comment-only body (no visible placeholder)', () => {
+    const legacy = `<!-- flue-review-state\n${JSON.stringify(sampleState)}\n-->`;
+    const parsed = parseReviewState(legacy);
+    assert.deepEqual(parsed, sampleState);
+  });
 });
 
 describe('isReviewStateComment', () => {
@@ -95,5 +110,10 @@ describe('isReviewStateComment', () => {
 
   test('returns true for an encoded state', () => {
     assert.equal(isReviewStateComment(encodeReviewState(sampleState)), true);
+  });
+
+  test('returns true for a legacy HTML-comment-only body', () => {
+    const legacy = `<!-- flue-review-state\n${JSON.stringify(sampleState)}\n-->`;
+    assert.equal(isReviewStateComment(legacy), true);
   });
 });

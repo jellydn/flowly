@@ -208,6 +208,10 @@ and adds review-specific tools backed by a trusted GitHub/git boundary:
   from a hidden PR comment, or reports this is the first review.
 - `get_incremental_diff` — the diff since the last reviewed SHA
   (`git diff prevSha...headSha`), or an empty result on first review.
+- `get_review_context` — reads repository-specific documentation files
+  (`AGENTS.md`, `CONTRIBUTING.md`, `.github/pull_request_template.md`,
+  `.flue/review-instructions.md`, `.flue/repository-learnings.md`) to
+  understand conventions, test commands, and past learnings.
 - `submit_review` — posts one structured GitHub review with inline comments.
 
 ### Analysis vs. mutation separation
@@ -244,6 +248,42 @@ saving state fails after a review was posted, the error is reported in
 `validationIssues` but the run succeeds — the next run falls back to a full
 review.
 
+### Repository-specific memory (Phase 3)
+
+The reviewer reads repository-specific documentation via `get_review_context`
+at the start of each review. It looks for these files in the checked-out repo:
+
+| File | Purpose |
+|------|---------|
+| `AGENTS.md` | Project conventions, build/test commands, architecture |
+| `CONTRIBUTING.md` | Contribution guidelines |
+| `.github/pull_request_template.md` | PR template (what the author should provide) |
+| `.flue/review-instructions.md` | Review-specific priorities and rules |
+| `.flue/repository-learnings.md` | Durable learnings accumulated from past reviews |
+
+Only files that exist are returned; each is capped at 200 lines. The content is
+treated as **data** — it informs the review but never overrides the agent's
+review duties or safety rules.
+
+When the agent discovers a convention, test command, architectural pattern, or
+common issue that would help future reviews, it includes `proposedLearnings` in
+the `submit_review` output. The trusted publisher renders these in the review
+body under a "Proposed repository learnings" section:
+
+```markdown
+### Proposed repository learnings
+
+_Suggestions for `.flue/repository-learnings.md`. Review and apply manually —
+the agent cannot modify files._
+
+- **[convention]** Always use parameterized queries for SQL
+  — _SQL injection found in 2 PRs_
+```
+
+The agent **never writes to `.flue/` directly**. A human reviews the proposed
+learnings and manually adds approved ones to `.flue/repository-learnings.md`.
+This keeps the learning loop transparent and human-controlled.
+
 ### File-aware limits
 
 Instead of the shared 8-call inspection budget, the reviewer uses configurable
@@ -262,10 +302,9 @@ GITHUB_TOKEN=… GITHUB_REPOSITORY=owner/repo PR_NUMBER=42 \
   npm run review-pr
 ```
 
-The reviewer supports both full reviews (opened / reopened / ready_for_review)
-and incremental reviews (synchronize). It never modifies code, pushes commits,
-or auto-approves. Phase 3 (repository-specific memory via `.flue/` learnings)
-remains a follow-up.
+The reviewer supports full reviews (opened / reopened / ready_for_review),
+incremental reviews (synchronize), and repository-specific memory (Phase 3).
+It never modifies code, pushes commits, or auto-approves.
 
 ## Day 16: Tools for agents
 

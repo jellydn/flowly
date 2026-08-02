@@ -149,4 +149,62 @@ describe('review schema', () => {
     });
     assert.equal(parsed.ok, false);
   });
+
+  test('accepts a valid proposedLearnings array', () => {
+    const parsed = safeParseReviewResult({
+      ...validResult,
+      proposedLearnings: [
+        {
+          category: 'convention',
+          content: 'Always use parameterized queries for SQL.',
+          justification: 'SQL injection found in 2 PRs this month.',
+        },
+        {
+          category: 'test-command',
+          content: 'Run npm run check before submitting.',
+          justification: 'CI failures from untested changes.',
+        },
+      ],
+    });
+    assert.equal(parsed.ok, true);
+    if (parsed.ok) {
+      assert.equal(parsed.value.proposedLearnings?.length, 2);
+      assert.equal(parsed.value.proposedLearnings?.[0].category, 'convention');
+    }
+  });
+
+  test('accepts a review result without proposedLearnings', () => {
+    const parsed = safeParseReviewResult(validResult);
+    assert.equal(parsed.ok, true);
+    if (parsed.ok) {
+      assert.equal(parsed.value.proposedLearnings, undefined);
+    }
+  });
+
+  test('rejects an invalid learning category', () => {
+    const parsed = safeParseReviewResult({
+      ...validResult,
+      proposedLearnings: [
+        {
+          category: 'random',
+          content: 'test',
+          justification: 'test',
+        },
+      ],
+    });
+    assert.equal(parsed.ok, false);
+  });
+
+  test('rejects a proposed learning missing required fields', () => {
+    const parsed = safeParseReviewResult({
+      ...validResult,
+      proposedLearnings: [
+        {
+          category: 'convention',
+          content: 'test',
+        },
+      ],
+    });
+    assert.equal(parsed.ok, false);
+  });
 });

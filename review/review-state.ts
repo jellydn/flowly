@@ -2,15 +2,19 @@ import * as v from 'valibot';
 import { findingSchema } from './schema.ts';
 
 /**
- * Persistent review state stored in a hidden PR comment between review runs.
+ * Persistent review state stored in a PR comment between review runs.
  *
- * The state is encoded as an HTML comment in the issue (PR) comment body so it
- * is invisible in the GitHub UI but readable via the API:
+ * The state lives in a hidden HTML-comment block inside the issue (PR) comment
+ * body so it is invisible in the GitHub UI but readable via the API. A short
+ * visible placeholder line follows the hidden block so the GitHub timeline
+ * entry is not blank:
  *
  * ```
  * <!-- flue-review-state
  * {"reviewedHeadSha":"abc123","findings":[...],"reviewedAt":1700000000}
  * -->
+ *
+ * _Flue review state (automated; do not edit)._
  * ```
  *
  * On `synchronize`, the reviewer reads this state, computes the incremental
@@ -29,11 +33,13 @@ export const reviewStateSchema = v.object({
 export type ReviewState = v.InferOutput<typeof reviewStateSchema>;
 
 /**
- * Encode a {@link ReviewState} as a hidden HTML-comment body suitable for a
- * GitHub issue comment. The JSON is compact to keep the comment small.
+ * Encode a {@link ReviewState} as a GitHub issue comment body. The state lives
+ * in a hidden HTML-comment block (marker + compact JSON) followed by a blank
+ * line and a short visible placeholder, so the GitHub timeline entry is not
+ * blank while the state itself stays invisible in the UI.
  */
 export function encodeReviewState(state: ReviewState): string {
-  return `<!-- ${STATE_MARKER}\n${JSON.stringify(state)}\n-->`;
+  return `<!-- ${STATE_MARKER}\n${JSON.stringify(state)}\n-->\n\n_Flue review state (automated; do not edit)._`;
 }
 
 /**

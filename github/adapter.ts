@@ -26,6 +26,7 @@ import type { ReviewLimits } from '../review/limits.ts';
 import {
   type Finding,
   type FindingClassification,
+  type ProposedLearning,
   type ReviewResult,
   safeParseReviewResult,
 } from '../review/schema.ts';
@@ -175,6 +176,7 @@ async function publishValidatedReview(
       droppedFindings,
       skippedFindings,
       result.previousFindingClassifications,
+      result.proposedLearnings,
     ),
     comments: inlineComments,
   };
@@ -261,6 +263,7 @@ function formatReviewBody(
   droppedFindings: { finding: Finding; reason: string }[],
   skippedFindings: number,
   classifications?: FindingClassification[],
+  proposedLearnings?: ProposedLearning[],
 ): string {
   const lines = ['## Flue PR Review', '', summary, ''];
 
@@ -284,6 +287,26 @@ function formatReviewBody(
     for (const c of classifications) {
       const icon = icons[c.status] ?? '•';
       lines.push(`- ${icon} ${c.status}: ${c.title} — \`${c.path}:${c.line}\``);
+    }
+  }
+
+  function toSingleLine(str: string): string {
+    return str.replace(/[\r\n]+/g, ' ').trim();
+  }
+
+  if (proposedLearnings && proposedLearnings.length > 0) {
+    lines.push(
+      '',
+      '### Proposed repository learnings',
+      '',
+      '_Suggestions for `.flue/repository-learnings.md`. Review and apply manually — the agent cannot modify files._',
+      '',
+    );
+    for (const learning of proposedLearnings) {
+      const content = toSingleLine(learning.content);
+      const justification = toSingleLine(learning.justification);
+      lines.push(`- **[${learning.category}]** ${content}`);
+      lines.push(`  — _${justification}_`);
     }
   }
 
