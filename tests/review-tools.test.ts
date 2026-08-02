@@ -7,6 +7,7 @@ import {
   createGetPrDiffTool,
   createGetPrMetadataTool,
   createGetPreviousReviewStateTool,
+  createGetReviewContextTool,
   createListChangedFilesTool,
   createReadChangedFileTool,
   createSubmitReviewTool,
@@ -99,6 +100,20 @@ function createFakeDataSource(): PrDataSource {
         content: '',
         truncated: false,
         totalLines: 0,
+      };
+    },
+    async getReviewContext() {
+      return {
+        files: [
+          {
+            path: 'AGENTS.md',
+            label: 'Project instructions (AGENTS.md)',
+            content: '# Project\nUse Node 22.',
+            truncated: false,
+            totalLines: 2,
+          },
+        ],
+        message: 'Loaded 1 repository context file(s).',
       };
     },
   };
@@ -284,5 +299,36 @@ describe('review tools', () => {
     assert.equal(result.isFirstReview, false);
     assert.equal(result.previousReviewedSha, 'prev');
     assert.equal(result.content, 'incremental diff here');
+  });
+
+  test('get_review_context returns repository context files', async () => {
+    const ds = createFakeDataSource();
+    const tool = createGetReviewContextTool(ds);
+    const result = await run<{
+      files: Array<{ path: string; label: string; content: string }>;
+      message: string;
+    }>(tool, {});
+    assert.equal(result.files.length, 1);
+    assert.equal(result.files[0].path, 'AGENTS.md');
+    assert.match(result.message, /Loaded 1 repository context file/);
+  });
+
+  test('get_review_context returns empty files when none exist', async () => {
+    const ds: PrDataSource = {
+      ...createFakeDataSource(),
+      async getReviewContext() {
+        return {
+          files: [],
+          message: 'No repository context files found.',
+        };
+      },
+    };
+    const tool = createGetReviewContextTool(ds);
+    const result = await run<{
+      files: unknown[];
+      message: string;
+    }>(tool, {});
+    assert.equal(result.files.length, 0);
+    assert.match(result.message, /No repository context files found/);
   });
 });

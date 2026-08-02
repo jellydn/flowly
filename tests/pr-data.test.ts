@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, test } from 'node:test';
 import type { GitHubClient } from '../github/client.ts';
 import { createGitDataSource } from '../review/pr-data.ts';
@@ -330,5 +333,101 @@ describe('git data source', () => {
     assert.equal(result.content, '');
     assert.equal(result.truncated, false);
     assert.equal(result.totalLines, 0);
+  });
+
+  test('getReviewContext reads existing files from the working tree', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'flue-review-ctx-'));
+    try {
+      writeFileSync(join(dir, 'AGENTS.md'), '# Project\nUse Node 22.');
+      mkdirSync(join(dir, '.flue'), { recursive: true });
+      writeFileSync(
+        join(dir, '.flue', 'review-instructions.md'),
+        '# Review\nFocus on security.',
+      );
+      const ds = createGitDataSource({
+        repositoryPath: dir,
+        baseSha: 'base',
+        headSha: 'head',
+        prNumber: 3,
+        github: createFakeGitHub(),
+        execGit: async () => ({ stdout: DIFF, stderr: '' }),
+      });
+      const result = await ds.getReviewContext();
+      assert.equal(result.files.length, 2);
+      assert.equal(result.files[0].path, 'AGENTS.md');
+      assert.match(result.files[0].content, /Use Node 22/);
+      assert.equal(result.files[1].path, '.flue/review-instructions.md');
+      assert.match(result.files[1].content, /security/);
+      assert.match(result.message, /Loaded 2 repository context file/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('getReviewContext returns empty array when no context files exist', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'flue-review-ctx-'));
+    try {
+      const ds = createGitDataSource({
+        repositoryPath: dir,
+        baseSha: 'base',
+        headSha: 'head',
+        prNumber: 3,
+        github: createFakeGitHub(),
+        execGit: async () => ({ stdout: DIFF, stderr: '' }),
+      });
+      const result = await ds.getReviewContext();
+      assert.equal(result.files.length, 0);
+      assert.match(result.message, /No repository context files found/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('getReviewContext truncates files over the line limit', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'flue-review-ctx-'));
+    try {
+      const longContent = Array.from({ length: 300 }, (_, i) => `line ${i}`).join('\n');
+      writeFileSync(join(dir, 'AGENTS.md'), longContent);
+      const ds = createGitDataSource({
+        repositoryPath: dir,
+        baseSha: 'base',
+        headSha: 'head',
+        prNumber: 3,
+        github: createFakeGitHub(),
+        execGit: async () => ({ stdout: DIFF, stderr: '' }),
+      });
+      const result = await ds.getReviewContext();
+      assert.equal(result.files.length, 1);
+      assert.equal(result.files[0].truncated, true);
+      assert.equal(result.files[0].totalLines, 300);
+      // Content should be capped
+      const contentLines = result.files[0].content.split('\n');
+      assert.ok(contentLines.length <= 200);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('getReviewContext caches across calls', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'flue-review-ctx-'));
+    try {
+      writeFileSync(join(dir, 'AGENTS.md'), '# Project');
+      const ds = createGitDataSource({
+        repositoryPath: dir,
+        baseSha: 'base',
+        headSha: 'head',
+        prNumber: 3,
+        github: createFakeGitHub(),
+        execGit: async () => ({ stdout: DIFF, stderr: '' }),
+      });
+      const first = await ds.getReviewContext();
+      // Modify the file after the first read — cache should return old content
+      writeFileSync(join(dir, 'AGENTS.md'), '# Modified');
+      const second = await ds.getReviewContext();
+      assert.equal(second.files[0].content, first.files[0].content);
+      assert.match(second.files[0].content, /# Project/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

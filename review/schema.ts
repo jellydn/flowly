@@ -53,6 +53,28 @@ export const findingClassificationSchema = v.object({
   note: v.optional(v.pipe(v.string(), v.maxLength(500))),
 });
 
+/**
+ * Category for a proposed repository learning. The agent suggests learnings
+ * it discovered during review; a human reviews and manually adds them to
+ * `.flue/repository-learnings.md`. The agent never writes to `.flue/` directly.
+ */
+export const learningCategorySchema = v.picklist([
+  'convention',
+  'test-command',
+  'architecture',
+  'common-issue',
+  'documentation',
+]);
+
+export const proposedLearningSchema = v.object({
+  category: learningCategorySchema,
+  content: v.pipe(v.string(), v.minLength(1), v.maxLength(1000)),
+  justification: v.pipe(v.string(), v.minLength(1), v.maxLength(500)),
+});
+
+/** Hard ceiling on proposed learnings per review. */
+export const PROPOSED_LEARNINGS_CEILING = 20;
+
 export const reviewResultSchema = v.object({
   summary: v.pipe(v.string(), v.minLength(1), v.maxLength(4000)),
   verdict: verdictSchema,
@@ -64,6 +86,14 @@ export const reviewResultSchema = v.object({
   previousFindingClassifications: v.optional(
     v.pipe(v.array(findingClassificationSchema), v.maxLength(REVIEW_FINDINGS_CEILING)),
   ),
+  /**
+   * Optional: learnings the agent suggests adding to
+   * `.flue/repository-learnings.md`. Rendered in the review body for manual
+   * approval — the agent never modifies files directly.
+   */
+  proposedLearnings: v.optional(
+    v.pipe(v.array(proposedLearningSchema), v.maxLength(PROPOSED_LEARNINGS_CEILING)),
+  ),
 });
 
 export type Severity = v.InferOutput<typeof severitySchema>;
@@ -71,6 +101,8 @@ export type Verdict = v.InferOutput<typeof verdictSchema>;
 export type Finding = v.InferOutput<typeof findingSchema>;
 export type FindingStatus = v.InferOutput<typeof findingStatusSchema>;
 export type FindingClassification = v.InferOutput<typeof findingClassificationSchema>;
+export type LearningCategory = v.InferOutput<typeof learningCategorySchema>;
+export type ProposedLearning = v.InferOutput<typeof proposedLearningSchema>;
 export type ReviewResult = v.InferOutput<typeof reviewResultSchema>;
 
 /**
