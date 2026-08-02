@@ -40,9 +40,7 @@ export function createReliabilityLogger(enabled: boolean): ReliabilityLogger {
         fallbackUsed: event.fallbackUsed,
         outcome: event.outcome,
       };
-      console.error(
-        `[repo-assistant:reliability] ${JSON.stringify(safe)}`,
-      );
+      console.error(`[repo-assistant:reliability] ${JSON.stringify(safe)}`);
     },
   };
 }

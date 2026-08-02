@@ -3,11 +3,7 @@ import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, test } from 'node:test';
-import {
-  createRepositoryReader,
-  createStepBudget,
-  parseMaxSteps,
-} from '../tools/repository.ts';
+import { createRepositoryReader, createStepBudget, parseMaxSteps } from '../tools/repository.ts';
 
 let fixture: string;
 

@@ -40,9 +40,7 @@ export function validateShape(
     if (!(field in obj)) {
       return {
         ok: false,
-        error: new InvalidToolResponseError(
-          `Tool output missing required field "${field}"`,
-        ),
+        error: new InvalidToolResponseError(`Tool output missing required field "${field}"`),
       };
     }
     const actual = obj[field];
@@ -193,9 +191,7 @@ export function validateListResult(output: unknown): ValidationResult<{
     if (typeof entry?.path !== 'string' || typeof entry?.type !== 'string') {
       return {
         ok: false,
-        error: new InvalidToolResponseError(
-          'List result entry has missing or invalid path/type',
-        ),
+        error: new InvalidToolResponseError('List result entry has missing or invalid path/type'),
       };
     }
   }

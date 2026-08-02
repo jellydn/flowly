@@ -27,10 +27,7 @@ const validators: Record<string, ToolValidator<unknown>> = {
   search_docs: validateSearchDocsResult,
 };
 
-export type InspectionToolFactory = (
-  budget: undefined,
-  debug: DebugLogger,
-) => ToolDefinition;
+export type InspectionToolFactory = (budget: undefined, debug: DebugLogger) => ToolDefinition;
 
 /**
  * Build a reliable inspection tool from its raw factory. Budget consumption
@@ -199,11 +196,7 @@ export function wrapToolWithReliability(
         });
 
         const classified = classifyError(error);
-        throw wrapWithBudget(
-          new SafeToolError(rawTool.name, classified),
-          rawTool.name,
-          inspection,
-        );
+        throw wrapWithBudget(new SafeToolError(rawTool.name, classified), rawTool.name, inspection);
       }
     },
   });
@@ -220,10 +213,7 @@ export class SafeToolError extends Error {
     readonly toolName: string,
     readonly reliabilityError: ReliabilityError,
   ) {
-    super(
-      `${toolName}: ${reliabilityError.userMessage}`,
-      { cause: reliabilityError },
-    );
+    super(`${toolName}: ${reliabilityError.userMessage}`, { cause: reliabilityError });
     this.name = 'SafeToolError';
   }
 }

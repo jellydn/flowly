@@ -21,9 +21,10 @@ export async function searchRepository(
   options: RepositorySearchOptions,
 ): Promise<SearchFilesResult & { filesSearched: number }> {
   options.signal?.throwIfAborted();
-  const files = options.scope === 'source'
-    ? await repository.sourceFiles(options.path)
-    : await repository.documentationFiles(options.path);
+  const files =
+    options.scope === 'source'
+      ? await repository.sourceFiles(options.path)
+      : await repository.documentationFiles(options.path);
   const result = await searchFiles(
     repository,
     files,

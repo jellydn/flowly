@@ -43,7 +43,14 @@ function createFakeDataSource(): PrDataSource {
         headSha: 'hhh',
         changedFiles: [
           { path: 'src/auth.ts', status: 'modified', additions: 2, deletions: 1, skip: false },
-          { path: 'package-lock.json', status: 'modified', additions: 1, deletions: 0, skip: true, skipReason: 'lockfile' },
+          {
+            path: 'package-lock.json',
+            status: 'modified',
+            additions: 1,
+            deletions: 0,
+            skip: true,
+            skipReason: 'lockfile',
+          },
         ],
       };
     },
@@ -53,7 +60,14 @@ function createFakeDataSource(): PrDataSource {
     async listChangedFiles() {
       return [
         { path: 'src/auth.ts', status: 'modified', additions: 2, deletions: 1, skip: false },
-        { path: 'package-lock.json', status: 'modified', additions: 1, deletions: 0, skip: true, skipReason: 'lockfile' },
+        {
+          path: 'package-lock.json',
+          status: 'modified',
+          additions: 1,
+          deletions: 0,
+          skip: true,
+          skipReason: 'lockfile',
+        },
       ];
     },
     async getDiffHunks(p) {
@@ -76,7 +90,10 @@ function createFakeDataSource(): PrDataSource {
   };
 }
 
-async function run<T>(tool: Parameters<typeof invokeTool>[0], data: Record<string, unknown>): Promise<T> {
+async function run<T>(
+  tool: Parameters<typeof invokeTool>[0],
+  data: Record<string, unknown>,
+): Promise<T> {
   return invokeTool<T>(tool, { toolCallId: 'test', data });
 }
 
@@ -114,10 +131,9 @@ describe('review tools', () => {
   test('read_changed_file returns numbered lines', async () => {
     const ds = createFakeDataSource();
     const tool = createReadChangedFileTool(ds);
-    const result = await run<{ path: string; content: string; totalLines: number }>(
-      tool,
-      { path: 'src/auth.ts' },
-    );
+    const result = await run<{ path: string; content: string; totalLines: number }>(tool, {
+      path: 'src/auth.ts',
+    });
     assert.match(result.content, /^1:/);
     assert.equal(result.totalLines, 3);
   });
@@ -125,18 +141,15 @@ describe('review tools', () => {
   test('read_changed_file rejects endLine < startLine', async () => {
     const ds = createFakeDataSource();
     const tool = createReadChangedFileTool(ds);
-    await assert.rejects(() =>
-      run(tool, { path: 'src/auth.ts', startLine: 10, endLine: 5 }),
-    );
+    await assert.rejects(() => run(tool, { path: 'src/auth.ts', startLine: 10, endLine: 5 }));
   });
 
   test('get_diff_hunks returns hunk ranges for a file', async () => {
     const ds = createFakeDataSource();
     const tool = createGetDiffHunksTool(ds);
-    const result = await run<{ path: string; hunks: Array<{ newStart: number }> }>(
-      tool,
-      { path: 'src/auth.ts' },
-    );
+    const result = await run<{ path: string; hunks: Array<{ newStart: number }> }>(tool, {
+      path: 'src/auth.ts',
+    });
     assert.equal(result.hunks.length, 1);
     assert.equal(result.hunks[0].newStart, 10);
   });

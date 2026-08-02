@@ -30,7 +30,12 @@ export function parseRetryConfig(env: Record<string, string | undefined>): Retry
   };
   return {
     maxAttempts: num('REPO_ASSISTANT_MAX_ATTEMPTS', DEFAULT_RETRY_CONFIG.maxAttempts, 1, 10),
-    initialDelayMs: num('REPO_ASSISTANT_INITIAL_DELAY_MS', DEFAULT_RETRY_CONFIG.initialDelayMs, 0, 60_000),
+    initialDelayMs: num(
+      'REPO_ASSISTANT_INITIAL_DELAY_MS',
+      DEFAULT_RETRY_CONFIG.initialDelayMs,
+      0,
+      60_000,
+    ),
     maxDelayMs: num('REPO_ASSISTANT_MAX_DELAY_MS', DEFAULT_RETRY_CONFIG.maxDelayMs, 1, 120_000),
     timeoutMs: num('REPO_ASSISTANT_TIMEOUT_MS', DEFAULT_RETRY_CONFIG.timeoutMs, 100, 300_000),
   };
@@ -40,11 +45,7 @@ export function parseRetryConfig(env: Record<string, string | undefined>): Retry
  * Compute exponential backoff with full jitter: delay is a random value
  * between 0 and `base * 2^(attempt-1)`, capped at `maxDelayMs`.
  */
-export function backoffDelay(
-  attempt: number,
-  initialDelayMs: number,
-  maxDelayMs: number,
-): number {
+export function backoffDelay(attempt: number, initialDelayMs: number, maxDelayMs: number): number {
   const expo = initialDelayMs * 2 ** (attempt - 1);
   const capped = Math.min(expo, maxDelayMs);
   return Math.random() * capped;
@@ -67,14 +68,9 @@ export function isTransient(error: unknown): boolean {
  */
 export type SleepFn = (ms: number) => Promise<void>;
 
-export const defaultSleep: SleepFn = (ms) =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+export const defaultSleep: SleepFn = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function sleepWithSignal(
-  sleep: SleepFn,
-  ms: number,
-  signal?: AbortSignal,
-): Promise<void> {
+function sleepWithSignal(sleep: SleepFn, ms: number, signal?: AbortSignal): Promise<void> {
   if (!signal) return sleep(ms);
   if (signal.aborted) return Promise.reject(signal.reason);
   return new Promise((resolve, reject) => {
@@ -83,13 +79,16 @@ function sleepWithSignal(
       reject(signal.reason);
     };
     signal.addEventListener('abort', onAbort, { once: true });
-    void sleep(ms).then(() => {
-      signal.removeEventListener('abort', onAbort);
-      resolve();
-    }, (error) => {
-      signal.removeEventListener('abort', onAbort);
-      reject(error);
-    });
+    void sleep(ms).then(
+      () => {
+        signal.removeEventListener('abort', onAbort);
+        resolve();
+      },
+      (error) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(error);
+      },
+    );
   });
 }
 
@@ -116,10 +115,7 @@ export async function runWithRetry<T>(
     parentSignal?.throwIfAborted();
     const start = Date.now();
     const controller = new AbortController();
-    const timer = setTimeout(
-      () => controller.abort(),
-      config.timeoutMs,
-    );
+    const timer = setTimeout(() => controller.abort(), config.timeoutMs);
     const signal = parentSignal
       ? AbortSignal.any([controller.signal, parentSignal])
       : controller.signal;
@@ -163,11 +159,7 @@ export async function runWithRetry<T>(
         throw classified;
       }
 
-      const delay = backoffDelay(
-        attempt,
-        config.initialDelayMs,
-        config.maxDelayMs,
-      );
+      const delay = backoffDelay(attempt, config.initialDelayMs, config.maxDelayMs);
       await sleepWithSignal(sleep, delay, parentSignal);
     }
   }

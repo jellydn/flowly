@@ -42,20 +42,14 @@ export function formatReflection(reflection: PlanReflection): string {
 // Model-facing reflect_plan tool
 // ---------------------------------------------------------------------------
 
-export function createReflectPlanTool(
-  store: PlanStore,
-  budget: StepBudget,
-  debug: DebugLogger,
-) {
+export function createReflectPlanTool(store: PlanStore, budget: StepBudget, debug: DebugLogger) {
   return defineTool({
     name: 'reflect_plan',
     description:
       'Reflect on the completed plan. State whether any steps could be simplified or merged. Call this after all execution steps are done, before the final answer. Does not consume the inspection budget.',
     input: v.object({
       couldSimplify: v.boolean(),
-      simplificationNote: v.optional(
-        v.pipe(v.string(), v.maxLength(300)),
-      ),
+      simplificationNote: v.optional(v.pipe(v.string(), v.maxLength(300))),
     }),
     run({ data }) {
       const plan = store.plan;
@@ -80,12 +74,7 @@ export function createReflectPlanTool(
         };
       }
 
-      const reflection = reflectOnPlan(
-        plan,
-        results,
-        data.couldSimplify,
-        data.simplificationNote,
-      );
+      const reflection = reflectOnPlan(plan, results, data.couldSimplify, data.simplificationNote);
       store.setReflection(reflection);
       const inputSummary = summarizeInput({
         couldSimplify: data.couldSimplify,

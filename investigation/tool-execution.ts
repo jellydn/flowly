@@ -7,9 +7,7 @@ export {
   type ToolInvocation,
 } from '../reliability/tool-invocation.ts';
 
-export type ToolRegistry =
-  | Map<string, ToolDefinition>
-  | Partial<Record<string, ToolDefinition>>;
+export type ToolRegistry = Map<string, ToolDefinition> | Partial<Record<string, ToolDefinition>>;
 
 export type ToolExecutionMetadata = {
   toolCallId: string;
@@ -25,10 +23,7 @@ export type ToolExecutionOutcome =
   | ({ ok: true; tool: string; output: unknown } & { metadata: ToolExecutionMetadata })
   | ({ ok: false; tool: string; error: string } & { metadata: ToolExecutionMetadata });
 
-export function resolveTool(
-  tools: ToolRegistry,
-  toolName: string,
-): ToolDefinition | undefined {
+export function resolveTool(tools: ToolRegistry, toolName: string): ToolDefinition | undefined {
   return tools instanceof Map ? tools.get(toolName) : tools[toolName];
 }
 
@@ -47,14 +42,15 @@ export async function executeToolCallWithMetadata(
   onResolved?: () => void,
 ): Promise<ToolExecutionOutcome> {
   const startedAt = Date.now();
-  const finish = <T extends ToolCallResult>(result: T): ToolExecutionOutcome => ({
-    ...result,
-    metadata: {
-      toolCallId,
-      startedAt,
-      durationMs: Math.max(0, Date.now() - startedAt),
-    },
-  } as ToolExecutionOutcome);
+  const finish = <T extends ToolCallResult>(result: T): ToolExecutionOutcome =>
+    ({
+      ...result,
+      metadata: {
+        toolCallId,
+        startedAt,
+        durationMs: Math.max(0, Date.now() - startedAt),
+      },
+    }) as ToolExecutionOutcome;
 
   try {
     signal?.throwIfAborted();

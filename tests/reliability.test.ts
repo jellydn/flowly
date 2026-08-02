@@ -1,16 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 import type { ToolDefinition } from '@flue/runtime';
-import type { InspectionMetadata } from '../tools/repository.ts';
-import {
-  createDebugLogger,
-  createRepositoryReader,
-  createStepBudget,
-  markBudgetFreeTool,
-} from '../tools/repository.ts';
-import { createListFilesTool } from '../tools/list-files.ts';
-import { createReadFileTool } from '../tools/read-file.ts';
-import { createSearchCodeTool } from '../tools/search-code.ts';
 import {
   AuthenticationError,
   classifyError,
@@ -20,32 +10,35 @@ import {
   RateLimitError,
   TimeoutError,
 } from '../reliability/errors.ts';
+import { createFailureInjector, noFailureInjection } from '../reliability/failure-injection.ts';
+import { executeWithFallback } from '../reliability/fallback.ts';
+import { createReliabilityLogger } from '../reliability/observability.ts';
+import {
+  createReliableInspectionTool,
+  SafeToolError,
+  wrapToolWithReliability,
+} from '../reliability/resilient-tool.ts';
 import {
   backoffDelay,
   isTransient,
   parseRetryConfig,
-  runWithRetry,
   type RetryConfig,
+  runWithRetry,
   type SleepFn,
 } from '../reliability/retry.ts';
-import { createReliabilityLogger } from '../reliability/observability.ts';
-import {
-  createFailureInjector,
-  noFailureInjection,
-} from '../reliability/failure-injection.ts';
-import {
-  createReliableInspectionTool,
-  wrapToolWithReliability,
-  SafeToolError,
-} from '../reliability/resilient-tool.ts';
 import {
   validateContentSize,
   validateReadResult,
   validateSearchResult,
 } from '../reliability/validation.ts';
+import { createReadFileTool } from '../tools/read-file.ts';
+import type { InspectionMetadata } from '../tools/repository.ts';
 import {
-  executeWithFallback,
-} from '../reliability/fallback.ts';
+  createDebugLogger,
+  createRepositoryReader,
+  createStepBudget,
+  markBudgetFreeTool,
+} from '../tools/repository.ts';
 import { createSampleRepo, removeRepo } from './helpers.ts';
 
 const noDebug = () => createDebugLogger(false);
@@ -423,16 +416,19 @@ describe('wrapToolWithReliability', () => {
       noReliabilityLog(),
       noFailureInjection,
     );
-    const result = (await wrapped.run({
-      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
-      data: { path: 'src/config.ts', startLine: 1 },
-    }) as any).output as { content: string; inspection: InspectionMetadata };
+    const result = (
+      (await wrapped.run({
+        toolCallId: 'test',
+        log: { info() {}, warn() {}, error() {} },
+        data: { path: 'src/config.ts', startLine: 1 },
+      })) as any
+    ).output as { content: string; inspection: InspectionMetadata };
     assert.match(result.content, /PORT/);
     assert.equal(result.inspection.used, 1);
   });
 
   test('retries transient failure then succeeds', async () => {
-    const repository = await createRepositoryReader(root);
+    const _repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     let rawCalls = 0;
     const rawTool: ToolDefinition = {
@@ -456,18 +452,27 @@ describe('wrapToolWithReliability', () => {
       },
     };
     const wrapped = wrapToolWithReliability(
-      markBudgetFreeTool(rawTool), budget, noDebug(), fastRetry, noReliabilityLog(), noFailureInjection, instantSleep,
+      markBudgetFreeTool(rawTool),
+      budget,
+      noDebug(),
+      fastRetry,
+      noReliabilityLog(),
+      noFailureInjection,
+      instantSleep,
     );
-    const result = (await wrapped.run({
-      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
-      data: { query: 'x', path: '.', caseSensitive: false },
-    }) as any).output as { matches: unknown[] };
+    const result = (
+      (await wrapped.run({
+        toolCallId: 'test',
+        log: { info() {}, warn() {}, error() {} },
+        data: { query: 'x', path: '.', caseSensitive: false },
+      })) as any
+    ).output as { matches: unknown[] };
     assert.equal(rawCalls, 2);
     assert.ok(result.matches.length > 0);
   });
 
   test('permanent error is not retried and produces SafeToolError', async () => {
-    const repository = await createRepositoryReader(root);
+    const _repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     let rawCalls = 0;
     const rawTool: ToolDefinition = {
@@ -481,10 +486,20 @@ describe('wrapToolWithReliability', () => {
       },
     };
     const wrapped = wrapToolWithReliability(
-      markBudgetFreeTool(rawTool), budget, noDebug(), fastRetry, noReliabilityLog(), noFailureInjection, instantSleep,
+      markBudgetFreeTool(rawTool),
+      budget,
+      noDebug(),
+      fastRetry,
+      noReliabilityLog(),
+      noFailureInjection,
+      instantSleep,
     );
     await assert.rejects(
-      wrapped.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: 'x.ts', startLine: 1 } }) as Promise<unknown>,
+      wrapped.run({
+        toolCallId: 'test',
+        log: { info() {}, warn() {}, error() {} },
+        data: { path: 'x.ts', startLine: 1 },
+      }) as Promise<unknown>,
       (err: unknown) => {
         assert.ok(err instanceof Error);
         // The error message should be user-safe (no stack traces)
@@ -496,7 +511,7 @@ describe('wrapToolWithReliability', () => {
   });
 
   test('malformed output is rejected with InvalidToolResponseError', async () => {
-    const repository = await createRepositoryReader(root);
+    const _repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const rawTool: ToolDefinition = {
       name: 'search_code',
@@ -508,10 +523,20 @@ describe('wrapToolWithReliability', () => {
       },
     };
     const wrapped = wrapToolWithReliability(
-      markBudgetFreeTool(rawTool), budget, noDebug(), fastRetry, noReliabilityLog(), noFailureInjection, instantSleep,
+      markBudgetFreeTool(rawTool),
+      budget,
+      noDebug(),
+      fastRetry,
+      noReliabilityLog(),
+      noFailureInjection,
+      instantSleep,
     );
     await assert.rejects(
-      wrapped.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { query: 'x', path: '.', caseSensitive: false } }) as Promise<unknown>,
+      wrapped.run({
+        toolCallId: 'test',
+        log: { info() {}, warn() {}, error() {} },
+        data: { query: 'x', path: '.', caseSensitive: false },
+      }) as Promise<unknown>,
       /failed/i,
     );
   });
@@ -542,8 +567,13 @@ describe('wrapToolWithReliability', () => {
       },
     };
     const wrapped = wrapToolWithReliability(
-      markBudgetFreeTool(rawTool), budget, noDebug(), { ...fastRetry, timeoutMs: 100 },
-      noReliabilityLog(), noFailureInjection, instantSleep,
+      markBudgetFreeTool(rawTool),
+      budget,
+      noDebug(),
+      { ...fastRetry, timeoutMs: 100 },
+      noReliabilityLog(),
+      noFailureInjection,
+      instantSleep,
     );
     const promise = wrapped.run({
       toolCallId: 'test',
@@ -557,7 +587,7 @@ describe('wrapToolWithReliability', () => {
   });
 
   test('retries do not consume additional budget', async () => {
-    const repository = await createRepositoryReader(root);
+    const _repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     let rawCalls = 0;
     const rawTool: ToolDefinition = {
@@ -570,16 +600,30 @@ describe('wrapToolWithReliability', () => {
         if (rawCalls < 3) throw new Error('HTTP 503');
         return {
           output: {
-            matches: [], filesSearched: 1, query: 'x', path: '.',
-            truncated: false, inspection: budget.snapshot(),
+            matches: [],
+            filesSearched: 1,
+            query: 'x',
+            path: '.',
+            truncated: false,
+            inspection: budget.snapshot(),
           },
         };
       },
     };
     const wrapped = wrapToolWithReliability(
-      markBudgetFreeTool(rawTool), budget, noDebug(), fastRetry, noReliabilityLog(), noFailureInjection, instantSleep,
+      markBudgetFreeTool(rawTool),
+      budget,
+      noDebug(),
+      fastRetry,
+      noReliabilityLog(),
+      noFailureInjection,
+      instantSleep,
     );
-    await wrapped.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { query: 'x', path: '.', caseSensitive: false } });
+    await wrapped.run({
+      toolCallId: 'test',
+      log: { info() {}, warn() {}, error() {} },
+      data: { query: 'x', path: '.', caseSensitive: false },
+    });
     assert.equal(rawCalls, 3);
     // Only 1 budget slot consumed, not 3
     assert.equal(budget.used, 1);
@@ -624,7 +668,7 @@ describe('fallback', () => {
   });
 
   test('both primary and fallback fail', async () => {
-    const repository = await createRepositoryReader(root);
+    const _repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const failingSearch: ToolDefinition = {
       name: 'search_code',
@@ -664,7 +708,7 @@ describe('fallback', () => {
   });
 
   test('malformed fallback output is rejected safely', async () => {
-    const repository = await createRepositoryReader(root);
+    const _repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const malformedRead: ToolDefinition = {
       name: 'read_file',
@@ -726,7 +770,9 @@ describe('fallback', () => {
       fastRetry,
       noReliabilityLog(),
       {
-        injector: createFailureInjector({ SIMULATE_MALFORMED_RESPONSE: 'true' }),
+        injector: createFailureInjector({
+          SIMULATE_MALFORMED_RESPONSE: 'true',
+        }),
         sleep: instantSleep,
       },
     );
@@ -809,9 +855,7 @@ describe('fallback', () => {
 
 describe('user-facing error safety', () => {
   test('SafeToolError message contains no stack traces or secrets', () => {
-    const internal = new ExternalServiceError(
-      'at /internal/provider.ts:42 token=sk-abc123',
-    );
+    const internal = new ExternalServiceError('at /internal/provider.ts:42 token=sk-abc123');
     const safe = new SafeToolError('search_code', internal);
     assert.doesNotMatch(safe.message, /at \//);
     assert.doesNotMatch(safe.message, /sk-|token=/i);
@@ -869,7 +913,9 @@ describe('failure injection', () => {
   });
 
   test('SIMULATE_MALFORMED_RESPONSE garbles output', () => {
-    const injector = createFailureInjector({ SIMULATE_MALFORMED_RESPONSE: 'true' });
+    const injector = createFailureInjector({
+      SIMULATE_MALFORMED_RESPONSE: 'true',
+    });
     assert.equal(injector.shouldMalform('read_file'), true);
   });
 
@@ -931,13 +977,7 @@ describe('reliability observability', () => {
     console.error = (...args: unknown[]) => lines.push(args.join(' '));
     try {
       const logger = createReliabilityLogger(false);
-      await runWithRetry(
-        'test-op',
-        async () => 'ok',
-        fastRetry,
-        logger,
-        instantSleep,
-      );
+      await runWithRetry('test-op', async () => 'ok', fastRetry, logger, instantSleep);
     } finally {
       console.error = original;
     }

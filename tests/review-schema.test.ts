@@ -1,10 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import {
-  parseReviewResult,
-  reviewResultSchema,
-  safeParseReviewResult,
-} from '../review/schema.ts';
+import { parseReviewResult, reviewResultSchema, safeParseReviewResult } from '../review/schema.ts';
 import * as v from 'valibot';
 
 const validResult = {
@@ -82,7 +78,14 @@ describe('review schema', () => {
       summary: 's',
       verdict: 'COMMENT',
       findings: [
-        { severity: 'blocker', path: 'a.ts', line: 1, title: 't', explanation: 'e', confidence: 0.5 },
+        {
+          severity: 'blocker',
+          path: 'a.ts',
+          line: 1,
+          title: 't',
+          explanation: 'e',
+          confidence: 0.5,
+        },
       ],
     });
     assert.equal(parsed.ok, false);

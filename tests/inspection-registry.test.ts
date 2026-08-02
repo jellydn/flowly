@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 import { createInspectionRegistry } from '../tools/inspection-registry.ts';
-import { createDebugLogger, createRepositoryReader, createStepBudget } from '../tools/repository.ts';
+import {
+  createDebugLogger,
+  createRepositoryReader,
+  createStepBudget,
+} from '../tools/repository.ts';
 import { createReliabilityLogger } from '../reliability/observability.ts';
 import { noFailureInjection } from '../reliability/failure-injection.ts';
 import { createSampleRepo, removeRepo, runTool } from './helpers.ts';

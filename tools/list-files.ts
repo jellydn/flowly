@@ -6,7 +6,12 @@ import type {
   RepositoryReader,
   StepBudget,
 } from './repository.ts';
-import { markBudgetFreeTool, noInspectionBudget, summarizeInput, wrapWithBudget } from './repository.ts';
+import {
+  markBudgetFreeTool,
+  noInspectionBudget,
+  summarizeInput,
+  wrapWithBudget,
+} from './repository.ts';
 import { TOOL_LIMITS } from './contracts.ts';
 
 const {
@@ -25,14 +30,8 @@ export function createListFilesTool(
     description:
       'List files and directories below one repository-relative directory. Use when the repository structure or a file path is unknown. Ignored build, dependency, VCS, and symlink entries are omitted. Returns repository-relative paths plus an inspection budget snapshot.',
     input: v.object({
-      path: v.optional(
-        v.pipe(v.string(), v.maxLength(MAX_PATH_LENGTH)),
-        '.',
-      ),
-      depth: v.optional(
-        v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_DEPTH)),
-        2,
-      ),
+      path: v.optional(v.pipe(v.string(), v.maxLength(MAX_PATH_LENGTH)), '.'),
+      depth: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_DEPTH)), 2),
     }),
     async run({ data, signal }) {
       signal?.throwIfAborted();

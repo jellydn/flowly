@@ -38,9 +38,7 @@ export function shouldReplan(results: ExecutionResult[]): boolean {
   return results.some(
     (r) =>
       r.status === 'empty' &&
-      (r.tool === 'search_code' ||
-        r.tool === 'search_docs' ||
-        r.tool === 'list_files'),
+      (r.tool === 'search_code' || r.tool === 'search_docs' || r.tool === 'list_files'),
   );
 }
 
@@ -50,10 +48,7 @@ export function shouldReplan(results: ExecutionResult[]): boolean {
  * Strategy: replace the failed search with a `list_files` to discover
  * structure, then keep the remaining non-answer steps from the original plan.
  */
-export function replan(
-  originalPlan: Plan,
-  results: ExecutionResult[],
-): Plan {
+export function replan(originalPlan: Plan, results: ExecutionResult[]): Plan {
   const run = createPlanRun();
   run.setPlan(originalPlan);
   return run.replan(results);
@@ -69,28 +64,17 @@ const planStepSchema = v.object({
   input: v.optional(v.record(v.string(), v.union([v.string(), v.number(), v.boolean(), v.null()]))),
 });
 
-export function createReplanTool(
-  store: PlanStore,
-  budget: StepBudget,
-  debug: DebugLogger,
-) {
+export function createReplanTool(store: PlanStore, budget: StepBudget, debug: DebugLogger) {
   return defineTool({
     name: 'replan',
     description:
       'Revise the current plan when a step returns no useful results. Provide the reason and new steps. Previously executed steps are preserved in the results log. Does not consume the inspection budget.',
     input: v.object({
       reason: v.pipe(v.string(), v.minLength(1), v.maxLength(300)),
-      steps: v.pipe(
-        v.array(planStepSchema),
-        v.minLength(1),
-        v.maxLength(10),
-      ),
+      steps: v.pipe(v.array(planStepSchema), v.minLength(1), v.maxLength(10)),
     }),
     run({ data }) {
-      const revised = normalizePlan(
-        store.plan?.question ?? '(replanned)',
-        data.steps,
-      );
+      const revised = normalizePlan(store.plan?.question ?? '(replanned)', data.steps);
       const previousResults = store.results;
       replacePlan(store, revised);
       const inspection = budget.snapshot();

@@ -38,11 +38,7 @@ export class TimeoutError extends ReliabilityError {
     readonly durationMs: number,
     cause?: unknown,
   ) {
-    super(
-      message,
-      'The repository service timed out. You can retry the request.',
-      cause,
-    );
+    super(message, 'The repository service timed out. You can retry the request.', cause);
   }
 }
 
@@ -68,11 +64,7 @@ export class AuthenticationError extends ReliabilityError {
   readonly category = 'authentication' as const;
   readonly retryable = false;
   constructor(message: string, cause?: unknown) {
-    super(
-      message,
-      'Authentication failed. Check that the configured API key is valid.',
-      cause,
-    );
+    super(message, 'Authentication failed. Check that the configured API key is valid.', cause);
   }
 }
 
@@ -107,11 +99,7 @@ export class InvalidToolResponseError extends ReliabilityError {
   readonly category = 'invalid_tool_response' as const;
   readonly retryable = false;
   constructor(message: string, cause?: unknown) {
-    super(
-      message,
-      'The tool returned an unexpected response. The result was discarded.',
-      cause,
-    );
+    super(message, 'The tool returned an unexpected response. The result was discarded.', cause);
   }
 }
 
@@ -122,8 +110,7 @@ export class ExternalServiceError extends ReliabilityError {
   constructor(message: string, userMessage?: string, cause?: unknown) {
     super(
       message,
-      userMessage ??
-        'Repository search is temporarily unavailable. I could not verify the answer.',
+      userMessage ?? 'Repository search is temporarily unavailable. I could not verify the answer.',
       cause,
     );
   }
@@ -139,26 +126,20 @@ export function classifyError(error: unknown): ReliabilityError {
     // Node filesystem codes
     const code = (error as NodeJS.ErrnoException).code;
     if (code === 'ENOENT') return new NotFoundError(msg, error);
-    if (code === 'EACCES' || code === 'EPERM')
-      return new PermissionError(msg, error);
+    if (code === 'EACCES' || code === 'EPERM') return new PermissionError(msg, error);
     if (code === 'ETIMEDOUT' || code === 'ECONNABORTED' || msg.includes('timeout'))
       return new TimeoutError(msg, 0, error);
     if (code === 'ECONNRESET' || code === 'ECONNREFUSED')
       return new ExternalServiceError(msg, undefined, error);
 
     // HTTP-like patterns in message
-    if (/\b401\b/.test(msg) || /unauthor/i.test(msg))
-      return new AuthenticationError(msg, error);
-    if (/\b403\b/.test(msg) || /forbidden/i.test(msg))
-      return new PermissionError(msg, error);
-    if (/\b404\b/.test(msg) || /not found/i.test(msg))
-      return new NotFoundError(msg, error);
-    if (/\b408\b/.test(msg) || /request timeout/i.test(msg))
-      return new TimeoutError(msg, 0, error);
+    if (/\b401\b/.test(msg) || /unauthor/i.test(msg)) return new AuthenticationError(msg, error);
+    if (/\b403\b/.test(msg) || /forbidden/i.test(msg)) return new PermissionError(msg, error);
+    if (/\b404\b/.test(msg) || /not found/i.test(msg)) return new NotFoundError(msg, error);
+    if (/\b408\b/.test(msg) || /request timeout/i.test(msg)) return new TimeoutError(msg, 0, error);
     if (/\b429\b/.test(msg) || /rate.?limit/i.test(msg))
       return new RateLimitError(msg, undefined, error);
-    if (/\b50[0234]\b/.test(msg))
-      return new ExternalServiceError(msg, undefined, error);
+    if (/\b50[0234]\b/.test(msg)) return new ExternalServiceError(msg, undefined, error);
   }
 
   return new ExternalServiceError(

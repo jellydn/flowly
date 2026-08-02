@@ -29,9 +29,7 @@ const noOpInjector: FailureInjector = {
 export { noOpInjector as noFailureInjection };
 
 /** Parse failure-injection env vars into a {@link FailureInjector}. */
-export function createFailureInjector(
-  env: Record<string, string | undefined>,
-): FailureInjector {
+export function createFailureInjector(env: Record<string, string | undefined>): FailureInjector {
   const failFirstN = parseNum(env['FAIL_FIRST_N_REQUESTS'], 0);
   const timeoutOps = parseBool(env['SIMULATE_TOOL_TIMEOUT']);
   const malformOps = parseBool(env['SIMULATE_MALFORMED_RESPONSE']);
@@ -44,7 +42,7 @@ export function createFailureInjector(
   let callCount = 0;
 
   return {
-    maybeFail(operation, attempt) {
+    maybeFail(operation, _attempt) {
       if (restrictedOp && operation !== restrictedOp) return undefined;
       if (failFirstN <= 0) return undefined;
       callCount += 1;

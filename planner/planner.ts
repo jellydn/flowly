@@ -1,12 +1,12 @@
 import { defineTool } from '@flue/runtime';
 import * as v from 'valibot';
+import { PLAN_TOOL_NAMES } from '../tools/contracts.ts';
 import type { DebugLogger, StepBudget } from '../tools/repository.ts';
 import { summarizeInput } from '../tools/repository.ts';
-import { startPlan } from './plan-store.ts';
-import type { PlanStore } from './plan-store.ts';
-import { PLAN_TOOL_NAMES } from '../tools/contracts.ts';
 import { normalizePlan } from './plan-run.ts';
-import type { Plan, PlanInput, PlanStepInput, PlanTool } from './types.ts';
+import type { PlanStore } from './plan-store.ts';
+import { startPlan } from './plan-store.ts';
+import type { Plan } from './types.ts';
 
 export { normalizePlan } from './plan-run.ts';
 
@@ -178,22 +178,14 @@ const planStepSchema = v.object({
   input: v.optional(v.record(v.string(), v.union([v.string(), v.number(), v.boolean(), v.null()]))),
 });
 
-export function createPlanTool(
-  store: PlanStore,
-  budget: StepBudget,
-  debug: DebugLogger,
-) {
+export function createPlanTool(store: PlanStore, budget: StepBudget, debug: DebugLogger) {
   return defineTool({
     name: 'create_plan',
     description:
       'Declare a 3–5 step execution plan before calling any inspection tool. Each step names an inspection tool or the terminal answer step and describes its goal. Call this first, then execute each step with the corresponding tool. Does not consume the inspection budget.',
     input: v.object({
       question: v.pipe(v.string(), v.minLength(1), v.maxLength(500)),
-      steps: v.pipe(
-        v.array(planStepSchema),
-        v.minLength(1),
-        v.maxLength(10),
-      ),
+      steps: v.pipe(v.array(planStepSchema), v.minLength(1), v.maxLength(10)),
     }),
     run({ data }) {
       const plan = normalizePlan(data.question, data.steps);
