@@ -17,13 +17,14 @@ import {
  */
 
 /**
- * Check whether an issue comment was authored by a bot account. The default
- * `GITHUB_TOKEN` in GitHub Actions posts as `github-actions[bot]`; custom
- * apps post as `{app-name}[bot]`. This prevents untrusted PR participants
- * from spoofing review state with a crafted hidden comment.
+ * Check whether an issue comment was authored by the expected bot account.
+ * The default `GITHUB_TOKEN` in GitHub Actions posts as `github-actions[bot]`;
+ * custom GitHub Apps post as `{app-name}[bot]`. Requiring an exact match against
+ * the configured bot login prevents untrusted PR participants (or unauthorized
+ * third-party apps) from spoofing review state with a crafted hidden comment.
  */
-function isBotComment(comment: IssueComment): boolean {
-  return comment.user?.login?.endsWith('[bot]') ?? false;
+function isBotComment(comment: IssueComment, expectedBotLogin: string): boolean {
+  return comment.user?.login === expectedBotLogin;
 }
 
 export interface ReviewStateStore {
@@ -34,6 +35,7 @@ export interface ReviewStateStore {
 export function createGitHubReviewStateStore(
   client: GitHubClient,
   prNumber: number,
+  expectedBotLogin: string = 'github-actions[bot]',
 ): ReviewStateStore {
   // Cache the comment id: undefined = not yet looked up, null = none exists,
   // number = the id of the existing state comment.
@@ -43,11 +45,11 @@ export function createGitHubReviewStateStore(
     const comments = await client.listIssueComments(prNumber);
     // Search from the most recent backwards — the state comment is updated
     // in place, so it's typically the last one we posted. Only trust state
-    // comments from bot accounts to prevent untrusted PR participants from
-    // spoofing state with a crafted hidden comment.
+    // comments from the expected bot account to prevent untrusted PR participants
+    // from spoofing state with a crafted hidden comment.
     for (let i = comments.length - 1; i >= 0; i -= 1) {
       const comment = comments[i];
-      if (isReviewStateComment(comment.body) && isBotComment(comment)) {
+      if (isReviewStateComment(comment.body) && isBotComment(comment, expectedBotLogin)) {
         stateCommentId = comment.id;
         return comment;
       }

@@ -58,7 +58,11 @@ export function PrReviewer() {
   const contextBudget = createStepBudget(limits.maxContextReads);
 
   const github = GitHubClient.fromEnv(env);
-  const stateStore = createGitHubReviewStateStore(github, prNumber);
+  const stateStore = createGitHubReviewStateStore(
+    github,
+    prNumber,
+    env.REVIEW_BOT_LOGIN ?? 'github-actions[bot]',
+  );
   const dataSource = createGitDataSource({
     repositoryPath: repository.root,
     baseSha,

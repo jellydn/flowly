@@ -4,9 +4,7 @@ import { createGitHubReviewStateStore } from '../review/review-state-store.ts';
 import type { GitHubClient, IssueComment } from '../github/client.ts';
 import { encodeReviewState, type ReviewState } from '../review/review-state.ts';
 
-function createFakeClient(
-  comments: IssueComment[] = [],
-): GitHubClient & {
+function createFakeClient(comments: IssueComment[] = []): GitHubClient & {
   createdComments: { body: string }[];
   updatedComments: { id: number; body: string }[];
   commentList: IssueComment[];
@@ -54,7 +52,10 @@ function createFakeClient(
       updatedComments.push({ id: commentId, body });
       const idx = commentList.findIndex((c) => c.id === commentId);
       if (idx >= 0) commentList[idx] = { ...commentList[idx], body };
-      return { id: commentId, html_url: `https://github.com/o/r/issues/1#issuecomment-${commentId}` };
+      return {
+        id: commentId,
+        html_url: `https://github.com/o/r/issues/1#issuecomment-${commentId}`,
+      };
     },
   } as unknown as GitHubClient & {
     createdComments: typeof createdComments;
@@ -95,7 +96,13 @@ describe('review state store', () => {
   test('load returns the state from the hidden comment', async () => {
     const client = createFakeClient([
       { id: 1, body: 'Nice work', created_at: '', updated_at: '', user: { login: 'bob' } },
-      { id: 2, body: encodeReviewState(sampleState), created_at: '', updated_at: '', user: { login: 'github-actions[bot]' } },
+      {
+        id: 2,
+        body: encodeReviewState(sampleState),
+        created_at: '',
+        updated_at: '',
+        user: { login: 'github-actions[bot]' },
+      },
     ]);
     const store = createGitHubReviewStateStore(client, 1);
     const state = await store.load();
@@ -113,7 +120,13 @@ describe('review state store', () => {
 
   test('save updates the existing comment when one exists', async () => {
     const client = createFakeClient([
-      { id: 5, body: encodeReviewState(sampleState), created_at: '', updated_at: '', user: { login: 'github-actions[bot]' } },
+      {
+        id: 5,
+        body: encodeReviewState(sampleState),
+        created_at: '',
+        updated_at: '',
+        user: { login: 'github-actions[bot]' },
+      },
     ]);
     const store = createGitHubReviewStateStore(client, 1);
     // Load first to populate the cached comment id.
@@ -132,7 +145,13 @@ describe('review state store', () => {
 
   test('save without prior load finds and updates the existing comment', async () => {
     const client = createFakeClient([
-      { id: 3, body: encodeReviewState(sampleState), created_at: '', updated_at: '', user: { login: 'github-actions[bot]' } },
+      {
+        id: 3,
+        body: encodeReviewState(sampleState),
+        created_at: '',
+        updated_at: '',
+        user: { login: 'github-actions[bot]' },
+      },
     ]);
     const store = createGitHubReviewStateStore(client, 1);
     await store.save({ ...sampleState, reviewedHeadSha: 'updated' });
@@ -143,8 +162,20 @@ describe('review state store', () => {
   test('uses the most recent state comment when multiple exist', async () => {
     const oldState: ReviewState = { reviewedHeadSha: 'old', findings: [], reviewedAt: 100 };
     const client = createFakeClient([
-      { id: 1, body: encodeReviewState(oldState), created_at: '', updated_at: '', user: { login: 'github-actions[bot]' } },
-      { id: 2, body: encodeReviewState(sampleState), created_at: '', updated_at: '', user: { login: 'github-actions[bot]' } },
+      {
+        id: 1,
+        body: encodeReviewState(oldState),
+        created_at: '',
+        updated_at: '',
+        user: { login: 'github-actions[bot]' },
+      },
+      {
+        id: 2,
+        body: encodeReviewState(sampleState),
+        created_at: '',
+        updated_at: '',
+        user: { login: 'github-actions[bot]' },
+      },
     ]);
     const store = createGitHubReviewStateStore(client, 1);
     const state = await store.load();
@@ -201,6 +232,36 @@ describe('review state store', () => {
       },
     ]);
     const store = createGitHubReviewStateStore(client, 1);
+    const state = await store.load();
+    assert.deepEqual(state, sampleState);
+  });
+
+  test('rejects state comment from a non-matching bot user (e.g. spoof-app[bot])', async () => {
+    const client = createFakeClient([
+      {
+        id: 1,
+        body: encodeReviewState(sampleState),
+        created_at: '',
+        updated_at: '',
+        user: { login: 'spoof-app[bot]' },
+      },
+    ]);
+    const store = createGitHubReviewStateStore(client, 1);
+    const state = await store.load();
+    assert.equal(state, null);
+  });
+
+  test('honors custom expectedBotLogin', async () => {
+    const client = createFakeClient([
+      {
+        id: 1,
+        body: encodeReviewState(sampleState),
+        created_at: '',
+        updated_at: '',
+        user: { login: 'custom-app[bot]' },
+      },
+    ]);
+    const store = createGitHubReviewStateStore(client, 1, 'custom-app[bot]');
     const state = await store.load();
     assert.deepEqual(state, sampleState);
   });
