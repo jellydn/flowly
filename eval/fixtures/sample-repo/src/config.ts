@@ -1,5 +1,5 @@
 export const PORT = Number(process.env.PORT ?? 3000);
 
 export function start() {
-  console.log("listening on", PORT);
+  console.log('listening on', PORT);
 }

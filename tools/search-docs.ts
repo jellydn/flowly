@@ -6,7 +6,12 @@ import type {
   RepositoryReader,
   StepBudget,
 } from './repository.ts';
-import { markBudgetFreeTool, noInspectionBudget, summarizeInput, wrapWithBudget } from './repository.ts';
+import {
+  markBudgetFreeTool,
+  noInspectionBudget,
+  summarizeInput,
+  wrapWithBudget,
+} from './repository.ts';
 import { searchRepository } from './repository-search.ts';
 import { TOOL_LIMITS } from './contracts.ts';
 

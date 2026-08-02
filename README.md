@@ -18,6 +18,8 @@ Rust-focused monorepo for privacy-preserving distributed systems.
 - One Flue agent
 - Four typed, read-only tools (`list_files`, `read_file`, `search_code`,
   `search_docs`)
+- A PR review agent (`agents/pr-reviewer.ts`) with review-specific tools and a
+  trusted GitHub adapter — never auto-approves
 - Bounded investigation loop with evidence collection and deduplication
 - Grounded answers with file citations and confidence levels
 - One reusable Agent Skill
@@ -102,12 +104,21 @@ exists.
 
 ## Configuration
 
-| Variable                   | Default                       | Purpose                                    |
-| -------------------------- | ----------------------------- | ------------------------------------------ |
-| `REPOSITORY_PATH`          | `../oak`                      | Only repository the tools may inspect      |
-| `REPO_ASSISTANT_MODEL`     | `openrouter/qwen/qwen3-coder` | Flue model specifier                       |
-| `REPO_ASSISTANT_MAX_STEPS` | `8`                           | Shared inspection-call budget (1–20)      |
-| `REPO_ASSISTANT_DEBUG`     | `false`                       | Log one safe line per tool call            |
+| Variable                      | Default                       | Purpose                               |
+| ----------------------------- | ----------------------------- | ------------------------------------- |
+| `REPOSITORY_PATH`             | `../oak`                      | Only repository the tools may inspect |
+| `REPO_ASSISTANT_MODEL`        | `openrouter/qwen/qwen3-coder` | Flue model specifier                  |
+| `REPO_ASSISTANT_MAX_STEPS`    | `8`                           | Shared inspection-call budget (1–20)  |
+| `REPO_ASSISTANT_DEBUG`        | `false`                       | Log one safe line per tool call       |
+| `GITHUB_TOKEN`                | _unset_                       | GitHub token for PR review automation |
+| `GITHUB_REPOSITORY`           | _unset_                       | `owner/repo` for PR review automation |
+| `PR_NUMBER`                   | _unset_                       | Pull request number to review         |
+| `BASE_SHA`                    | _unset_                       | Base commit SHA for PR diff           |
+| `HEAD_SHA`                    | _unset_                       | Head commit SHA for PR diff           |
+| `PR_REVIEW_MAX_FILES`         | `30`                          | Max changed files reviewed            |
+| `PR_REVIEW_MAX_DIFF_LINES`    | `4000`                        | Max unified-diff lines returned       |
+| `PR_REVIEW_MAX_CONTEXT_READS` | `20`                          | Max `read_file`/`search_code` calls   |
+| `PR_REVIEW_MAX_FINDINGS`      | `10`                          | Max findings submitted in review      |
 
 To inspect another checkout:
 
@@ -115,6 +126,25 @@ To inspect another checkout:
 REPOSITORY_PATH=/absolute/path/to/repo \
   npm start -- --input '{"message":"Explain this project's architecture."}'
 ```
+
+## PR Review configuration
+
+The PR reviewer uses file-aware limits instead of the shared inspection budget.
+Defaults: 30 files, 4000 diff lines, 20 context reads, and 10 findings.
+
+In GitHub Actions, `.github/workflows/pr-review.yml` supplies the required
+environment variables automatically. Locally:
+
+```bash
+GITHUB_TOKEN=… GITHUB_REPOSITORY=owner/repo PR_NUMBER=42 \
+  BASE_SHA=… HEAD_SHA=… REPOSITORY_PATH=. OPENROUTER_API_KEY=… \
+  npm run review-pr
+```
+
+Set `PR_REVIEW_MAX_FILES`, `PR_REVIEW_MAX_DIFF_LINES`,
+`PR_REVIEW_MAX_CONTEXT_READS`, or `PR_REVIEW_MAX_FINDINGS` to override the
+defaults. Findings are validated against the PR diff before posting; the review
+never auto-approves.
 
 ## How the bound works
 
@@ -162,6 +192,54 @@ Path checks assume the inspected checkout is stable while a tool call runs. Do
 not use this educational agent against a repository tree being concurrently
 modified by an untrusted process.
 
+## PR Review agent
+
+A second agent, `agents/pr-reviewer.ts`, reviews pull requests. It reuses the
+read-only inspection tools (`read_file`, `search_code`) for surrounding context
+and adds review-specific tools backed by a trusted GitHub/git boundary:
+
+- `get_pr_metadata` — PR number, title, body, author, and the changed-file list
+  (with skip flags for lockfiles, generated, vendored, and binary files).
+- `get_pr_diff` — the unified diff, truncated to a configurable line limit.
+- `list_changed_files` — per-file additions/deletions, status, and skip flags.
+- `read_changed_file` — a bounded line range from the post-PR version of a file.
+- `get_diff_hunks` — diff hunk line ranges for validating inline findings.
+- `submit_review` — posts one structured GitHub review with inline comments.
+
+### Analysis vs. mutation separation
+
+The model never holds the GitHub token or a generic shell. It emits a structured
+`ReviewResult` through `submit_review`; a trusted adapter
+(`github/adapter.ts`) re-validates the schema, confirms each finding's path is
+in the PR diff, clamps line numbers to valid diff hunks, caps the finding count,
+and posts exactly one review (`COMMENT` or `REQUEST_CHANGES`, never `APPROVE`)
+through a thin `fetch`-based GitHub client (`github/client.ts`). PR data is
+fetched by `git diff`/`git show` in trusted code (`review/pr-data.ts`), never
+from the sandbox.
+
+### File-aware limits
+
+Instead of the shared 8-call inspection budget, the reviewer uses configurable
+limits (`PR_REVIEW_MAX_FILES=30`, `PR_REVIEW_MAX_DIFF_LINES=4000`,
+`PR_REVIEW_MAX_CONTEXT_READS=20`, `PR_REVIEW_MAX_FINDINGS=10`). Generated files,
+lockfiles, snapshots, and vendored code are detected and skipped.
+
+### Running it
+
+A GitHub Actions workflow (`.github/workflows/pr-review.yml`) runs the reviewer
+on `opened`, `reopened`, `synchronize`, and `ready_for_review` events. Locally:
+
+```bash
+GITHUB_TOKEN=… GITHUB_REPOSITORY=owner/repo PR_NUMBER=42 \
+  BASE_SHA=… HEAD_SHA=… REPOSITORY_PATH=. OPENROUTER_API_KEY=… \
+  npm run review-pr
+```
+
+The first implementation is a full review only: it never modifies code, pushes
+commits, or auto-approves. Incremental review (persisting the last reviewed SHA
+and classifying previous findings as resolved/still-present/obsolete) is planned
+as a follow-up.
+
 ## Day 16: Tools for agents
 
 This section documents the Day 16 learning focus: **file tools, search tools,
@@ -170,12 +248,12 @@ the agent loop.**
 
 ### When to select each tool
 
-| Tool | Select when |
-| ---- | ----------- |
-| `list_files` | The repository structure or a file path is unknown. |
-| `search_docs` | You are looking for documented architecture, configuration, or design context. |
+| Tool          | Select when                                                                                   |
+| ------------- | --------------------------------------------------------------------------------------------- |
+| `list_files`  | The repository structure or a file path is unknown.                                           |
+| `search_docs` | You are looking for documented architecture, configuration, or design context.                |
 | `search_code` | You are looking for a symbol, phrase, configuration, or implementation whose path is unknown. |
-| `read_file` | An exact file path is already known and surrounding context is needed. |
+| `read_file`   | An exact file path is already known and surrounding context is needed.                        |
 
 Selection rules baked into the agent instructions and the
 `analyzing-repositories` skill:
@@ -218,13 +296,13 @@ evidence.
 A tiny fixture repository and runner live in [`eval/`](./eval/README.md). The
 five scenarios:
 
-| Scenario | Prompt | Expected tool pattern |
-| -------- | ------ | --------------------- |
-| A: direct read | Read `src/config.ts` and explain how the port is configured. | `read_file` |
-| B: search then read | Find where user authentication is implemented and explain the flow. | `search_code` → `read_file` |
-| C: structure discovery | Give me a high-level overview of this repository. | `list_files` → selected `read_file` calls |
-| D: negative search | Where is payment processing implemented? | `search_code` → `read_file`; report no evidence, do not invent |
-| E: no unnecessary tool | What is the difference between listing files and searching code? | Answer directly, no tool call |
+| Scenario               | Prompt                                                              | Expected tool pattern                                          |
+| ---------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------- |
+| A: direct read         | Read `src/config.ts` and explain how the port is configured.        | `read_file`                                                    |
+| B: search then read    | Find where user authentication is implemented and explain the flow. | `search_code` → `read_file`                                    |
+| C: structure discovery | Give me a high-level overview of this repository.                   | `list_files` → selected `read_file` calls                      |
+| D: negative search     | Where is payment processing implemented?                            | `search_code` → `read_file`; report no evidence, do not invent |
+| E: no unnecessary tool | What is the difference between listing files and searching code?    | Answer directly, no tool call                                  |
 
 The expected tool sequences are simulated deterministically in
 `tests/eval-scenarios.test.ts`. Run the live model-driven version with:
@@ -289,11 +367,11 @@ continuing—the stretch-goal dynamic replanning loop.
 
 ### Planning tools
 
-| Tool | Consumes budget? | Purpose |
-| ---- | ---------------- | ------- |
-| `create_plan` | No | Declare 3–5 steps before executing |
-| `replan` | No | Revise the plan when a step returns no results |
-| `reflect_plan` | No | State whether steps could be simplified or merged |
+| Tool           | Consumes budget? | Purpose                                           |
+| -------------- | ---------------- | ------------------------------------------------- |
+| `create_plan`  | No               | Declare 3–5 steps before executing                |
+| `replan`       | No               | Revise the plan when a step returns no results    |
+| `reflect_plan` | No               | State whether steps could be simplified or merged |
 
 The four inspection tools (`list_files`, `read_file`, `search_code`,
 `search_docs`) still consume the shared budget as before. Planning tools are
@@ -320,13 +398,13 @@ the model uses.
 
 The Day 16 evaluation scenarios still apply, now with a planning step first:
 
-| Scenario | Plan | Execution |
-| -------- | ---- | --------- |
-| A: direct read | `create_plan` → [read_file, answer] | `read_file` |
-| B: search then read | `create_plan` → [search_code, read_file, answer] | `search_code` → `read_file` |
-| C: structure discovery | `create_plan` → [list_files, read_file, answer] | `list_files` → `read_file` |
-| D: negative search | `create_plan` → [search_code, answer] → `replan` | `search_code` (empty) → `replan` → `search_code` → `read_file` |
-| E: conceptual | `create_plan` → [answer] | no tool call |
+| Scenario               | Plan                                             | Execution                                                      |
+| ---------------------- | ------------------------------------------------ | -------------------------------------------------------------- |
+| A: direct read         | `create_plan` → [read_file, answer]              | `read_file`                                                    |
+| B: search then read    | `create_plan` → [search_code, read_file, answer] | `search_code` → `read_file`                                    |
+| C: structure discovery | `create_plan` → [list_files, read_file, answer]  | `list_files` → `read_file`                                     |
+| D: negative search     | `create_plan` → [search_code, answer] → `replan` | `search_code` (empty) → `replan` → `search_code` → `read_file` |
+| E: conceptual          | `create_plan` → [answer]                         | no tool call                                                   |
 
 Run with debug to see the plan-execute-reflect cycle:
 
@@ -353,13 +431,13 @@ tool call → context → answer) so it fails safely and informs the user clearl
 
 ### Reliability policy
 
-| Aspect | Value | Configurable via |
-| ------ | ----- | ---------------- |
-| Max attempts | 3 | `REPO_ASSISTANT_MAX_ATTEMPTS` |
-| Initial backoff | 500 ms | `REPO_ASSISTANT_INITIAL_DELAY_MS` |
-| Max backoff | 5 s | `REPO_ASSISTANT_MAX_DELAY_MS` |
-| Per-operation timeout | 15 s | `REPO_ASSISTANT_TIMEOUT_MS` |
-| Backoff strategy | Exponential with full jitter | — |
+| Aspect                | Value                        | Configurable via                  |
+| --------------------- | ---------------------------- | --------------------------------- |
+| Max attempts          | 3                            | `REPO_ASSISTANT_MAX_ATTEMPTS`     |
+| Initial backoff       | 500 ms                       | `REPO_ASSISTANT_INITIAL_DELAY_MS` |
+| Max backoff           | 5 s                          | `REPO_ASSISTANT_MAX_DELAY_MS`     |
+| Per-operation timeout | 15 s                         | `REPO_ASSISTANT_TIMEOUT_MS`       |
+| Backoff strategy      | Exponential with full jitter | —                                 |
 
 #### Retried (transient) failures
 
@@ -379,15 +457,15 @@ tool call → context → answer) so it fails safely and informs the user clearl
 
 ### Error classification
 
-| Error type | Category | Retryable | User message |
-| ---------- | -------- | --------- | ------------ |
-| `TimeoutError` | timeout | yes | "The repository service timed out." |
-| `RateLimitError` | rate_limit | yes | "Rate limited. Please retry shortly." |
-| `AuthenticationError` | authentication | no | "Check that the API key is valid." |
-| `PermissionError` | permission | no | "Permission denied." |
-| `NotFoundError` | not_found | no | "File does not exist or is not accessible." |
-| `InvalidToolResponseError` | invalid_tool_response | no | "Unexpected response, result discarded." |
-| `ExternalServiceError` | external_service | yes | "Service temporarily unavailable." |
+| Error type                 | Category              | Retryable | User message                                |
+| -------------------------- | --------------------- | --------- | ------------------------------------------- |
+| `TimeoutError`             | timeout               | yes       | "The repository service timed out."         |
+| `RateLimitError`           | rate_limit            | yes       | "Rate limited. Please retry shortly."       |
+| `AuthenticationError`      | authentication        | no        | "Check that the API key is valid."          |
+| `PermissionError`          | permission            | no        | "Permission denied."                        |
+| `NotFoundError`            | not_found             | no        | "File does not exist or is not accessible." |
+| `InvalidToolResponseError` | invalid_tool_response | no        | "Unexpected response, result discarded."    |
+| `ExternalServiceError`     | external_service      | yes       | "Service temporarily unavailable."          |
 
 ### Tool-output validation
 
@@ -424,9 +502,16 @@ When `REPO_ASSISTANT_DEBUG=true`, each retry attempt logs a structured JSON
 event to stderr:
 
 ```json
-{"operation":"search_code","attempt":1,"maxAttempts":3,"durationMs":42,
- "errorCategory":"external_service","retried":false,"fallbackUsed":false,
- "outcome":"error"}
+{
+  "operation": "search_code",
+  "attempt": 1,
+  "maxAttempts": 3,
+  "durationMs": 42,
+  "errorCategory": "external_service",
+  "retried": false,
+  "fallbackUsed": false,
+  "outcome": "error"
+}
 ```
 
 Logged fields: operation name, attempt number, max attempts, duration, error
@@ -445,12 +530,12 @@ logs secrets, tokens, file contents, or sensitive prompts.
 
 Environment variables for failure injection:
 
-| Variable | Effect |
-| -------- | ------ |
-| `FAIL_FIRST_N_REQUESTS=2` | First N calls fail with a simulated 503 |
-| `SIMULATE_TOOL_TIMEOUT=true` | Operations hang until the timeout fires |
+| Variable                           | Effect                                     |
+| ---------------------------------- | ------------------------------------------ |
+| `FAIL_FIRST_N_REQUESTS=2`          | First N calls fail with a simulated 503    |
+| `SIMULATE_TOOL_TIMEOUT=true`       | Operations hang until the timeout fires    |
 | `SIMULATE_MALFORMED_RESPONSE=true` | Return garbled output instead of real data |
-| `FAIL_OPERATION=search_code` | Restrict failure to one operation |
+| `FAIL_OPERATION=search_code`       | Restrict failure to one operation          |
 
 ### Budget interaction
 
@@ -512,15 +597,15 @@ Grounded answer with citations + confidence
 
 ### Available tools
 
-| Tool | Consumes budget? | Purpose |
-| ---- | ---------------- | ------- |
-| `search_docs` | Yes | Search documentation files for a literal string |
-| `search_code` | Yes | Search source files for a literal string |
-| `read_file` | Yes | Read a bounded line range from a known file |
-| `list_files` | Yes | List files and directories under a path |
-| `create_plan` | No | Declare a 3–5 step plan before executing |
-| `replan` | No | Revise the plan when a step returns no results |
-| `reflect_plan` | No | Reflect on whether steps could be simplified |
+| Tool           | Consumes budget? | Purpose                                         |
+| -------------- | ---------------- | ----------------------------------------------- |
+| `search_docs`  | Yes              | Search documentation files for a literal string |
+| `search_code`  | Yes              | Search source files for a literal string        |
+| `read_file`    | Yes              | Read a bounded line range from a known file     |
+| `list_files`   | Yes              | List files and directories under a path         |
+| `create_plan`  | No               | Declare a 3–5 step plan before executing        |
+| `replan`       | No               | Revise the plan when a step returns no results  |
+| `reflect_plan` | No               | Reflect on whether steps could be simplified    |
 
 `search_docs` searches files with documentation extensions (`.md`, `.markdown`,
 `.txt`) and documentation basenames (README, AGENTS, SOUL, CHANGELOG,
@@ -545,12 +630,12 @@ citations.
 
 Confidence levels:
 
-| Level | When |
-| ----- | ---- |
-| High | Read evidence from 2+ files, or both documentation and code corroborate |
-| Medium | Read evidence from a single file |
-| Low | Only search leads (no confirming file reads) |
-| Insufficient | No relevant evidence found |
+| Level        | When                                                                    |
+| ------------ | ----------------------------------------------------------------------- |
+| High         | Read evidence from 2+ files, or both documentation and code corroborate |
+| Medium       | Read evidence from a single file                                        |
+| Low          | Only search leads (no confirming file reads)                            |
+| Insufficient | No relevant evidence found                                              |
 
 When confidence is not High, the answer explains what evidence is missing.
 When evidence is insufficient, the agent explicitly says so rather than
@@ -625,7 +710,20 @@ The Day 21 test suite covers:
 ```text
 flue-repo-assistant/
 ├── agents/
-│   └── repo-assistant.ts
+│   ├── repo-assistant.ts
+│   └── pr-reviewer.ts
+├── github/
+│   ├── adapter.ts          # trusted review publisher
+│   └── client.ts           # thin GitHub REST client
+├── review/
+│   ├── diff.ts             # unified-diff parser
+│   ├── filters.ts          # skip lockfiles / generated / vendored
+│   ├── limits.ts           # file-aware review limits
+│   ├── pr-data.ts          # git + GitHub PR data source
+│   ├── review-tools.ts     # review-specific tool factories
+│   └── schema.ts           # ReviewResult Valibot schema
+├── scripts/
+│   └── review-pr.ts        # CI entrypoint (npm run review-pr)
 ├── investigation/
 │   ├── answer.ts
 │   ├── call-tracker.ts

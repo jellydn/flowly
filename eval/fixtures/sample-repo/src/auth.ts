@@ -1,6 +1,6 @@
-import { issueToken } from "./services/user-service.ts";
+import { issueToken } from './services/user-service.ts';
 
 export function login() {
-  const token = issueToken("user");
+  const token = issueToken('user');
   return token;
 }

@@ -63,4 +63,4 @@
 
 ---
 
-*Convention analysis: 2026-08-01*
+_Convention analysis: 2026-08-01_

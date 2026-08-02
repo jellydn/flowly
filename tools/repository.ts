@@ -120,8 +120,7 @@ export function createDebugLogger(enabled: boolean): DebugLogger {
   return {
     log(event) {
       if (!enabled) return;
-      const count =
-        event.count === undefined ? '' : ` count=${event.count}`;
+      const count = event.count === undefined ? '' : ` count=${event.count}`;
       console.error(
         `[repo-assistant] ${event.tool} ${event.status} input=${event.inputSummary}${count} used=${event.inspection.used} remaining=${event.inspection.remaining}/${event.inspection.limit}`,
       );
@@ -319,9 +318,7 @@ export class RepositoryReader {
   }
 }
 
-export async function createRepositoryReader(
-  configuredPath: string,
-): Promise<RepositoryReader> {
+export async function createRepositoryReader(configuredPath: string): Promise<RepositoryReader> {
   const root = await realpath(path.resolve(configuredPath));
   const metadata = await stat(root);
   if (!metadata.isDirectory()) {
@@ -334,9 +331,7 @@ export async function createRepositoryReader(
  * Synchronous variant of {@link createRepositoryReader} for contexts where the
  * agent function must return synchronously (Flue v2 agent functions).
  */
-export function createRepositoryReaderSync(
-  configuredPath: string,
-): RepositoryReader {
+export function createRepositoryReaderSync(configuredPath: string): RepositoryReader {
   const root = realpathSync(path.resolve(configuredPath));
   const metadata = statSync(root);
   if (!metadata.isDirectory()) {

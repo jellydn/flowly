@@ -2,11 +2,7 @@ import type { Confidence, Evidence, GroundedAnswer } from './types.ts';
 
 /** Format a single evidence item as a file:line-range citation. */
 export function formatCitation(e: Evidence): string {
-  if (
-    e.lineStart !== undefined &&
-    e.lineEnd !== undefined &&
-    e.lineStart !== e.lineEnd
-  ) {
+  if (e.lineStart !== undefined && e.lineEnd !== undefined && e.lineStart !== e.lineEnd) {
     return `${e.filePath}:${e.lineStart}-${e.lineEnd}`;
   }
   if (e.lineStart !== undefined) {
@@ -26,12 +22,8 @@ export function formatCitation(e: Evidence): string {
 export function calculateConfidence(evidence: Evidence[]): Confidence {
   if (evidence.length === 0) return 'Insufficient';
 
-  const hasDocs = evidence.some((e) => e.sourceType === 'documentation');
-  const hasCode = evidence.some((e) => e.sourceType === 'code');
   const files = new Set(evidence.map((e) => e.filePath));
-  const hasReadEvidence = evidence.some(
-    (e) => e.relevance !== undefined && e.relevance >= 1.0,
-  );
+  const hasReadEvidence = evidence.some((e) => e.relevance !== undefined && e.relevance >= 1.0);
 
   if (!hasReadEvidence) return 'Low';
   if (files.size >= 2) return 'High';
@@ -51,17 +43,13 @@ export function formatAnswer(
   errors: string[],
 ): GroundedAnswer {
   const confidence = calculateConfidence(evidence);
-  const sorted = [...evidence].sort(
-    (a, b) => (b.relevance ?? 0) - (a.relevance ?? 0),
-  );
+  const sorted = [...evidence].sort((a, b) => (b.relevance ?? 0) - (a.relevance ?? 0));
 
   if (confidence === 'Insufficient') {
-    const searched = toolsUsed.length > 0
-      ? ` I used ${toolsUsed.join(', ')} but found no relevant evidence.`
-      : '';
-    const errorNote = errors.length > 0
-      ? ` ${errors.length} tool call(s) failed during the investigation.`
-      : '';
+    const searched =
+      toolsUsed.length > 0 ? ` I used ${toolsUsed.join(', ')} but found no relevant evidence.` : '';
+    const errorNote =
+      errors.length > 0 ? ` ${errors.length} tool call(s) failed during the investigation.` : '';
     return {
       answer: `I could not find sufficient evidence to answer: "${question}".${searched}${errorNote} I will not speculate about repository details that I have not verified.`,
       keyFindings: [],
@@ -77,9 +65,7 @@ export function formatAnswer(
     citation: formatCitation(e),
   }));
   const sources = sorted.map((e) => formatCitation(e));
-  const sourceTypes = [
-    ...new Set(evidence.map((e) => e.sourceType)),
-  ];
+  const sourceTypes = [...new Set(evidence.map((e) => e.sourceType))];
 
   const confidenceNote =
     confidence !== 'High'

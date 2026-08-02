@@ -9,11 +9,7 @@ import type { ReliabilityLogger } from '../reliability/observability.ts';
 import type { RetryConfig, SleepFn } from '../reliability/retry.ts';
 import { createReliableInspectionTool } from '../reliability/resilient-tool.ts';
 
-export type InspectionToolName =
-  | 'list_files'
-  | 'read_file'
-  | 'search_code'
-  | 'search_docs';
+export type InspectionToolName = 'list_files' | 'read_file' | 'search_code' | 'search_docs';
 
 export type InspectionRegistryOptions = {
   repository: RepositoryReader;
@@ -31,10 +27,7 @@ export type InspectionRegistry = {
   get(name: InspectionToolName): ToolDefinition;
 };
 
-type RawToolFactory = (
-  repository: RepositoryReader,
-  debug: DebugLogger,
-) => ToolDefinition;
+type RawToolFactory = (repository: RepositoryReader, debug: DebugLogger) => ToolDefinition;
 
 const TOOL_NAMES = [
   'list_files',
@@ -56,9 +49,7 @@ const rawToolFactories: Readonly<Record<InspectionToolName, RawToolFactory>> = {
  * live agent composition; the named map remains convenient for deterministic
  * callers and tests.
  */
-export function createInspectionRegistry(
-  options: InspectionRegistryOptions,
-): InspectionRegistry {
+export function createInspectionRegistry(options: InspectionRegistryOptions): InspectionRegistry {
   const tools = {} as Record<InspectionToolName, ToolDefinition>;
   for (const name of TOOL_NAMES) {
     const factory = rawToolFactories[name];

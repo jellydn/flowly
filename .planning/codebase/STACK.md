@@ -5,9 +5,11 @@
 ## Languages
 
 **Primary:**
+
 - TypeScript with strict checking and ES modules. Application code, tools, planning, investigation, reliability, and tests are TypeScript. See `tsconfig.json`, `agents/`, `tools/`, `planner/`, `investigation/`, and `reliability/`.
 
 **Secondary:**
+
 - Markdown for user and agent documentation, evaluation notes, and this map.
 - HTML/CSS for the static showcase in `docs/index.html`.
 - YAML for GitHub Actions configuration.
@@ -40,6 +42,7 @@
 ## Configuration
 
 **Environment variables:**
+
 - `REPOSITORY_PATH`: configured repository root; defaults to `../oak`.
 - `REPO_ASSISTANT_MODEL`: Flue model specifier; defaults to `openrouter/qwen/qwen3-coder`.
 - `OPENROUTER_API_KEY`: provider key required by the documented default model.
@@ -49,6 +52,7 @@
 - `FAIL_FIRST_N_REQUESTS`, `SIMULATE_TOOL_TIMEOUT`, `SIMULATE_MALFORMED_RESPONSE`, and `FAIL_OPERATION`: deterministic failure-injection/demo controls.
 
 **Build/runtime configuration:**
+
 - `flue.config.ts` targets Node.
 - `vite.config.ts` enables the Flue Vite plugin.
 - `app.ts` mounts `/agents/repo-assistant` and `/api/ping`.
@@ -60,4 +64,4 @@ Development requires Node.js 22.19+, npm dependencies, an LLM provider key for l
 
 ---
 
-*Stack analysis: 2026-08-01*
+_Stack analysis: 2026-08-01_

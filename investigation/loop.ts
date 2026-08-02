@@ -1,9 +1,5 @@
 import type { ToolDefinition } from '@flue/runtime';
-import {
-  runExecutionLoop,
-  type ExecutionLoopAdapter,
-  type ToolRegistry,
-} from './tool-call.ts';
+import { runExecutionLoop, type ExecutionLoopAdapter, type ToolRegistry } from './tool-call.ts';
 import type { StepBudget } from '../tools/repository.ts';
 import type {
   DecisionFn,
@@ -12,11 +8,7 @@ import type {
   InvestigationState,
 } from './types.ts';
 import { createCallTracker } from './call-tracker.ts';
-import {
-  createEvidenceCollector,
-  extractEvidence,
-  type EvidenceCollector,
-} from './evidence.ts';
+import { createEvidenceCollector, extractEvidence, type EvidenceCollector } from './evidence.ts';
 import { formatAnswer } from './answer.ts';
 
 export const DEFAULT_MAX_ITERATIONS = 5;

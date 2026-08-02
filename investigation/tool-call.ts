@@ -5,11 +5,7 @@ import {
 } from './tool-execution.ts';
 
 export { executeToolCall, resolveTool } from './tool-execution.ts';
-export type {
-  ToolCallResult,
-  ToolExecutionOutcome,
-  ToolRegistry,
-} from './tool-execution.ts';
+export type { ToolCallResult, ToolExecutionOutcome, ToolRegistry } from './tool-execution.ts';
 
 type WithMetadata<Metadata> = [Metadata] extends [never]
   ? { metadata?: never }
@@ -30,13 +26,8 @@ export type ToolExecutionAction<Metadata = never> =
   | { type: 'stop'; reason: string };
 
 export type ExecutionLoopAdapter<Result, Metadata = never> = {
-  next(iteration: number):
-    | Promise<ToolExecutionAction<Metadata>>
-    | ToolExecutionAction<Metadata>;
-  onResult(
-    action: ToolExecutionCall<Metadata>,
-    result: ToolExecutionOutcome,
-  ): string | undefined;
+  next(iteration: number): Promise<ToolExecutionAction<Metadata>> | ToolExecutionAction<Metadata>;
+  onResult(action: ToolExecutionCall<Metadata>, result: ToolExecutionOutcome): string | undefined;
   onSkip?(action: Extract<ToolExecutionAction<Metadata>, { type: 'skip' }>): void;
   finish(reason: string, iterations: number): Result;
 };

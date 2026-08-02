@@ -11,10 +11,7 @@ import {
   unwrapToolOutput as unwrapToolOutputFromCompatibilityPath,
 } from '../reliability/tool-invocation.ts';
 
-function tool(
-  run: ToolDefinition['run'],
-  name = 'read_file',
-): ToolDefinition {
+function tool(run: ToolDefinition['run'], name = 'read_file'): ToolDefinition {
   return {
     name,
     description: 'test tool',
@@ -53,12 +50,7 @@ describe('tool execution deep module', () => {
   });
 
   test('returns normalized outcomes for unknown tools and preflight failures', async () => {
-    const unknown = await executeToolCallWithMetadata(
-      {},
-      'missing',
-      {},
-      'unknown-call',
-    );
+    const unknown = await executeToolCallWithMetadata({}, 'missing', {}, 'unknown-call');
     assert.deepEqual(unknown, {
       ok: false,
       tool: 'missing',
@@ -72,7 +64,12 @@ describe('tool execution deep module', () => {
 
     let invoked = false;
     const rejected = await executeToolCallWithMetadata(
-      { read_file: tool(async () => { invoked = true; return { output: {} }; }) },
+      {
+        read_file: tool(async () => {
+          invoked = true;
+          return { output: {} };
+        }),
+      },
       'read_file',
       {},
       'preflight-call',
@@ -90,7 +87,12 @@ describe('tool execution deep module', () => {
     controller.abort(new Error('already cancelled'));
     let invoked = false;
     const resultPromise = executeToolCallWithMetadata(
-      { read_file: tool(async () => { invoked = true; return { output: {} }; }) },
+      {
+        read_file: tool(async () => {
+          invoked = true;
+          return { output: {} };
+        }),
+      },
       'read_file',
       {},
       'pre-aborted-call',
@@ -107,7 +109,9 @@ describe('tool execution deep module', () => {
       {},
       'preflight-error',
       undefined,
-      () => { throw new Error('preflight failed'); },
+      () => {
+        throw new Error('preflight failed');
+      },
     );
     assert.equal(preflightFailure.ok, false);
     if (!preflightFailure.ok) assert.equal(preflightFailure.error, 'preflight failed');
@@ -119,7 +123,9 @@ describe('tool execution deep module', () => {
       'resolved-error',
       undefined,
       undefined,
-      () => { throw new Error('resolution failed'); },
+      () => {
+        throw new Error('resolution failed');
+      },
     );
     assert.equal(resolvedFailure.ok, false);
     if (!resolvedFailure.ok) assert.equal(resolvedFailure.error, 'resolution failed');
@@ -128,12 +134,20 @@ describe('tool execution deep module', () => {
   test('runs resolution callback only after tool lookup and preflight', async () => {
     const events: string[] = [];
     await executeToolCallWithMetadata(
-      { read_file: tool(async () => { events.push('run'); return { output: {} }; }) },
+      {
+        read_file: tool(async () => {
+          events.push('run');
+          return { output: {} };
+        }),
+      },
       'read_file',
       {},
       'callback-call',
       undefined,
-      () => { events.push('preflight'); return undefined; },
+      () => {
+        events.push('preflight');
+        return undefined;
+      },
       () => events.push('resolved'),
     );
     assert.deepEqual(events, ['preflight', 'resolved', 'run']);
@@ -142,19 +156,23 @@ describe('tool execution deep module', () => {
   test('preserves cancellation as an exception', async () => {
     const controller = new AbortController();
     let started!: () => void;
-    const running = new Promise<void>((resolve) => { started = resolve; });
+    const running = new Promise<void>((resolve) => {
+      started = resolve;
+    });
     const promise = executeToolCallWithMetadata(
-      { read_file: tool(async ({ signal }) => {
-        started();
-        await new Promise<void>((_, reject) => {
-          const onAbort = () => {
-            signal?.removeEventListener('abort', onAbort);
-            reject(new Error('operation cancelled'));
-          };
-          signal?.addEventListener('abort', onAbort, { once: true });
-        });
-        return { output: {} };
-      }) },
+      {
+        read_file: tool(async ({ signal }) => {
+          started();
+          await new Promise<void>((_, reject) => {
+            const onAbort = () => {
+              signal?.removeEventListener('abort', onAbort);
+              reject(new Error('operation cancelled'));
+            };
+            signal?.addEventListener('abort', onAbort, { once: true });
+          });
+          return { output: {} };
+        }),
+      },
       'read_file',
       {},
       'cancel-call',
@@ -167,17 +185,13 @@ describe('tool execution deep module', () => {
 
   test('keeps the old invocation module path as a compatibility adapter', async () => {
     const definition = tool(async () => ({ output: { ok: true } }));
-    assert.deepEqual(
-      await invokeTool(definition, { toolCallId: 'direct', data: {} }),
-      { ok: true },
-    );
+    assert.deepEqual(await invokeTool(definition, { toolCallId: 'direct', data: {} }), {
+      ok: true,
+    });
     assert.deepEqual(
       await invokeToolFromCompatibilityPath(definition, { toolCallId: 'compat', data: {} }),
       { ok: true },
     );
-    assert.deepEqual(
-      unwrapToolOutputFromCompatibilityPath({ output: 'compat' }),
-      'compat',
-    );
+    assert.deepEqual(unwrapToolOutputFromCompatibilityPath({ output: 'compat' }), 'compat');
   });
 });

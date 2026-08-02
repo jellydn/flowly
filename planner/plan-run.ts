@@ -123,9 +123,7 @@ export function createPlanRun(): PlanRun {
             return;
           }
           const output = call.output;
-          const status: ExecutionStatus = isEmptyResult(tool, output)
-            ? 'empty'
-            : 'success';
+          const status: ExecutionStatus = isEmptyResult(tool, output) ? 'empty' : 'success';
           executed.push({
             stepId,
             status,
@@ -211,10 +209,7 @@ export function createPlanRun(): PlanRun {
   return run;
 }
 
-export function normalizePlan(
-  question: string,
-  stepInputs: PlanStepInput[],
-): Plan {
+export function normalizePlan(question: string, stepInputs: PlanStepInput[]): Plan {
   return {
     question,
     steps: stepInputs.map((step, index) => ({ ...step, id: index + 1 })),

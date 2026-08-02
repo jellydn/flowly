@@ -17,6 +17,9 @@
     "reliability/**/*.ts",
     "investigation/**/*.ts",
     "tools/**/*.ts",
+    "review/**/*.ts",
+    "github/**/*.ts",
+    "scripts/**/*.ts",
     "tests/**/*.ts",
     "sandbox.ts",
     "flue.config.ts"

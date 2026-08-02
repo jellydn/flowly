@@ -65,10 +65,13 @@ describe('Scenario A: direct read (read_file)', () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const read = createReadFileTool(repository, budget, noDebug());
-    const result = ((await read.run({
-      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
-      data: { path: 'src/config.ts', startLine: 1 },
-    })) as any).output as ReadResult;
+    const result = (
+      (await read.run({
+        toolCallId: 'test',
+        log: { info() {}, warn() {}, error() {} },
+        data: { path: 'src/config.ts', startLine: 1 },
+      })) as any
+    ).output as ReadResult;
     assert.equal(budget.used, 1);
     assert.match(result.content, /PORT/);
     assert.match(result.content, /process\.env\.PORT \?\? 3000/);
@@ -84,25 +87,34 @@ describe('Scenario B: search then read (search_code -> read_file)', () => {
     const search = createSearchCodeTool(repository, budget, noDebug());
     const read = createReadFileTool(repository, budget, noDebug());
 
-    const searchResult = ((await search.run({
-      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
-      data: { query: 'login', path: '.', caseSensitive: false },
-    })) as any).output as SearchResult;
+    const searchResult = (
+      (await search.run({
+        toolCallId: 'test',
+        log: { info() {}, warn() {}, error() {} },
+        data: { query: 'login', path: '.', caseSensitive: false },
+      })) as any
+    ).output as SearchResult;
     assert.equal(budget.used, 1);
     const authHit = searchResult.matches.find((m) => m.path === 'src/auth.ts');
     assert.ok(authHit, 'search should surface src/auth.ts as a lead');
 
-    const readResult = ((await read.run({
-      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
-      data: { path: 'src/auth.ts', startLine: 1 },
-    })) as any).output as ReadResult;
+    const readResult = (
+      (await read.run({
+        toolCallId: 'test',
+        log: { info() {}, warn() {}, error() {} },
+        data: { path: 'src/auth.ts', startLine: 1 },
+      })) as any
+    ).output as ReadResult;
     assert.equal(budget.used, 2);
     assert.match(readResult.content, /issueToken/);
     // Tracing the flow one level deeper is allowed when budget permits.
-    const followRead = ((await read.run({
-      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
-      data: { path: 'src/services/user-service.ts', startLine: 1 },
-    })) as any).output as ReadResult;
+    const followRead = (
+      (await read.run({
+        toolCallId: 'test',
+        log: { info() {}, warn() {}, error() {} },
+        data: { path: 'src/services/user-service.ts', startLine: 1 },
+      })) as any
+    ).output as ReadResult;
     assert.equal(budget.used, 3);
     assert.match(followRead.content, /export function issueToken/);
   });
@@ -115,15 +127,24 @@ describe('Scenario C: structure discovery (list_files -> read_file)', () => {
     const list = createListFilesTool(repository, budget, noDebug());
     const read = createReadFileTool(repository, budget, noDebug());
 
-    const listResult = ((await list.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: '.', depth: 3 } })) as any).output as ListResult;
+    const listResult = (
+      (await list.run({
+        toolCallId: 'test',
+        log: { info() {}, warn() {}, error() {} },
+        data: { path: '.', depth: 3 },
+      })) as any
+    ).output as ListResult;
     assert.equal(budget.used, 1);
     const paths = listResult.entries.map((e) => e.path);
     assert(paths.includes('src/index.ts'));
 
-    const entry = ((await read.run({
-      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
-      data: { path: 'src/index.ts', startLine: 1 },
-    })) as any).output as ReadResult;
+    const entry = (
+      (await read.run({
+        toolCallId: 'test',
+        log: { info() {}, warn() {}, error() {} },
+        data: { path: 'src/index.ts', startLine: 1 },
+      })) as any
+    ).output as ReadResult;
     assert.equal(budget.used, 2);
     assert.match(entry.content, /import.*config/);
     assert.match(entry.content, /import.*auth/);
@@ -137,19 +158,25 @@ describe('Scenario D: negative search (no fabricated feature)', () => {
     const search = createSearchCodeTool(repository, budget, noDebug());
     const read = createReadFileTool(repository, budget, noDebug());
 
-    const searchResult = ((await search.run({
-      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
-      data: { query: 'payment', path: '.', caseSensitive: false },
-    })) as any).output as SearchResult;
+    const searchResult = (
+      (await search.run({
+        toolCallId: 'test',
+        log: { info() {}, warn() {}, error() {} },
+        data: { query: 'payment', path: '.', caseSensitive: false },
+      })) as any
+    ).output as SearchResult;
     assert.equal(budget.used, 1);
     // The only lead is the unrelated notes file with misleading keywords.
     assert.ok(searchResult.matches.every((m) => m.path === 'src/utils/notes.md'));
     assert.ok(searchResult.matches.length > 0);
 
-    const note = ((await read.run({
-      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
-      data: { path: 'src/utils/notes.md', startLine: 1 },
-    })) as any).output as ReadResult;
+    const note = (
+      (await read.run({
+        toolCallId: 'test',
+        log: { info() {}, warn() {}, error() {} },
+        data: { path: 'src/utils/notes.md', startLine: 1 },
+      })) as any
+    ).output as ReadResult;
     assert.equal(budget.used, 2);
     assert.match(note.content, /misleading keywords, no implementation/);
     // No source file implements payment processing; the agent reports the miss

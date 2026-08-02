@@ -10,14 +10,14 @@ without fabricating features.
 
 `fixtures/sample-repo/` contains:
 
-| File | Role |
-| ---- | ---- |
-| `src/index.ts` | Application entry point (calls `start` and `login`) |
-| `src/config.ts` | Configuration module (port via `process.env.PORT ?? 3000`) |
-| `src/auth.ts` | Authentication module (calls `user-service`) |
-| `src/services/user-service.ts` | Service calling another module (`issueToken`) |
-| `src/utils/notes.md` | Unrelated file with misleading keywords (`payment`, `billing`) |
-| `node_modules/ignored.js` | Dependency noise that must be skipped |
+| File                           | Role                                                           |
+| ------------------------------ | -------------------------------------------------------------- |
+| `src/index.ts`                 | Application entry point (calls `start` and `login`)            |
+| `src/config.ts`                | Configuration module (port via `process.env.PORT ?? 3000`)     |
+| `src/auth.ts`                  | Authentication module (calls `user-service`)                   |
+| `src/services/user-service.ts` | Service calling another module (`issueToken`)                  |
+| `src/utils/notes.md`           | Unrelated file with misleading keywords (`payment`, `billing`) |
+| `node_modules/ignored.js`      | Dependency noise that must be skipped                          |
 
 It is intentionally tiny so the tool sequence—not the answer depth—is the
 thing under observation.
@@ -41,13 +41,13 @@ sequence** for that scenario.
 
 ## Scenarios
 
-| Scenario | Prompt | Expected tool pattern |
-| -------- | ------ | --------------------- |
-| A: direct read | Read `src/config.ts` and explain how the application port is configured. | `read_file` |
-| B: search then read | Find where user authentication is implemented and explain the flow. | `search_code` → `read_file` (extra reads allowed to trace the flow) |
-| C: structure discovery | Give me a high-level overview of this repository. | `list_files` → selected `read_file` calls |
-| D: negative search | Where is payment processing implemented? | `search_code` → `read_file`; report no evidence, do not invent a payment subsystem |
-| E: no unnecessary tool | What is the difference between listing files and searching code? | Answer directly, no tool call |
+| Scenario               | Prompt                                                                   | Expected tool pattern                                                              |
+| ---------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| A: direct read         | Read `src/config.ts` and explain how the application port is configured. | `read_file`                                                                        |
+| B: search then read    | Find where user authentication is implemented and explain the flow.      | `search_code` → `read_file` (extra reads allowed to trace the flow)                |
+| C: structure discovery | Give me a high-level overview of this repository.                        | `list_files` → selected `read_file` calls                                          |
+| D: negative search     | Where is payment processing implemented?                                 | `search_code` → `read_file`; report no evidence, do not invent a payment subsystem |
+| E: no unnecessary tool | What is the difference between listing files and searching code?         | Answer directly, no tool call                                                      |
 
 ## Deterministic vs. live observation
 

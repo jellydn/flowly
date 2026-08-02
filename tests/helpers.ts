@@ -123,12 +123,7 @@ export async function createSampleRepo(): Promise<string> {
   );
   await writeFile(
     path.join(root, 'src', 'services', 'user-service.ts'),
-    [
-      'export function issueToken(user: string) {',
-      '  return `${user}:token`;',
-      '}',
-      '',
-    ].join('\n'),
+    ['export function issueToken(user: string) {', '  return `${user}:token`;', '}', ''].join('\n'),
   );
   await writeFile(
     path.join(root, 'src', 'utils', 'notes.md'),
@@ -140,10 +135,7 @@ export async function createSampleRepo(): Promise<string> {
     ].join('\n'),
   );
   await mkdir(path.join(root, 'node_modules'));
-  await writeFile(
-    path.join(root, 'node_modules', 'ignored.js'),
-    'export const login = "noise";\n',
-  );
+  await writeFile(path.join(root, 'node_modules', 'ignored.js'), 'export const login = "noise";\n');
   return root;
 }
 

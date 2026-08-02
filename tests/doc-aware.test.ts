@@ -1,39 +1,24 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
-import type { ToolDefinition } from '@flue/runtime';
-import type { InspectionMetadata } from '../tools/repository.ts';
-import {
-  createDebugLogger,
-  createRepositoryReader,
-  createStepBudget,
-} from '../tools/repository.ts';
-import { createListFilesTool } from '../tools/list-files.ts';
-import { createReadFileTool } from '../tools/read-file.ts';
-import { createSearchCodeTool } from '../tools/search-code.ts';
-import { createSearchDocsTool } from '../tools/search-docs.ts';
+import { calculateConfidence, formatAnswer, formatCitation } from '../investigation/answer.ts';
 import { createCallTracker } from '../investigation/call-tracker.ts';
 import {
   createEvidenceCollector,
   extractEvidence,
   isDocumentationFile,
 } from '../investigation/evidence.ts';
+import { buildToolMap, DEFAULT_MAX_ITERATIONS, runInvestigation } from '../investigation/loop.ts';
+import type { DecisionFn, Evidence } from '../investigation/types.ts';
+import { createListFilesTool } from '../tools/list-files.ts';
+import { createReadFileTool } from '../tools/read-file.ts';
+import type { InspectionMetadata } from '../tools/repository.ts';
 import {
-  calculateConfidence,
-  formatAnswer,
-  formatCitation,
-} from '../investigation/answer.ts';
-import {
-  runInvestigation,
-  buildToolMap,
-  DEFAULT_MAX_ITERATIONS,
-} from '../investigation/loop.ts';
-import type {
-  Confidence,
-  DecisionFn,
-  Evidence,
-  GroundedAnswer,
-  InvestigationResult,
-} from '../investigation/types.ts';
+  createDebugLogger,
+  createRepositoryReader,
+  createStepBudget,
+} from '../tools/repository.ts';
+import { createSearchCodeTool } from '../tools/search-code.ts';
+import { createSearchDocsTool } from '../tools/search-docs.ts';
 import { createSampleRepo, removeRepo } from './helpers.ts';
 
 const noDebug = () => createDebugLogger(false);
@@ -65,10 +50,13 @@ describe('search_docs tool', () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const tool = createSearchDocsTool(repository, budget, noDebug());
-    const result = ((await tool.run({
-      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
-      data: { query: 'authentication', path: '.', caseSensitive: false },
-    })) as any).output as SearchDocsResult;
+    const result = (
+      (await tool.run({
+        toolCallId: 'test',
+        log: { info() {}, warn() {}, error() {} },
+        data: { query: 'authentication', path: '.', caseSensitive: false },
+      })) as any
+    ).output as SearchDocsResult;
     assert.ok(result.matches.length > 0);
     // Should find matches in README.md, AGENTS.md, and docs/architecture.md
     const paths = new Set(result.matches.map((m) => m.path));
@@ -81,24 +69,28 @@ describe('search_docs tool', () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const tool = createSearchDocsTool(repository, budget, noDebug());
-    const result = ((await tool.run({
-      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
-      data: { query: 'login', path: '.', caseSensitive: false },
-    })) as any).output as SearchDocsResult;
+    const result = (
+      (await tool.run({
+        toolCallId: 'test',
+        log: { info() {}, warn() {}, error() {} },
+        data: { query: 'login', path: '.', caseSensitive: false },
+      })) as any
+    ).output as SearchDocsResult;
     // node_modules/ignored.js is NOT a doc file, so it should never appear
-    assert.ok(
-      result.matches.every((m) => !m.path.includes('node_modules')),
-    );
+    assert.ok(result.matches.every((m) => !m.path.includes('node_modules')));
   });
 
   test('handles zero matches clearly', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const tool = createSearchDocsTool(repository, budget, noDebug());
-    const result = ((await tool.run({
-      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
-      data: { query: 'doesnotexistxyz', path: '.', caseSensitive: false },
-    })) as any).output as SearchDocsResult;
+    const result = (
+      (await tool.run({
+        toolCallId: 'test',
+        log: { info() {}, warn() {}, error() {} },
+        data: { query: 'doesnotexistxyz', path: '.', caseSensitive: false },
+      })) as any
+    ).output as SearchDocsResult;
     assert.deepEqual(result.matches, []);
     assert.equal(result.truncated, false);
     assert.ok(result.filesSearched > 0);
@@ -109,7 +101,8 @@ describe('search_docs tool', () => {
     const budget = createStepBudget(8);
     const tool = createSearchDocsTool(repository, budget, noDebug());
     await tool.run({
-      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
+      toolCallId: 'test',
+      log: { info() {}, warn() {}, error() {} },
       data: { query: 'architecture', path: '.', caseSensitive: false },
     });
     assert.equal(budget.used, 1);
@@ -119,10 +112,13 @@ describe('search_docs tool', () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const tool = createSearchDocsTool(repository, budget, noDebug());
-    const result = ((await tool.run({
-      toolCallId: 'test', log: { info() {}, warn() {}, error() {} },
-      data: { query: 'layered design', path: '.', caseSensitive: false },
-    })) as any).output as SearchDocsResult;
+    const result = (
+      (await tool.run({
+        toolCallId: 'test',
+        log: { info() {}, warn() {}, error() {} },
+        data: { query: 'layered design', path: '.', caseSensitive: false },
+      })) as any
+    ).output as SearchDocsResult;
     const archHit = result.matches.find((m) => m.path === 'docs/architecture.md');
     assert.ok(archHit, 'should find docs/architecture.md');
   });
@@ -133,9 +129,21 @@ describe('search_docs tool', () => {
     const searchDocs = createSearchDocsTool(repository, budget, noDebug());
     const searchCode = createSearchCodeTool(repository, budget, noDebug());
     const readFile = createReadFileTool(repository, budget, noDebug());
-    await searchDocs.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { query: 'auth', path: '.', caseSensitive: false } });
-    await searchCode.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { query: 'login', path: '.', caseSensitive: false } });
-    await readFile.run({ toolCallId: 'test', log: { info() {}, warn() {}, error() {} }, data: { path: 'src/config.ts', startLine: 1 } });
+    await searchDocs.run({
+      toolCallId: 'test',
+      log: { info() {}, warn() {}, error() {} },
+      data: { query: 'auth', path: '.', caseSensitive: false },
+    });
+    await searchCode.run({
+      toolCallId: 'test',
+      log: { info() {}, warn() {}, error() {} },
+      data: { query: 'login', path: '.', caseSensitive: false },
+    });
+    await readFile.run({
+      toolCallId: 'test',
+      log: { info() {}, warn() {}, error() {} },
+      data: { path: 'src/config.ts', startLine: 1 },
+    });
     assert.equal(budget.used, 3);
     assert.equal(budget.remaining, 0);
   });
@@ -196,9 +204,13 @@ describe('evidence collector', () => {
 
   test('extractEvidence from search_docs results adds documentation evidence', () => {
     const collector = createEvidenceCollector();
-    extractEvidence('search_docs', {
-      matches: [{ path: 'README.md', line: 3, excerpt: 'authentication' }],
-    }, collector);
+    extractEvidence(
+      'search_docs',
+      {
+        matches: [{ path: 'README.md', line: 3, excerpt: 'authentication' }],
+      },
+      collector,
+    );
     assert.equal(collector.count, 1);
     assert.equal(collector.items[0].sourceType, 'documentation');
     assert.equal(collector.items[0].relevance, 0.5);
@@ -206,12 +218,16 @@ describe('evidence collector', () => {
 
   test('extractEvidence from read_file results adds high-relevance evidence', () => {
     const collector = createEvidenceCollector();
-    extractEvidence('read_file', {
-      path: 'src/auth.ts',
-      startLine: 1,
-      endLine: 5,
-      content: 'export function login() {}',
-    }, collector);
+    extractEvidence(
+      'read_file',
+      {
+        path: 'src/auth.ts',
+        startLine: 1,
+        endLine: 5,
+        content: 'export function login() {}',
+      },
+      collector,
+    );
     assert.equal(collector.count, 1);
     assert.equal(collector.items[0].sourceType, 'code');
     assert.equal(collector.items[0].relevance, 1.0);
@@ -250,10 +266,7 @@ describe('call tracker', () => {
       input: { query: 'auth' },
       timestamp: Date.now(),
     });
-    assert.equal(
-      tracker.has('search_code', { query: 'login' }),
-      false,
-    );
+    assert.equal(tracker.has('search_code', { query: 'login' }), false);
   });
 
   test('canonicalizes input key order', () => {
@@ -264,10 +277,7 @@ describe('call tracker', () => {
       timestamp: Date.now(),
     });
     // Different key order, same content → should be detected as duplicate
-    assert.equal(
-      tracker.has('search_code', { query: 'auth', path: '.' }),
-      true,
-    );
+    assert.equal(tracker.has('search_code', { query: 'auth', path: '.' }), true);
   });
 });
 
@@ -282,30 +292,72 @@ describe('confidence calculation', () => {
 
   test('Low when only search matches (leads)', () => {
     const evidence: Evidence[] = [
-      { filePath: 'a.ts', lineStart: 1, lineEnd: 1, excerpt: 'x', sourceType: 'code', relevance: 0.5 },
+      {
+        filePath: 'a.ts',
+        lineStart: 1,
+        lineEnd: 1,
+        excerpt: 'x',
+        sourceType: 'code',
+        relevance: 0.5,
+      },
     ];
     assert.equal(calculateConfidence(evidence), 'Low');
   });
 
   test('Medium when read evidence from one file', () => {
     const evidence: Evidence[] = [
-      { filePath: 'a.ts', lineStart: 1, lineEnd: 10, excerpt: 'x', sourceType: 'code', relevance: 1.0 },
+      {
+        filePath: 'a.ts',
+        lineStart: 1,
+        lineEnd: 10,
+        excerpt: 'x',
+        sourceType: 'code',
+        relevance: 1.0,
+      },
     ];
     assert.equal(calculateConfidence(evidence), 'Medium');
   });
 
   test('High when reads from 2+ files', () => {
     const evidence: Evidence[] = [
-      { filePath: 'a.ts', lineStart: 1, lineEnd: 10, excerpt: 'x', sourceType: 'code', relevance: 1.0 },
-      { filePath: 'b.ts', lineStart: 1, lineEnd: 10, excerpt: 'y', sourceType: 'code', relevance: 1.0 },
+      {
+        filePath: 'a.ts',
+        lineStart: 1,
+        lineEnd: 10,
+        excerpt: 'x',
+        sourceType: 'code',
+        relevance: 1.0,
+      },
+      {
+        filePath: 'b.ts',
+        lineStart: 1,
+        lineEnd: 10,
+        excerpt: 'y',
+        sourceType: 'code',
+        relevance: 1.0,
+      },
     ];
     assert.equal(calculateConfidence(evidence), 'High');
   });
 
   test('High when both docs and code corroborate', () => {
     const evidence: Evidence[] = [
-      { filePath: 'README.md', lineStart: 1, lineEnd: 5, excerpt: 'auth', sourceType: 'documentation', relevance: 1.0 },
-      { filePath: 'src/auth.ts', lineStart: 1, lineEnd: 5, excerpt: 'login', sourceType: 'code', relevance: 1.0 },
+      {
+        filePath: 'README.md',
+        lineStart: 1,
+        lineEnd: 5,
+        excerpt: 'auth',
+        sourceType: 'documentation',
+        relevance: 1.0,
+      },
+      {
+        filePath: 'src/auth.ts',
+        lineStart: 1,
+        lineEnd: 5,
+        excerpt: 'login',
+        sourceType: 'code',
+        relevance: 1.0,
+      },
     ];
     assert.equal(calculateConfidence(evidence), 'High');
   });
@@ -323,7 +375,14 @@ describe('answer formatting', () => {
 
   test('grounded answer includes citations', () => {
     const evidence: Evidence[] = [
-      { filePath: 'src/auth.ts', lineStart: 1, lineEnd: 5, excerpt: 'export function login()', sourceType: 'code', relevance: 1.0 },
+      {
+        filePath: 'src/auth.ts',
+        lineStart: 1,
+        lineEnd: 5,
+        excerpt: 'export function login()',
+        sourceType: 'code',
+        relevance: 1.0,
+      },
     ];
     const answer = formatAnswer('How does auth work?', evidence, ['search_code', 'read_file'], []);
     assert.ok(answer.sources.length > 0);
@@ -334,17 +393,26 @@ describe('answer formatting', () => {
 
   test('formatCitation handles single line and ranges', () => {
     assert.equal(
-      formatCitation({ filePath: 'a.ts', lineStart: 5, lineEnd: 5, excerpt: '', sourceType: 'code' }),
+      formatCitation({
+        filePath: 'a.ts',
+        lineStart: 5,
+        lineEnd: 5,
+        excerpt: '',
+        sourceType: 'code',
+      }),
       'a.ts:5',
     );
     assert.equal(
-      formatCitation({ filePath: 'a.ts', lineStart: 1, lineEnd: 10, excerpt: '', sourceType: 'code' }),
+      formatCitation({
+        filePath: 'a.ts',
+        lineStart: 1,
+        lineEnd: 10,
+        excerpt: '',
+        sourceType: 'code',
+      }),
       'a.ts:1-10',
     );
-    assert.equal(
-      formatCitation({ filePath: 'a.ts', excerpt: '', sourceType: 'code' }),
-      'a.ts',
-    );
+    assert.equal(formatCitation({ filePath: 'a.ts', excerpt: '', sourceType: 'code' }), 'a.ts');
   });
 });
 
@@ -370,28 +438,41 @@ describe('investigation loop', () => {
     const tools = await (await buildTools(root, budget))();
     const plan: DecisionFn = async (state) => {
       if (state.iteration === 0)
-        return { type: 'call', tool: 'search_docs', input: { query: 'authentication', path: '.', caseSensitive: false } };
+        return {
+          type: 'call',
+          tool: 'search_docs',
+          input: { query: 'authentication', path: '.', caseSensitive: false },
+        };
       if (state.iteration === 1)
-        return { type: 'call', tool: 'search_code', input: { query: 'login', path: '.', caseSensitive: false } };
+        return {
+          type: 'call',
+          tool: 'search_code',
+          input: { query: 'login', path: '.', caseSensitive: false },
+        };
       if (state.iteration === 2) {
         // Read the first docs match
         const docEv = state.evidence.find((e) => e.sourceType === 'documentation');
-        if (docEv) return { type: 'call', tool: 'read_file', input: { path: docEv.filePath, startLine: 1 } };
+        if (docEv)
+          return {
+            type: 'call',
+            tool: 'read_file',
+            input: { path: docEv.filePath, startLine: 1 },
+          };
       }
       if (state.iteration === 3) {
         // Read the first code match
         const codeEv = state.evidence.find((e) => e.sourceType === 'code');
-        if (codeEv) return { type: 'call', tool: 'read_file', input: { path: codeEv.filePath, startLine: 1 } };
+        if (codeEv)
+          return {
+            type: 'call',
+            tool: 'read_file',
+            input: { path: codeEv.filePath, startLine: 1 },
+          };
       }
       return { type: 'stop', reason: 'sufficient evidence' };
     };
 
-    const result = await runInvestigation(
-      'How does authentication work?',
-      tools,
-      budget,
-      plan,
-    );
+    const result = await runInvestigation('How does authentication work?', tools, budget, plan);
     assert.ok(result.evidence.some((e) => e.sourceType === 'documentation'));
     assert.ok(result.evidence.some((e) => e.sourceType === 'code'));
     assert.equal(result.stopReason, 'sufficient evidence');
@@ -408,13 +489,9 @@ describe('investigation loop', () => {
       input: { query: 'login', path: '.', caseSensitive: false },
     });
 
-    const result = await runInvestigation(
-      'Find auth',
-      tools,
-      budget,
-      plan,
-      { maxIterations: 5 },
-    );
+    const result = await runInvestigation('Find auth', tools, budget, plan, {
+      maxIterations: 5,
+    });
     // First call succeeds, subsequent ones are blocked as duplicates
     assert.ok(result.errors.some((e) => e.includes('Duplicate call blocked')));
     assert.equal(result.iterations, 5); // used all iterations since decider never stops
@@ -434,13 +511,9 @@ describe('investigation loop', () => {
       };
     };
 
-    const result = await runInvestigation(
-      'Test',
-      tools,
-      budget,
-      plan,
-      { maxIterations: 3 },
-    );
+    const result = await runInvestigation('Test', tools, budget, plan, {
+      maxIterations: 3,
+    });
     assert.equal(result.iterations, 3);
     assert.equal(result.stopReason, 'max iterations reached');
   });
@@ -450,16 +523,15 @@ describe('investigation loop', () => {
     const tools = await (await buildTools(root, budget))();
     const plan: DecisionFn = async (state) => {
       if (state.iteration === 0)
-        return { type: 'call', tool: 'read_file', input: { path: 'src/auth.ts', startLine: 1 } };
+        return {
+          type: 'call',
+          tool: 'read_file',
+          input: { path: 'src/auth.ts', startLine: 1 },
+        };
       return { type: 'stop', reason: 'sufficient evidence' };
     };
 
-    const result = await runInvestigation(
-      'How does auth work?',
-      tools,
-      budget,
-      plan,
-    );
+    const result = await runInvestigation('How does auth work?', tools, budget, plan);
     assert.equal(result.iterations, 1);
     assert.equal(result.stopReason, 'sufficient evidence');
     assert.ok(result.evidence.length > 0);
@@ -497,13 +569,9 @@ describe('investigation loop', () => {
       input: { path: 'src/auth.ts', startLine: 1 },
     });
 
-    const promise = runInvestigation(
-      'cancel',
-      tools,
-      createStepBudget(8),
-      decide,
-      { signal: controller.signal },
-    );
+    const promise = runInvestigation('cancel', tools, createStepBudget(8), decide, {
+      signal: controller.signal,
+    });
     await started;
     controller.abort(new Error('cancelled'));
     await assert.rejects(promise, /cancel/i);
@@ -514,18 +582,21 @@ describe('investigation loop', () => {
     const tools = await (await buildTools(root, budget))();
     const plan: DecisionFn = async (state) => {
       if (state.iteration === 0)
-        return { type: 'call', tool: 'read_file', input: { path: 'nonexistent.ts', startLine: 1 } };
+        return {
+          type: 'call',
+          tool: 'read_file',
+          input: { path: 'nonexistent.ts', startLine: 1 },
+        };
       if (state.iteration === 1)
-        return { type: 'call', tool: 'read_file', input: { path: 'src/auth.ts', startLine: 1 } };
+        return {
+          type: 'call',
+          tool: 'read_file',
+          input: { path: 'src/auth.ts', startLine: 1 },
+        };
       return { type: 'stop', reason: 'done' };
     };
 
-    const result = await runInvestigation(
-      'How does auth work?',
-      tools,
-      budget,
-      plan,
-    );
+    const result = await runInvestigation('How does auth work?', tools, budget, plan);
     assert.ok(result.errors.length > 0);
     assert.ok(result.evidence.length > 0); // second call succeeded
     assert.equal(result.stopReason, 'done');
@@ -536,7 +607,15 @@ describe('investigation loop', () => {
     const tools = await (await buildTools(root, budget))();
     const plan: DecisionFn = async (state) => {
       if (state.iteration === 0)
-        return { type: 'call', tool: 'search_code', input: { query: 'payment_processing', path: '.', caseSensitive: false } };
+        return {
+          type: 'call',
+          tool: 'search_code',
+          input: {
+            query: 'payment_processing',
+            path: '.',
+            caseSensitive: false,
+          },
+        };
       return { type: 'stop', reason: 'no evidence found' };
     };
 
@@ -560,21 +639,18 @@ describe('investigation loop', () => {
     const tools = await (await buildTools(root, budget))();
     const plan: DecisionFn = async (state) => {
       if (state.iteration === 0)
-        return { type: 'call', tool: 'read_file', input: { path: 'src/config.ts', startLine: 1 } };
+        return {
+          type: 'call',
+          tool: 'read_file',
+          input: { path: 'src/config.ts', startLine: 1 },
+        };
       return { type: 'stop', reason: 'done' };
     };
 
-    const result = await runInvestigation(
-      'How is the port configured?',
-      tools,
-      budget,
-      plan,
-    );
+    const result = await runInvestigation('How is the port configured?', tools, budget, plan);
     assert.ok(result.answer.sources.some((s) => s.includes('src/config.ts')));
     assert.ok(result.answer.keyFindings.length > 0);
-    assert.ok(
-      result.answer.keyFindings.every((f) => f.citation.includes('src/config.ts')),
-    );
+    assert.ok(result.answer.keyFindings.every((f) => f.citation.includes('src/config.ts')));
   });
 
   test('confidence reflects available evidence', async () => {
@@ -584,7 +660,11 @@ describe('investigation loop', () => {
     // Only search leads, no reads → Low confidence
     const lowPlan: DecisionFn = async (state) => {
       if (state.iteration === 0)
-        return { type: 'call', tool: 'search_code', input: { query: 'login', path: '.', caseSensitive: false } };
+        return {
+          type: 'call',
+          tool: 'search_code',
+          input: { query: 'login', path: '.', caseSensitive: false },
+        };
       return { type: 'stop', reason: 'done' };
     };
     const lowResult = await runInvestigation('auth', tools, budget, lowPlan);
@@ -597,9 +677,17 @@ describe('investigation loop', () => {
     // Read from 2 files → High confidence
     const highPlan: DecisionFn = async (state) => {
       if (state.iteration === 0)
-        return { type: 'call', tool: 'read_file', input: { path: 'src/auth.ts', startLine: 1 } };
+        return {
+          type: 'call',
+          tool: 'read_file',
+          input: { path: 'src/auth.ts', startLine: 1 },
+        };
       if (state.iteration === 1)
-        return { type: 'call', tool: 'read_file', input: { path: 'src/config.ts', startLine: 1 } };
+        return {
+          type: 'call',
+          tool: 'read_file',
+          input: { path: 'src/config.ts', startLine: 1 },
+        };
       return { type: 'stop', reason: 'done' };
     };
     const highResult = await runInvestigation('auth', tools2, budget2, highPlan);
@@ -610,8 +698,7 @@ describe('investigation loop', () => {
     const budget = createStepBudget(8);
     const tools = await (await buildTools(root, budget))();
     const plan: DecisionFn = async (state) => {
-      if (state.iteration === 0)
-        return { type: 'call', tool: 'nonexistent_tool', input: {} };
+      if (state.iteration === 0) return { type: 'call', tool: 'nonexistent_tool', input: {} };
       return { type: 'stop', reason: 'done' };
     };
 
@@ -625,9 +712,17 @@ describe('investigation loop', () => {
     const tools = await (await buildTools(root, budget))();
     const plan: DecisionFn = async (state) => {
       if (state.iteration === 0)
-        return { type: 'call', tool: 'search_code', input: { query: 'a', path: '.', caseSensitive: false } };
+        return {
+          type: 'call',
+          tool: 'search_code',
+          input: { query: 'a', path: '.', caseSensitive: false },
+        };
       if (state.iteration === 1)
-        return { type: 'call', tool: 'search_code', input: { query: 'b', path: '.', caseSensitive: false } };
+        return {
+          type: 'call',
+          tool: 'search_code',
+          input: { query: 'b', path: '.', caseSensitive: false },
+        };
       return { type: 'stop', reason: 'done' };
     };
 

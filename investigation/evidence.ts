@@ -78,17 +78,12 @@ export function createEvidenceCollector(): EvidenceCollector {
  * - read_file: the returned content becomes a high-relevance evidence item.
  * - list_files: no evidence extracted (structure only).
  */
-export function extractEvidence(
-  tool: string,
-  output: unknown,
-  collector: EvidenceCollector,
-): void {
+export function extractEvidence(tool: string, output: unknown, collector: EvidenceCollector): void {
   if (tool === 'search_code' || tool === 'search_docs') {
     const result = output as {
       matches?: Array<{ path: string; line: number; excerpt: string }>;
     };
-    const sourceType: EvidenceSourceType =
-      tool === 'search_docs' ? 'documentation' : 'code';
+    const sourceType: EvidenceSourceType = tool === 'search_docs' ? 'documentation' : 'code';
     for (const match of result.matches ?? []) {
       collector.add({
         filePath: match.path,

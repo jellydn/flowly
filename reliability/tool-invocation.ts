@@ -21,17 +21,14 @@ const silentLog = {
  * The framework-specific cast is intentionally isolated here. Callers only
  * provide a tool, a stable call id, and input data.
  */
-export async function invokeTool<T>(
-  tool: ToolDefinition,
-  invocation: ToolInvocation,
-): Promise<T> {
+export async function invokeTool<T>(tool: ToolDefinition, invocation: ToolInvocation): Promise<T> {
   const context = {
     toolCallId: invocation.toolCallId,
     log: silentLog,
     data: invocation.data,
     signal: invocation.signal,
   } as ToolContext;
-  const raw = await tool.run(context) as unknown;
+  const raw = (await tool.run(context)) as unknown;
 
   return unwrapToolOutput<T>(raw);
 }

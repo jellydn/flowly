@@ -1,33 +1,23 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 import type { ToolDefinition } from '@flue/runtime';
+import { runExecutionLoop } from '../investigation/tool-call.ts';
+import type { ToolExecutionOutcome } from '../investigation/tool-execution.ts';
+import { createReplanTool, executePlan, replan, shouldReplan } from '../planner/executor.ts';
+import { createPlanRun } from '../planner/plan-run.ts';
+import { createPlanStore, replacePlan as replaceStoredPlan } from '../planner/plan-store.ts';
+import { createPlan, createPlanTool, normalizePlan } from '../planner/planner.ts';
+import { createReflectPlanTool, formatReflection, reflectOnPlan } from '../planner/reflection.ts';
+import type { ExecutionResult, Plan, PlanReflection } from '../planner/types.ts';
+import { createListFilesTool } from '../tools/list-files.ts';
+import { createReadFileTool } from '../tools/read-file.ts';
 import type { InspectionMetadata } from '../tools/repository.ts';
 import {
   createDebugLogger,
   createRepositoryReader,
   createStepBudget,
 } from '../tools/repository.ts';
-import { createListFilesTool } from '../tools/list-files.ts';
-import { createReadFileTool } from '../tools/read-file.ts';
 import { createSearchCodeTool } from '../tools/search-code.ts';
-import { createPlanStore, replacePlan as replaceStoredPlan } from '../planner/plan-store.ts';
-import { createPlanRun } from '../planner/plan-run.ts';
-import { createPlan, createPlanTool, normalizePlan } from '../planner/planner.ts';
-import {
-  createReplanTool,
-  executePlan,
-  isEmptyResult,
-  replan,
-  shouldReplan,
-} from '../planner/executor.ts';
-import { runExecutionLoop } from '../investigation/tool-call.ts';
-import {
-  createReflectPlanTool,
-  formatReflection,
-  reflectOnPlan,
-} from '../planner/reflection.ts';
-import type { ExecutionResult, Plan, PlanReflection, PlanStep } from '../planner/types.ts';
-import type { ToolExecutionOutcome } from '../investigation/tool-execution.ts';
 import { createSampleRepo, removeRepo, runTool } from './helpers.ts';
 
 const noDebug = () => createDebugLogger(false);
@@ -79,14 +69,21 @@ describe('createPlan (programmatic)', () => {
   test('all steps have sequential ids', () => {
     const plan = createPlan('Find where auth is implemented.');
     const ids = plan.steps.map((s) => s.id);
-    assert.deepEqual(ids, ids.map((_, i) => i + 1));
+    assert.deepEqual(
+      ids,
+      ids.map((_, i) => i + 1),
+    );
   });
 });
 
 describe('normalizePlan', () => {
   test('assigns sequential ids and preserves step data', () => {
     const plan = normalizePlan('test question', [
-      { description: 'step one', tool: 'search_code', input: { query: 'auth' } },
+      {
+        description: 'step one',
+        tool: 'search_code',
+        input: { query: 'auth' },
+      },
       { description: 'step two', tool: 'answer' },
     ]);
     assert.equal(plan.question, 'test question');
@@ -308,8 +305,16 @@ describe('executePlan', () => {
       read_file: createReadFileTool(repository, budget, debug),
     };
     const plan = normalizePlan('Find auth', [
-      { description: 'Search for auth', tool: 'search_code', input: { query: 'login', path: '.', caseSensitive: false } },
-      { description: 'Read auth file', tool: 'read_file', input: { path: 'src/auth.ts', startLine: 1 } },
+      {
+        description: 'Search for auth',
+        tool: 'search_code',
+        input: { query: 'login', path: '.', caseSensitive: false },
+      },
+      {
+        description: 'Read auth file',
+        tool: 'read_file',
+        input: { path: 'src/auth.ts', startLine: 1 },
+      },
       { description: 'Answer', tool: 'answer' },
     ]);
     const results = await executePlan(plan, tools);
@@ -346,7 +351,11 @@ describe('executePlan', () => {
       search_code: createSearchCodeTool(repository, budget, noDebug()),
     };
     const plan = normalizePlan('Find nonexistent', [
-      { description: 'Search for nothing', tool: 'search_code', input: { query: 'doesnotexistxyz', path: '.', caseSensitive: false } },
+      {
+        description: 'Search for nothing',
+        tool: 'search_code',
+        input: { query: 'doesnotexistxyz', path: '.', caseSensitive: false },
+      },
       { description: 'Answer', tool: 'answer' },
     ]);
     const results = await executePlan(plan, tools);
@@ -362,7 +371,11 @@ describe('executePlan', () => {
     };
     const plan = normalizePlan('conceptual', [
       { description: 'Answer directly', tool: 'answer' },
-      { description: 'This should not run', tool: 'search_code', input: { query: 'x', path: '.', caseSensitive: false } },
+      {
+        description: 'This should not run',
+        tool: 'search_code',
+        input: { query: 'x', path: '.', caseSensitive: false },
+      },
     ]);
     const results = await executePlan(plan, tools);
     assert.equal(results.length, 1);
@@ -394,7 +407,11 @@ describe('executePlan', () => {
       },
     };
     const plan = normalizePlan('cancel', [
-      { description: 'Read file', tool: 'read_file', input: { path: 'src/auth.ts', startLine: 1 } },
+      {
+        description: 'Read file',
+        tool: 'read_file',
+        input: { path: 'src/auth.ts', startLine: 1 },
+      },
     ]);
 
     const promise = executePlan(plan, tools, controller.signal);
@@ -419,14 +436,23 @@ describe('replanning', () => {
 
   test('shouldReplan returns false when all steps succeed', () => {
     const results: ExecutionResult[] = [
-      { stepId: 1, status: 'success', tool: 'search_code', summary: '3 matches' },
+      {
+        stepId: 1,
+        status: 'success',
+        tool: 'search_code',
+        summary: '3 matches',
+      },
     ];
     assert.equal(shouldReplan(results), false);
   });
 
   test('replan replaces empty search with list_files', () => {
     const original = normalizePlan('Find X', [
-      { description: 'Search for X', tool: 'search_code', input: { query: 'X', path: '.', caseSensitive: false } },
+      {
+        description: 'Search for X',
+        tool: 'search_code',
+        input: { query: 'X', path: '.', caseSensitive: false },
+      },
       { description: 'Read result', tool: 'read_file' },
       { description: 'Answer', tool: 'answer' },
     ]);
@@ -450,7 +476,11 @@ describe('replanning', () => {
       read_file: createReadFileTool(repository, budget, debug),
     };
     const original = normalizePlan('Find nonexistent', [
-      { description: 'Search for nothing', tool: 'search_code', input: { query: 'doesnotexistxyz', path: '.', caseSensitive: false } },
+      {
+        description: 'Search for nothing',
+        tool: 'search_code',
+        input: { query: 'doesnotexistxyz', path: '.', caseSensitive: false },
+      },
       { description: 'Answer', tool: 'answer' },
     ]);
     const firstResults = await executePlan(original, tools);
@@ -473,7 +503,12 @@ describe('reflection', () => {
       { description: 'c', tool: 'answer' },
     ]);
     const results: ExecutionResult[] = [
-      { stepId: 1, status: 'success', tool: 'search_code', summary: '3 matches' },
+      {
+        stepId: 1,
+        status: 'success',
+        tool: 'search_code',
+        summary: '3 matches',
+      },
       { stepId: 2, status: 'empty', tool: 'read_file', summary: 'no file' },
     ];
     const reflection = reflectOnPlan(plan, results, true, 'Steps 1 and 2 could be merged');
@@ -511,7 +546,11 @@ describe('PlanRun', () => {
     });
     const plan = normalizePlan('abort', [
       { description: 'First', tool: 'search_code', input: { query: 'auth' } },
-      { description: 'Second', tool: 'search_code', input: { query: 'config' } },
+      {
+        description: 'Second',
+        tool: 'search_code',
+        input: { query: 'config' },
+      },
     ]);
     run.setPlan(plan);
     let calls = 0;
@@ -597,7 +636,12 @@ describe('PlanStore', () => {
       },
     };
     legacy.setPlan(plan1);
-    const result = { stepId: 1, status: 'success' as const, tool: 'answer' as const, summary: 'ok' };
+    const result = {
+      stepId: 1,
+      status: 'success' as const,
+      tool: 'answer' as const,
+      summary: 'ok',
+    };
     legacy.addResult(result);
     replaceStoredPlan(legacy, plan2);
     assert.equal(legacy.plan?.question, 'q2');
@@ -608,7 +652,12 @@ describe('PlanStore', () => {
     const store = createPlanStore();
     const plan1 = normalizePlan('q1', [{ description: 'a', tool: 'answer' }]);
     store.setPlan(plan1);
-    store.addResult({ stepId: 1, status: 'success', tool: 'answer', summary: 'ok' });
+    store.addResult({
+      stepId: 1,
+      status: 'success',
+      tool: 'answer',
+      summary: 'ok',
+    });
     store.setReflection(reflectOnPlan(plan1, store.results, false));
     assert.equal(store.results.length, 1);
     assert.ok(store.reflection);
@@ -630,14 +679,22 @@ describe('create_plan tool', () => {
     const store = createPlanStore();
     const budget = createStepBudget(8);
     const tool = createPlanTool(store, budget, noDebug());
-    const result = await runTool<{ plan: Plan; message: string; inspection: InspectionMetadata }>(tool, {
-        question: 'How does auth work?',
-        steps: [
-          { description: 'Search for auth', tool: 'search_code', input: { query: 'auth' } },
-          { description: 'Read the auth file', tool: 'read_file' },
-          { description: 'Answer', tool: 'answer' },
-        ],
-      });
+    const result = await runTool<{
+      plan: Plan;
+      message: string;
+      inspection: InspectionMetadata;
+    }>(tool, {
+      question: 'How does auth work?',
+      steps: [
+        {
+          description: 'Search for auth',
+          tool: 'search_code',
+          input: { query: 'auth' },
+        },
+        { description: 'Read the auth file', tool: 'read_file' },
+        { description: 'Answer', tool: 'answer' },
+      ],
+    });
     assert.ok(store.plan);
     assert.equal(store.plan.question, 'How does auth work?');
     assert.equal(store.plan.steps.length, 3);
@@ -656,21 +713,35 @@ describe('replan tool', () => {
     const replanTool = createReplanTool(store, budget, noDebug());
 
     await runTool(planTool, {
-        question: 'Find X',
-        steps: [
-          { description: 'Search for X', tool: 'search_code', input: { query: 'X' } },
-          { description: 'Answer', tool: 'answer' },
-        ],
-      });
-    store.addResult({ stepId: 1, status: 'empty', tool: 'search_code', summary: '0 matches' });
+      question: 'Find X',
+      steps: [
+        {
+          description: 'Search for X',
+          tool: 'search_code',
+          input: { query: 'X' },
+        },
+        { description: 'Answer', tool: 'answer' },
+      ],
+    });
+    store.addResult({
+      stepId: 1,
+      status: 'empty',
+      tool: 'search_code',
+      summary: '0 matches',
+    });
 
-    const result = await runTool<{ plan: Plan; previousResultCount: number; message: string; inspection: InspectionMetadata }>(replanTool, {
-        reason: 'Search returned no results',
-        steps: [
-          { description: 'List files', tool: 'list_files', input: { path: '.' } },
-          { description: 'Answer', tool: 'answer' },
-        ],
-      });
+    const result = await runTool<{
+      plan: Plan;
+      previousResultCount: number;
+      message: string;
+      inspection: InspectionMetadata;
+    }>(replanTool, {
+      reason: 'Search returned no results',
+      steps: [
+        { description: 'List files', tool: 'list_files', input: { path: '.' } },
+        { description: 'Answer', tool: 'answer' },
+      ],
+    });
     assert.equal(result.plan.steps.length, 2);
     assert.equal(result.plan.steps[0].tool, 'list_files');
     assert.equal(result.previousResultCount, 1);
@@ -693,15 +764,28 @@ describe('reflect_plan tool', () => {
     const reflectTool = createReflectPlanTool(store, budget, noDebug());
 
     await runTool(planTool, {
-        question: 'Test',
-        steps: [
-          { description: 'Search', tool: 'search_code', input: { query: 'x' } },
-          { description: 'Answer', tool: 'answer' },
-        ],
-      });
-    store.addResult({ stepId: 1, status: 'success', tool: 'search_code', summary: '2 matches' });
+      question: 'Test',
+      steps: [
+        { description: 'Search', tool: 'search_code', input: { query: 'x' } },
+        { description: 'Answer', tool: 'answer' },
+      ],
+    });
+    store.addResult({
+      stepId: 1,
+      status: 'success',
+      tool: 'search_code',
+      summary: '2 matches',
+    });
 
-    const result = await runTool<{ error: string | null; reflection: PlanReflection | null; summary: string; inspection: InspectionMetadata }>(reflectTool, { couldSimplify: true, simplificationNote: 'Could merge steps' });
+    const result = await runTool<{
+      error: string | null;
+      reflection: PlanReflection | null;
+      summary: string;
+      inspection: InspectionMetadata;
+    }>(reflectTool, {
+      couldSimplify: true,
+      simplificationNote: 'Could merge steps',
+    });
     assert.equal(result.error, null);
     assert.ok(result.reflection);
     assert.equal(result.reflection.totalSteps, 2);
@@ -715,7 +799,12 @@ describe('reflect_plan tool', () => {
     const store = createPlanStore();
     const budget = createStepBudget(8);
     const reflectTool = createReflectPlanTool(store, budget, noDebug());
-    const result = await runTool<{ error: string | null; reflection: null; summary: string; inspection: InspectionMetadata }>(reflectTool, { couldSimplify: false, simplificationNote: '' });
+    const result = await runTool<{
+      error: string | null;
+      reflection: null;
+      summary: string;
+      inspection: InspectionMetadata;
+    }>(reflectTool, { couldSimplify: false, simplificationNote: '' });
     assert.ok(result.error);
     assert.equal(result.reflection, null);
   });
@@ -741,13 +830,21 @@ describe('full plan-execute-reflect cycle', () => {
     // Plan
     const planTool = createPlanTool(store, budget, debug);
     await runTool(planTool, {
-        question: 'Find where user authentication is implemented and explain the flow.',
-        steps: [
-          { description: 'Search for auth code', tool: 'search_code', input: { query: 'login', path: '.', caseSensitive: false } },
-          { description: 'Read the auth file', tool: 'read_file', input: { path: 'src/auth.ts', startLine: 1 } },
-          { description: 'Answer', tool: 'answer' },
-        ],
-      });
+      question: 'Find where user authentication is implemented and explain the flow.',
+      steps: [
+        {
+          description: 'Search for auth code',
+          tool: 'search_code',
+          input: { query: 'login', path: '.', caseSensitive: false },
+        },
+        {
+          description: 'Read the auth file',
+          tool: 'read_file',
+          input: { path: 'src/auth.ts', startLine: 1 },
+        },
+        { description: 'Answer', tool: 'answer' },
+      ],
+    });
     assert.ok(store.plan);
 
     // Execute
@@ -757,7 +854,12 @@ describe('full plan-execute-reflect cycle', () => {
 
     // Reflect
     const reflectTool = createReflectPlanTool(store, budget, debug);
-    const reflectResult = await runTool<{ error: string | null; reflection: PlanReflection | null; summary: string; inspection: InspectionMetadata }>(reflectTool, { couldSimplify: false, simplificationNote: '' });
+    const reflectResult = await runTool<{
+      error: string | null;
+      reflection: PlanReflection | null;
+      summary: string;
+      inspection: InspectionMetadata;
+    }>(reflectTool, { couldSimplify: false, simplificationNote: '' });
     assert.equal(reflectResult.error, null);
     assert.equal(reflectResult.reflection?.executedSteps, 3);
     assert.equal(reflectResult.reflection?.successfulSteps, 3);
@@ -779,12 +881,20 @@ describe('full plan-execute-reflect cycle', () => {
     // Plan with a query that won't match
     const planTool = createPlanTool(store, budget, debug);
     await runTool(planTool, {
-        question: 'Find payment processing.',
-        steps: [
-          { description: 'Search for payment', tool: 'search_code', input: { query: 'payment_processor', path: '.', caseSensitive: false } },
-          { description: 'Answer', tool: 'answer' },
-        ],
-      });
+      question: 'Find payment processing.',
+      steps: [
+        {
+          description: 'Search for payment',
+          tool: 'search_code',
+          input: {
+            query: 'payment_processor',
+            path: '.',
+            caseSensitive: false,
+          },
+        },
+        { description: 'Answer', tool: 'answer' },
+      ],
+    });
 
     // Execute
     const firstResults = await store.execute(tools);
@@ -793,13 +903,24 @@ describe('full plan-execute-reflect cycle', () => {
     // Replan
     const replanTool = createReplanTool(store, budget, debug);
     await runTool(replanTool, {
-        reason: 'No payment_processor matches; trying broader search',
-        steps: [
-          { description: 'Search for payment', tool: 'search_code', input: { query: 'payment', path: '.', caseSensitive: false } },
-          { description: 'Read the matching file', tool: 'read_file', input: { path: 'src/utils/notes.md', startLine: 1 } },
-          { description: 'Answer: no payment implementation found', tool: 'answer' },
-        ],
-      });
+      reason: 'No payment_processor matches; trying broader search',
+      steps: [
+        {
+          description: 'Search for payment',
+          tool: 'search_code',
+          input: { query: 'payment', path: '.', caseSensitive: false },
+        },
+        {
+          description: 'Read the matching file',
+          tool: 'read_file',
+          input: { path: 'src/utils/notes.md', startLine: 1 },
+        },
+        {
+          description: 'Answer: no payment implementation found',
+          tool: 'answer',
+        },
+      ],
+    });
 
     // Execute revised plan
     const revisedResults = await executePlan(store.plan!, tools);
