@@ -23,7 +23,13 @@
 
 import { type FileDiff, findFileDiff, hunkForLine, parseUnifiedDiff } from '../review/diff.ts';
 import type { ReviewLimits } from '../review/limits.ts';
-import { type Finding, type ReviewResult, safeParseReviewResult } from '../review/schema.ts';
+import {
+  type Finding,
+  type FindingClassification,
+  type ReviewResult,
+  safeParseReviewResult,
+} from '../review/schema.ts';
+import type { ReviewStateStore } from '../review/review-state-store.ts';
 import {
   GitHubApiError,
   type GitHubClient,
@@ -43,9 +49,15 @@ export type ReviewPublishResult = {
 export type ReviewPublisherOptions = {
   client: GitHubClient;
   prNumber: number;
+  /** Head SHA under review — persisted in the review state for incremental runs. */
+  headSha: string;
   /** Provider for the full unified diff, used to validate inline-comment line numbers. Resolved once and cached. */
   diffProvider: () => Promise<string>;
   limits: ReviewLimits;
+  /** Optional store for persistent review state. When provided, the publisher
+   * saves the current head SHA and findings after posting so the next
+   * `synchronize` run can produce an incremental review. */
+  stateStore?: ReviewStateStore;
 };
 
 export type ReviewPublisher = {
@@ -86,9 +98,11 @@ export function createReviewPublisher(options: ReviewPublisherOptions): ReviewPu
         parsed.value,
         options.client,
         options.prNumber,
+        options.headSha,
         fileDiffs,
         changedPaths,
         options.limits,
+        options.stateStore,
       );
     },
   };
@@ -98,9 +112,11 @@ async function publishValidatedReview(
   result: ReviewResult,
   client: GitHubClient,
   prNumber: number,
+  headSha: string,
   fileDiffs: FileDiff[],
   changedPaths: Set<string>,
   limits: ReviewLimits,
+  stateStore?: ReviewStateStore,
 ): Promise<ReviewPublishResult> {
   const capped = result.findings.slice(0, limits.maxFindings);
   const skippedFindings = result.findings.length - capped.length;
@@ -153,7 +169,13 @@ async function publishValidatedReview(
 
   const payload: GitHubReviewPayload = {
     event,
-    body: formatReviewBody(result.summary, capped, droppedFindings, skippedFindings),
+    body: formatReviewBody(
+      result.summary,
+      capped,
+      droppedFindings,
+      skippedFindings,
+      result.previousFindingClassifications,
+    ),
     comments: inlineComments,
   };
 
@@ -180,12 +202,37 @@ async function publishValidatedReview(
     }
   }
 
+  // Persist the review state (findings actually shown to the user) for incremental
+  // reviews. Save even when there are no findings — an empty state tells the next
+  // run that this SHA was reviewed and found clean, so it can produce a focused
+  // incremental diff.
+  //
+  // This is best-effort: the review was already posted to GitHub, so a state-
+  // write failure must not cause the run to throw (which could trigger a
+  // retry that posts a duplicate review). The next run simply falls back to
+  // a full review when no state is found.
+  const stateSaveError: string[] = [];
+  const shown = capped.filter((f) => !droppedFindings.some((d) => d.finding === f));
+  if (stateStore) {
+    try {
+      await stateStore.save({
+        reviewedHeadSha: headSha,
+        findings: shown,
+        reviewedAt: Date.now(),
+      });
+    } catch (error) {
+      stateSaveError.push(
+        `Failed to persist review state: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
   return {
     reviewId: submitted.id,
     htmlUrl: submitted.html_url,
     submittedFindings: postedInline,
     skippedFindings: skippedFindings + droppedFindings.length,
-    validationIssues,
+    validationIssues: [...validationIssues, ...stateSaveError],
   };
 }
 
@@ -213,6 +260,7 @@ function formatReviewBody(
   findings: Finding[],
   droppedFindings: { finding: Finding; reason: string }[],
   skippedFindings: number,
+  classifications?: FindingClassification[],
 ): string {
   const lines = ['## Flue PR Review', '', summary, ''];
 
@@ -222,6 +270,20 @@ function formatReviewBody(
     lines.push('### Findings', '');
     for (const f of findings) {
       lines.push(`- **[${f.severity.toUpperCase()}]** ${f.title} — \`${f.path}:${f.line}\``);
+    }
+  }
+
+  if (classifications && classifications.length > 0) {
+    lines.push('', '### Previous findings status', '');
+    const icons: Record<string, string> = {
+      resolved: '✅',
+      'still-present': '⚠️',
+      obsolete: '🗑️',
+      uncertain: '❓',
+    };
+    for (const c of classifications) {
+      const icon = icons[c.status] ?? '•';
+      lines.push(`- ${icon} ${c.status}: ${c.title} — \`${c.path}:${c.line}\``);
     }
   }
 

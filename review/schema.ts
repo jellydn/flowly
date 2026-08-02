@@ -31,15 +31,46 @@ export const findingSchema = v.object({
   confidence: v.pipe(v.number(), v.minValue(0), v.maxValue(1)),
 });
 
+/**
+ * Classification of a previous finding in an incremental review. The agent
+ * assesses whether each prior finding was addressed by the new commits.
+ *
+ * A finding is identified by its `path` + `line` + `title` triple, which is
+ * stable across review runs for the same issue.
+ */
+export const findingStatusSchema = v.picklist([
+  'resolved',
+  'still-present',
+  'obsolete',
+  'uncertain',
+]);
+
+export const findingClassificationSchema = v.object({
+  path: v.pipe(v.string(), v.minLength(1), v.maxLength(500)),
+  line: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  title: v.pipe(v.string(), v.minLength(1), v.maxLength(200)),
+  status: findingStatusSchema,
+  note: v.optional(v.pipe(v.string(), v.maxLength(500))),
+});
+
 export const reviewResultSchema = v.object({
   summary: v.pipe(v.string(), v.minLength(1), v.maxLength(4000)),
   verdict: verdictSchema,
   findings: v.pipe(v.array(findingSchema), v.maxLength(REVIEW_FINDINGS_CEILING)),
+  /**
+   * Optional in incremental reviews: the agent's assessment of each finding
+   * from the previous review. Omitted on first review (no previous state).
+   */
+  previousFindingClassifications: v.optional(
+    v.pipe(v.array(findingClassificationSchema), v.maxLength(REVIEW_FINDINGS_CEILING)),
+  ),
 });
 
 export type Severity = v.InferOutput<typeof severitySchema>;
 export type Verdict = v.InferOutput<typeof verdictSchema>;
 export type Finding = v.InferOutput<typeof findingSchema>;
+export type FindingStatus = v.InferOutput<typeof findingStatusSchema>;
+export type FindingClassification = v.InferOutput<typeof findingClassificationSchema>;
 export type ReviewResult = v.InferOutput<typeof reviewResultSchema>;
 
 /**

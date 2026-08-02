@@ -12,6 +12,7 @@ import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { GitHubClient } from '../github/client.ts';
+import type { ReviewStateStore } from './review-state-store.ts';
 import {
   type DiffHunk,
   type FileDiff,
@@ -20,6 +21,7 @@ import {
   truncateDiff,
 } from './diff.ts';
 import { classifyFile, type SkipReason } from './filters.ts';
+import type { ReviewState } from './review-state.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -57,6 +59,14 @@ export type GetDiffResult = {
   totalLines: number;
 };
 
+export type IncrementalDiffResult = {
+  isFirstReview: boolean;
+  previousReviewedSha: string | null;
+  content: string;
+  truncated: boolean;
+  totalLines: number;
+};
+
 export interface PrDataSource {
   getMetadata(): Promise<PrMetadata>;
   getDiff(maxLines: number): Promise<GetDiffResult>;
@@ -67,6 +77,10 @@ export interface PrDataSource {
     startLine?: number,
     endLine?: number,
   ): Promise<ReadChangedFileResult>;
+  /** Load the previous review state from the hidden PR comment, or null. */
+  getReviewState(): Promise<ReviewState | null>;
+  /** Return the incremental diff since the last reviewed SHA. */
+  getIncrementalDiff(maxLines: number): Promise<IncrementalDiffResult>;
 }
 
 export type GitDataSourceOptions = {
@@ -76,6 +90,8 @@ export type GitDataSourceOptions = {
   headSha: string;
   prNumber: number;
   github: GitHubClient;
+  /** Store for persistent review state (hidden PR comment). */
+  stateStore?: ReviewStateStore;
   /** Override the git binary path (tests). */
   gitBin?: string;
   /** Inject git execution (tests). */
@@ -102,6 +118,7 @@ export function createGitDataSource(options: GitDataSourceOptions): PrDataSource
   let cachedDiff: string | null = null;
   let cachedFiles: FileDiff[] | null = null;
   let cachedMetadata: PrMetadata | null = null;
+  let cachedReviewState: ReviewState | null | undefined = undefined;
 
   async function fetchDiff(): Promise<string> {
     if (cachedDiff !== null) return cachedDiff;
@@ -207,6 +224,56 @@ export function createGitDataSource(options: GitDataSourceOptions): PrDataSource
         // lines beyond an explicitly-requested range.
         truncated: requestedEnd > clampedEnd,
       };
+    },
+
+    async getReviewState(): Promise<ReviewState | null> {
+      if (cachedReviewState !== undefined) return cachedReviewState;
+      if (!options.stateStore) {
+        cachedReviewState = null;
+        return null;
+      }
+      cachedReviewState = await options.stateStore.load();
+      return cachedReviewState;
+    },
+
+    async getIncrementalDiff(maxLines: number): Promise<IncrementalDiffResult> {
+      const state = await this.getReviewState();
+      if (!state) {
+        return {
+          isFirstReview: true,
+          previousReviewedSha: null,
+          content: '',
+          truncated: false,
+          totalLines: 0,
+        };
+      }
+      // Use the three-dot notation: diff from the merge base of the two SHAs
+      // to the new head. When the previous SHA is an ancestor of the head
+      // (normal case — commits were added), this equals the direct diff.
+      try {
+        const { stdout } = await execGit(
+          ['diff', '--no-color', `${state.reviewedHeadSha}...${options.headSha}`],
+          root,
+        );
+        const truncated = truncateDiff(stdout, maxLines);
+        return {
+          isFirstReview: false,
+          previousReviewedSha: state.reviewedHeadSha,
+          content: truncated.content,
+          truncated: truncated.truncated,
+          totalLines: truncated.totalLines,
+        };
+      } catch {
+        // If git diff fails (e.g. force-push rewrote history and state.reviewedHeadSha
+        // is no longer reachable), degrade gracefully to a full review signal.
+        return {
+          isFirstReview: true,
+          previousReviewedSha: state.reviewedHeadSha,
+          content: '',
+          truncated: false,
+          totalLines: 0,
+        };
+      }
     },
   };
 }

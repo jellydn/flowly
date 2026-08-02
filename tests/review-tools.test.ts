@@ -3,8 +3,10 @@ import { describe, test } from 'node:test';
 import { invokeTool } from '../reliability/tool-invocation.ts';
 import {
   createGetDiffHunksTool,
+  createGetIncrementalDiffTool,
   createGetPrDiffTool,
   createGetPrMetadataTool,
+  createGetPreviousReviewStateTool,
   createListChangedFilesTool,
   createReadChangedFileTool,
   createSubmitReviewTool,
@@ -85,6 +87,18 @@ function createFakeDataSource(): PrDataSource {
         totalLines: 3,
         content,
         truncated: false,
+      };
+    },
+    async getReviewState() {
+      return null;
+    },
+    async getIncrementalDiff() {
+      return {
+        isFirstReview: true,
+        previousReviewedSha: null,
+        content: '',
+        truncated: false,
+        totalLines: 0,
       };
     },
   };
@@ -184,5 +198,91 @@ describe('review tools', () => {
     assert.equal(envelope.output.reviewId, 99);
     assert.equal(envelope.terminate, true);
     assert.ok(published);
+  });
+
+  test('get_previous_review_state returns isFirstReview when no state', async () => {
+    const ds = createFakeDataSource();
+    const tool = createGetPreviousReviewStateTool(ds);
+    const result = await run<{
+      isFirstReview: boolean;
+      reviewedHeadSha: string | null;
+      message: string;
+    }>(tool, {});
+    assert.equal(result.isFirstReview, true);
+    assert.equal(result.reviewedHeadSha, null);
+    assert.match(result.message, /first review/i);
+  });
+
+  test('get_previous_review_state returns previous findings when state exists', async () => {
+    const ds: PrDataSource = {
+      ...createFakeDataSource(),
+      async getReviewState() {
+        return {
+          reviewedHeadSha: 'abc123',
+          findings: [
+            {
+              severity: 'high',
+              path: 'src/auth.ts',
+              line: 10,
+              title: 'SQL injection',
+              explanation: 'e',
+              confidence: 0.9,
+            },
+          ],
+          reviewedAt: 1_700_000_000_000,
+        };
+      },
+    };
+    const tool = createGetPreviousReviewStateTool(ds);
+    const result = await run<{
+      isFirstReview: boolean;
+      reviewedHeadSha: string;
+      findings: unknown[];
+      reviewedAt: number;
+    }>(tool, {});
+    assert.equal(result.isFirstReview, false);
+    assert.equal(result.reviewedHeadSha, 'abc123');
+    assert.equal(result.findings.length, 1);
+    assert.equal(result.reviewedAt, 1_700_000_000_000);
+  });
+
+  test('get_incremental_diff returns first-review result when no state', async () => {
+    const ds = createFakeDataSource();
+    const tool = createGetIncrementalDiffTool(ds, DEFAULT_REVIEW_LIMITS);
+    const result = await run<{
+      isFirstReview: boolean;
+      previousReviewedSha: string | null;
+      content: string;
+    }>(tool, {});
+    assert.equal(result.isFirstReview, true);
+    assert.equal(result.previousReviewedSha, null);
+    assert.equal(result.content, '');
+  });
+
+  test('get_incremental_diff returns incremental content when state exists', async () => {
+    const ds: PrDataSource = {
+      ...createFakeDataSource(),
+      async getReviewState() {
+        return { reviewedHeadSha: 'prev', findings: [], reviewedAt: 1 };
+      },
+      async getIncrementalDiff() {
+        return {
+          isFirstReview: false,
+          previousReviewedSha: 'prev',
+          content: 'incremental diff here',
+          truncated: false,
+          totalLines: 3,
+        };
+      },
+    };
+    const tool = createGetIncrementalDiffTool(ds, DEFAULT_REVIEW_LIMITS);
+    const result = await run<{
+      isFirstReview: boolean;
+      previousReviewedSha: string;
+      content: string;
+    }>(tool, {});
+    assert.equal(result.isFirstReview, false);
+    assert.equal(result.previousReviewedSha, 'prev');
+    assert.equal(result.content, 'incremental diff here');
   });
 });

@@ -4,6 +4,7 @@ import { createReviewPublisher } from '../github/adapter.ts';
 import { GitHubApiError, type GitHubClient, type GitHubReviewPayload } from '../github/client.ts';
 import type { ReviewLimits } from '../review/limits.ts';
 import { DEFAULT_REVIEW_LIMITS } from '../review/limits.ts';
+import type { ReviewStateStore } from '../review/review-state-store.ts';
 
 const DIFF = [
   'diff --git a/src/auth.ts b/src/auth.ts',
@@ -73,6 +74,7 @@ describe('review publisher', () => {
     const publisher = createReviewPublisher({
       client,
       prNumber: 1,
+      headSha: 'head123',
       diffProvider: async () => DIFF,
       limits,
     });
@@ -110,6 +112,7 @@ describe('review publisher', () => {
     const publisher = createReviewPublisher({
       client,
       prNumber: 1,
+      headSha: 'head123',
       diffProvider: async () => DIFF,
       limits,
     });
@@ -137,6 +140,7 @@ describe('review publisher', () => {
     const publisher = createReviewPublisher({
       client,
       prNumber: 1,
+      headSha: 'head123',
       diffProvider: async () => DIFF,
       limits,
     });
@@ -168,6 +172,7 @@ describe('review publisher', () => {
     const publisher = createReviewPublisher({
       client,
       prNumber: 1,
+      headSha: 'head123',
       diffProvider: async () => DIFF,
       limits,
     });
@@ -196,6 +201,7 @@ describe('review publisher', () => {
     const publisher = createReviewPublisher({
       client,
       prNumber: 1,
+      headSha: 'head123',
       diffProvider: async () => DIFF,
       limits: { ...limits, maxFindings: 2 },
     });
@@ -222,6 +228,7 @@ describe('review publisher', () => {
     const publisher = createReviewPublisher({
       client,
       prNumber: 1,
+      headSha: 'head123',
       diffProvider: async () => DIFF,
       limits,
     });
@@ -235,6 +242,7 @@ describe('review publisher', () => {
     const publisher = createReviewPublisher({
       client,
       prNumber: 1,
+      headSha: 'head123',
       diffProvider: async () => DIFF,
       limits,
     });
@@ -255,6 +263,7 @@ describe('review publisher', () => {
     const publisher = createReviewPublisher({
       client,
       prNumber: 1,
+      headSha: 'head123',
       diffProvider: async () => DIFF_WITH_DELETED,
       limits,
     });
@@ -308,6 +317,7 @@ describe('review publisher', () => {
     const publisher = createReviewPublisher({
       client,
       prNumber: 1,
+      headSha: 'head123',
       diffProvider: async () => DIFF,
       limits,
     });
@@ -345,6 +355,7 @@ describe('review publisher', () => {
     const publisher = createReviewPublisher({
       client,
       prNumber: 1,
+      headSha: 'head123',
       diffProvider: async () => DIFF,
       limits,
     });
@@ -367,5 +378,286 @@ describe('review publisher', () => {
         }),
       /Server Error/,
     );
+  });
+
+  test('saves review state after successful review', async () => {
+    const client = createFakeClient();
+    const saved: unknown[] = [];
+    const stateStore: ReviewStateStore = {
+      async load() {
+        return null;
+      },
+      async save(state) {
+        saved.push(state);
+      },
+    };
+    const publisher = createReviewPublisher({
+      client,
+      prNumber: 1,
+      headSha: 'sha-after-review',
+      diffProvider: async () => DIFF,
+      limits,
+      stateStore,
+    });
+
+    await publisher.publish({
+      summary: 's',
+      verdict: 'COMMENT',
+      findings: [
+        {
+          severity: 'medium',
+          path: 'src/auth.ts',
+          line: 11,
+          title: 't',
+          explanation: 'e',
+          confidence: 0.7,
+        },
+      ],
+    });
+
+    assert.equal(saved.length, 1);
+    const state = saved[0] as { reviewedHeadSha: string; findings: unknown[]; reviewedAt: number };
+    assert.equal(state.reviewedHeadSha, 'sha-after-review');
+    assert.equal(state.findings.length, 1);
+    assert.ok(state.reviewedAt > 0);
+  });
+
+  test('saves empty findings state after a clean review', async () => {
+    const saved: unknown[] = [];
+    const stateStore: ReviewStateStore = {
+      async load() {
+        return null;
+      },
+      async save(state) {
+        saved.push(state);
+      },
+    };
+    const publisher = createReviewPublisher({
+      client: createFakeClient(),
+      prNumber: 1,
+      headSha: 'clean-sha',
+      diffProvider: async () => DIFF,
+      limits,
+      stateStore,
+    });
+
+    await publisher.publish({
+      summary: 'No blocking issues found.',
+      verdict: 'COMMENT',
+      findings: [],
+    });
+
+    assert.equal(saved.length, 1);
+    const state = saved[0] as { reviewedHeadSha: string; findings: unknown[] };
+    assert.equal(state.reviewedHeadSha, 'clean-sha');
+    assert.equal(state.findings.length, 0);
+  });
+
+  test('saves capped findings in state when findings exceed maxFindings', async () => {
+    const saved: unknown[] = [];
+    const stateStore: ReviewStateStore = {
+      async load() {
+        return null;
+      },
+      async save(state) {
+        saved.push(state);
+      },
+    };
+    const publisher = createReviewPublisher({
+      client: createFakeClient(),
+      prNumber: 1,
+      headSha: 'head',
+      diffProvider: async () => DIFF,
+      limits: { ...limits, maxFindings: 2 },
+      stateStore,
+    });
+
+    await publisher.publish({
+      summary: 's',
+      verdict: 'COMMENT',
+      findings: Array.from({ length: 5 }, (_, i) => ({
+        severity: 'low' as const,
+        path: 'src/auth.ts',
+        line: 10 + i,
+        title: `t${i}`,
+        explanation: 'e',
+        confidence: 0.5,
+      })),
+    });
+
+    const state = saved[0] as { findings: unknown[] };
+    assert.equal(state.findings.length, 2);
+  });
+
+  test('does not save state when review submission fails', async () => {
+    const saved: unknown[] = [];
+    const stateStore: ReviewStateStore = {
+      async load() {
+        return null;
+      },
+      async save(state) {
+        saved.push(state);
+      },
+    };
+    const client = {
+      async submitReview() {
+        throw new GitHubApiError('Server Error', 500, 'boom');
+      },
+    } as unknown as GitHubClient;
+
+    const publisher = createReviewPublisher({
+      client,
+      prNumber: 1,
+      headSha: 'head',
+      diffProvider: async () => DIFF,
+      limits,
+      stateStore,
+    });
+
+    await assert.rejects(() =>
+      publisher.publish({
+        summary: 's',
+        verdict: 'COMMENT',
+        findings: [
+          {
+            severity: 'low',
+            path: 'src/auth.ts',
+            line: 11,
+            title: 't',
+            explanation: 'e',
+            confidence: 0.5,
+          },
+        ],
+      }),
+    );
+    assert.equal(saved.length, 0);
+  });
+
+  test('state-save failure does not throw after successful review', async () => {
+    const client = createFakeClient();
+    const stateStore: ReviewStateStore = {
+      async load() {
+        return null;
+      },
+      async save() {
+        throw new Error('API unavailable');
+      },
+    };
+    const publisher = createReviewPublisher({
+      client,
+      prNumber: 1,
+      headSha: 'head',
+      diffProvider: async () => DIFF,
+      limits,
+      stateStore,
+    });
+
+    const result = await publisher.publish({
+      summary: 's',
+      verdict: 'COMMENT',
+      findings: [
+        {
+          severity: 'low',
+          path: 'src/auth.ts',
+          line: 11,
+          title: 't',
+          explanation: 'e',
+          confidence: 0.5,
+        },
+      ],
+    });
+
+    // Review was posted successfully despite state-save failure
+    assert.equal(result.reviewId, 42);
+    assert.ok(result.validationIssues.some((v) => v.includes('Failed to persist review state')));
+  });
+
+  test('renders previous finding classifications in the review body', async () => {
+    const client = createFakeClient();
+    const publisher = createReviewPublisher({
+      client,
+      prNumber: 1,
+      headSha: 'head',
+      diffProvider: async () => DIFF,
+      limits,
+    });
+
+    await publisher.publish({
+      summary: 'Incremental review.',
+      verdict: 'COMMENT',
+      findings: [],
+      previousFindingClassifications: [
+        {
+          path: 'src/auth.ts',
+          line: 11,
+          title: 'SQL injection',
+          status: 'resolved',
+          note: 'Fixed by parameterized query',
+        },
+        { path: 'src/auth.ts', line: 20, title: 'Missing test', status: 'still-present' },
+        { path: 'src/old.ts', line: 5, title: 'Dead code', status: 'obsolete' },
+        {
+          path: 'src/utils.ts',
+          line: 30,
+          title: 'Race condition',
+          status: 'uncertain',
+          note: 'Need more context',
+        },
+      ],
+    });
+
+    const body = client.submitted[0].payload.body;
+    assert.match(body, /Previous findings status/);
+    assert.match(body, /✅.*resolved.*SQL injection/);
+    assert.match(body, /⚠️.*still-present.*Missing test/);
+    assert.match(body, /🗑️.*obsolete.*Dead code/);
+    assert.match(body, /❓.*uncertain.*Race condition/);
+  });
+
+  test('excludes dropped findings from saved state', async () => {
+    const client = createFakeClient();
+    let savedState: any = null;
+    const stateStore: ReviewStateStore = {
+      async load() {
+        return null;
+      },
+      async save(s) {
+        savedState = s;
+      },
+    };
+    const publisher = createReviewPublisher({
+      client,
+      prNumber: 1,
+      headSha: 'head',
+      diffProvider: async () => DIFF,
+      limits,
+      stateStore,
+    });
+
+    await publisher.publish({
+      summary: 's',
+      verdict: 'COMMENT',
+      findings: [
+        {
+          severity: 'low',
+          path: 'src/auth.ts',
+          line: 11,
+          title: 'Valid finding',
+          explanation: 'e',
+          confidence: 0.5,
+        },
+        {
+          severity: 'medium',
+          path: 'src/nonexistent.ts',
+          line: 5,
+          title: 'Dropped finding',
+          explanation: 'e',
+          confidence: 0.5,
+        },
+      ],
+    });
+
+    assert.equal(savedState.findings.length, 1);
+    assert.equal(savedState.findings[0].path, 'src/auth.ts');
   });
 });

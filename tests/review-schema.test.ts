@@ -102,4 +102,51 @@ describe('review schema', () => {
   test('schema is a valibot object schema', () => {
     assert.equal(v.is(reviewResultSchema, validResult), true);
   });
+
+  test('accepts a valid previousFindingClassifications array', () => {
+    const parsed = safeParseReviewResult({
+      ...validResult,
+      previousFindingClassifications: [
+        { path: 'src/auth.ts', line: 42, title: 'SQL injection', status: 'resolved' },
+        {
+          path: 'src/utils.ts',
+          line: 10,
+          title: 'Unused import',
+          status: 'still-present',
+          note: 'Still there',
+        },
+      ],
+    });
+    assert.equal(parsed.ok, true);
+    if (parsed.ok) {
+      assert.equal(parsed.value.previousFindingClassifications?.length, 2);
+      assert.equal(parsed.value.previousFindingClassifications?.[0].status, 'resolved');
+    }
+  });
+
+  test('accepts a review result without previousFindingClassifications', () => {
+    const parsed = safeParseReviewResult(validResult);
+    assert.equal(parsed.ok, true);
+    if (parsed.ok) {
+      assert.equal(parsed.value.previousFindingClassifications, undefined);
+    }
+  });
+
+  test('rejects an invalid finding status', () => {
+    const parsed = safeParseReviewResult({
+      ...validResult,
+      previousFindingClassifications: [
+        { path: 'src/auth.ts', line: 42, title: 'SQL injection', status: 'fixed' },
+      ],
+    });
+    assert.equal(parsed.ok, false);
+  });
+
+  test('rejects a classification missing required fields', () => {
+    const parsed = safeParseReviewResult({
+      ...validResult,
+      previousFindingClassifications: [{ path: 'src/auth.ts', line: 42, status: 'resolved' }],
+    });
+    assert.equal(parsed.ok, false);
+  });
 });

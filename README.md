@@ -204,6 +204,10 @@ and adds review-specific tools backed by a trusted GitHub/git boundary:
 - `list_changed_files` — per-file additions/deletions, status, and skip flags.
 - `read_changed_file` — a bounded line range from the post-PR version of a file.
 - `get_diff_hunks` — diff hunk line ranges for validating inline findings.
+- `get_previous_review_state` — loads the previous review's SHA and findings
+  from a hidden PR comment, or reports this is the first review.
+- `get_incremental_diff` — the diff since the last reviewed SHA
+  (`git diff prevSha...headSha`), or an empty result on first review.
 - `submit_review` — posts one structured GitHub review with inline comments.
 
 ### Analysis vs. mutation separation
@@ -216,6 +220,29 @@ and posts exactly one review (`COMMENT` or `REQUEST_CHANGES`, never `APPROVE`)
 through a thin `fetch`-based GitHub client (`github/client.ts`). PR data is
 fetched by `git diff`/`git show` in trusted code (`review/pr-data.ts`), never
 from the sandbox.
+
+### Incremental review (Phase 2)
+
+After each review, the trusted publisher persists a hidden state comment on the
+PR containing the reviewed head SHA, the findings, and a timestamp:
+
+```html
+<!-- flue-review-state
+{"reviewedHeadSha":"abc123","findings":[...],"reviewedAt":1700000000}
+-->
+```
+
+On `synchronize` (new commits pushed), the reviewer loads this state and
+computes an incremental diff (`git diff prevSha...headSha`) so it can focus on
+what changed. The agent classifies each previous finding as `resolved`,
+`still-present`, `obsolete`, or `uncertain`, and the publisher renders those
+classifications in the review body with status icons (✅ ⚠️ 🗑️ ❓).
+
+State comments are filtered to the expected bot account (`github-actions[bot]` by default, configurable via `REVIEW_BOT_LOGIN`) to prevent untrusted PR
+participants from spoofing review state. State persistence is best-effort: if
+saving state fails after a review was posted, the error is reported in
+`validationIssues` but the run succeeds — the next run falls back to a full
+review.
 
 ### File-aware limits
 
@@ -235,10 +262,10 @@ GITHUB_TOKEN=… GITHUB_REPOSITORY=owner/repo PR_NUMBER=42 \
   npm run review-pr
 ```
 
-The first implementation is a full review only: it never modifies code, pushes
-commits, or auto-approves. Incremental review (persisting the last reviewed SHA
-and classifying previous findings as resolved/still-present/obsolete) is planned
-as a follow-up.
+The reviewer supports both full reviews (opened / reopened / ready_for_review)
+and incremental reviews (synchronize). It never modifies code, pushes commits,
+or auto-approves. Phase 3 (repository-specific memory via `.flue/` learnings)
+remains a follow-up.
 
 ## Day 16: Tools for agents
 

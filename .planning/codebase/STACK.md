@@ -1,67 +1,72 @@
 # Technology Stack
 
-**Analysis Date:** 2026-08-01
+**Analysis Date:** 2026-08-02
 
 ## Languages
 
 **Primary:**
-
-- TypeScript with strict checking and ES modules. Application code, tools, planning, investigation, reliability, and tests are TypeScript. See `tsconfig.json`, `agents/`, `tools/`, `planner/`, `investigation/`, and `reliability/`.
+- TypeScript 7.0.2 (targeting ES2024) - Strict, no-emit application, agent, tool, GitHub integration, review, script, and test code in `agents/`, `tools/`, `review/`, `github/`, `scripts/`, `tests/`, `sandbox.ts`, and `app.ts`; configured by `tsconfig.json`.
 
 **Secondary:**
-
-- Markdown for user and agent documentation, evaluation notes, and this map.
-- HTML/CSS for the static showcase in `docs/index.html`.
-- YAML for GitHub Actions configuration.
-- JSON for package metadata, lockfile, and Renovate configuration.
-- Shell scripts for deterministic demos and evaluation launchers in `demo/` and `eval/`.
+- JavaScript/ECMAScript ES2024 - Node.js execution target and emitted bundle semantics configured in `tsconfig.json` and `flue.config.ts`.
+- YAML 1.2 - GitHub Actions pipelines in `.github/workflows/ci.yml` and `.github/workflows/pr-review.yml`.
+- Shell/POSIX sh - Demo and evaluation launchers under `demo/` and `eval/`.
+- Markdown - Project documentation in `README.md`, agent guidance in `AGENTS.md`, and packaged skill instructions in `skills/analyzing-repositories/SKILL.md`.
 
 ## Runtime
 
-- Node.js `>=22.19.0` is required locally; CI pins Node `24.18.1`. See `package.json` and `.github/workflows/ci.yml`.
-- ECMAScript modules are enabled through `package.json` (`"type": "module"`).
-- npm is the package manager. The committed lockfile and CI use `npm ci`.
+**Environment:**
+- Node.js >=22.19.0; CI uses 24.18.1 in `.github/workflows/ci.yml` and Node 22 in `.github/workflows/pr-review.yml`. The project is ESM via `package.json`, and `flue.config.ts` targets Node.
 
-## Frameworks and Build Tools
+**Package Manager:**
+- npm 12.0.2 in the analysed environment; CI installs reproducibly with `npm ci`.
+- Lockfile: present (`package-lock.json`, lockfile version 3)
 
-- **Flue 2.0** (`@flue/runtime`, `@flue/cli`, `@flue/vite`) provides agent hooks, typed tools, model/sandbox/skill integration, routing, CLI execution, and Vite packaging. See `agents/repo-assistant.ts`, `app.ts`, `vite.config.ts`, and `package.json`.
-- **Hono** is used by the route map through the Flue runtime dependency tree. See `app.ts`.
-- **Vite 8.x** builds the Flue application and packages the imported skill. See `vite.config.ts` and `flue.config.ts`.
-- **TypeScript 7.x** runs with `strict`, `noEmit`, ES2024, and bundler module resolution. See `tsconfig.json`.
-- **tsx** executes TypeScript tests using Node's native `node:test` runner.
+## Frameworks
 
-## Runtime Dependencies
+**Core:**
+- Flue 2.0.1 (`@flue/runtime`, `@flue/cli`, `@flue/vite`) - Agent hooks, typed tools, model selection, sandbox/skill lifecycle, routing, CLI execution, and Vite packaging in `agents/`, `app.ts`, and `vite.config.ts`.
+- Hono 4.12.33 (transitive through `@flue/runtime`) - HTTP route map for both agent endpoints and `/api/ping` in `app.ts`.
 
-- `@flue/runtime` `^2.0.0`: agent runtime, tool definitions, sandbox support, skill loading, and routing.
-- `@flue/cli` `^2.0.0`: `flue run` command used by the CLI entrypoint.
-- `@flue/vite` `^2.0.0`: Vite integration for Flue agents and skills.
-- `just-bash` `^3.1.0`: in-memory sandbox implementation with no model-facing shell tools.
-- `valibot` `^1.1.0`: runtime schemas for tool and planning inputs.
-- `vite` `^8.2.0`, `tsx` `^4.20.6`, and `typescript` `^7.0.0`: build and development tooling.
+**Testing:**
+- Node.js built-in test runner (Node >=22.19.0) - Executes `tests/*.test.ts`; `tsx` 4.23.1 supplies TypeScript loading via the `npm test` script in `package.json`.
+
+**Build/Dev:**
+- Vite 8.2.0 - Builds the Node-targeted Flue application through `@flue/vite` in `vite.config.ts` and emits gitignored `dist/`.
+- TypeScript 7.0.2 - Strict static checking with bundler resolution and `noEmit` through `npm run typecheck` and `tsconfig.json`.
+- tsx 4.23.1 - Runs TypeScript tests and the PR-review CLI entrypoint in `scripts/review-pr.ts`.
+- prek (system installation) - Pre-commit hook manager configured by `prek.toml` for `oxfmt --check` and `oxlint`.
+- oxfmt and oxlint (system installations) - Formatting and correctness linting configured by `.oxfmtrc.json` and `.oxlintrc.json`; deliberately exclude `eval/fixtures/`.
+
+## Key Dependencies
+
+**Critical:**
+- `@flue/runtime` 2.0.1 - Defines agents/tools, connects models, creates agent routers, and provides sandbox lifecycle APIs used by `agents/repo-assistant.ts`, `agents/pr-reviewer.ts`, `tools/`, `sandbox.ts`, and `app.ts`.
+- `valibot` 1.4.2 - Runtime validation for tool inputs, structured review results, and persisted review state in `tools/` and `review/`.
+- `just-bash` 3.2.0 - Creates the isolated in-memory session environment while `sandbox.ts` exposes no model-facing shell or filesystem tools.
+
+**Infrastructure:**
+- `@flue/cli` 2.0.1 - Runs agents from `npm start` and `npm run review-pr`.
+- `@flue/vite` 2.0.1 - Integrates Flue agents and imported skills into the Vite build in `vite.config.ts`.
+- Native Node APIs - `node:fs`, `node:path`, `node:child_process`, and global `fetch` implement local repository inspection, trusted Git operations, and GitHub REST calls in `tools/repository.ts`, `review/pr-data.ts`, and `github/client.ts`.
 
 ## Configuration
 
-**Environment variables:**
+**Environment:**
+- Copy `.env.example` to the gitignored `.env`; values are read directly from `process.env` by `agents/repo-assistant.ts`, `agents/pr-reviewer.ts`, `github/client.ts`, and `scripts/review-pr.ts`.
+- Key configs required: `REPOSITORY_PATH`, `REPO_ASSISTANT_MODEL`, and the selected LLM provider key (documented default: `OPENROUTER_API_KEY`). PR review additionally requires `GITHUB_TOKEN`, `GITHUB_REPOSITORY`, `PR_NUMBER`, `BASE_SHA`, and `HEAD_SHA`; budgets/reliability are controlled by `REPO_ASSISTANT_MAX_*`, `REPO_ASSISTANT_TIMEOUT_MS`, and `PR_REVIEW_MAX_*` variables documented in `.env.example`.
 
-- `REPOSITORY_PATH`: configured repository root; defaults to `../oak`.
-- `REPO_ASSISTANT_MODEL`: Flue model specifier; defaults to `openrouter/qwen/qwen3-coder`.
-- `OPENROUTER_API_KEY`: provider key required by the documented default model.
-- `REPO_ASSISTANT_MAX_STEPS`: shared inspection budget, constrained to 1–20 and defaulting to 8.
-- `REPO_ASSISTANT_DEBUG`: enables sanitized tool and reliability logs.
-- `REPO_ASSISTANT_MAX_ATTEMPTS`, `REPO_ASSISTANT_INITIAL_DELAY_MS`, `REPO_ASSISTANT_MAX_DELAY_MS`, and `REPO_ASSISTANT_TIMEOUT_MS`: reliability policy controls.
-- `FAIL_FIRST_N_REQUESTS`, `SIMULATE_TOOL_TIMEOUT`, `SIMULATE_MALFORMED_RESPONSE`, and `FAIL_OPERATION`: deterministic failure-injection/demo controls.
-
-**Build/runtime configuration:**
-
-- `flue.config.ts` targets Node.
-- `vite.config.ts` enables the Flue Vite plugin.
-- `app.ts` mounts `/agents/repo-assistant` and `/api/ping`.
-- `tsconfig.json` includes application and test TypeScript, allows `.ts` imports, and emits nothing.
+**Build:**
+- `vite.config.ts`, `flue.config.ts`, `tsconfig.json`, `package.json`, `.oxlintrc.json`, `.oxfmtrc.json`, and `prek.toml`.
 
 ## Platform Requirements
 
-Development requires Node.js 22.19+, npm dependencies, an LLM provider key for live runs, and a local checkout to inspect. CI runs `npm ci` followed by `npm run check` on Ubuntu. No production hosting or persistent database is configured in this repository.
+**Development:**
+- Node.js >=22.19.0, npm, Git, a local repository checkout addressed by `REPOSITORY_PATH`, and an LLM provider API key for live agent runs. `oxfmt`, `oxlint`, and `prek` must be available on `PATH` for local lint/format hooks; requirements and commands are documented in `AGENTS.md` and `README.md`.
+
+**Production:**
+- Node.js Flue application bundle (`flue.config.ts` target `node`); no production hosting platform is configured. GitHub-hosted Ubuntu runners execute CI and PR-review automation through `.github/workflows/`.
 
 ---
 
-_Stack analysis: 2026-08-01_
+*Stack analysis: 2026-08-02*

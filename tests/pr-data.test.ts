@@ -188,4 +188,147 @@ describe('git data source', () => {
     await ds.listChangedFiles();
     assert.equal(calls, 1);
   });
+
+  test('getIncrementalDiff returns isFirstReview when no state store', async () => {
+    const ds = createSource();
+    const result = await ds.getIncrementalDiff(1000);
+    assert.equal(result.isFirstReview, true);
+    assert.equal(result.previousReviewedSha, null);
+    assert.equal(result.content, '');
+    assert.equal(result.totalLines, 0);
+  });
+
+  test('getIncrementalDiff returns isFirstReview when state is null', async () => {
+    const store = {
+      async load() {
+        return null;
+      },
+      async save() {},
+    };
+    const ds = createGitDataSource({
+      repositoryPath: '/repo',
+      baseSha: 'base',
+      headSha: 'head',
+      prNumber: 3,
+      github: createFakeGitHub(),
+      stateStore: store,
+      execGit: async () => ({ stdout: DIFF, stderr: '' }),
+    });
+    const result = await ds.getIncrementalDiff(1000);
+    assert.equal(result.isFirstReview, true);
+    assert.equal(result.previousReviewedSha, null);
+  });
+
+  test('getIncrementalDiff runs git diff with three-dot notation from previous SHA', async () => {
+    const capturedArgs: string[][] = [];
+    const ds = createGitDataSource({
+      repositoryPath: '/repo',
+      baseSha: 'base',
+      headSha: 'newhead',
+      prNumber: 3,
+      github: createFakeGitHub(),
+      stateStore: {
+        async load() {
+          return {
+            reviewedHeadSha: 'prevsha',
+            findings: [],
+            reviewedAt: 1000,
+          };
+        },
+        async save() {},
+      },
+      execGit: async (args) => {
+        capturedArgs.push(args);
+        if (args[0] === 'diff' && args[1] === '--no-color' && args[2]?.includes('...')) {
+          return { stdout: 'incremental diff content', stderr: '' };
+        }
+        return { stdout: DIFF, stderr: '' };
+      },
+    });
+    const result = await ds.getIncrementalDiff(1000);
+    assert.equal(result.isFirstReview, false);
+    assert.equal(result.previousReviewedSha, 'prevsha');
+    assert.equal(result.content, 'incremental diff content');
+    // Verify the three-dot notation was used
+    const incrementalCall = capturedArgs.find((a) => a[0] === 'diff' && a[2]?.includes('...'));
+    assert.ok(incrementalCall, 'expected a diff call with three-dot notation');
+    assert.equal(incrementalCall![2], 'prevsha...newhead');
+  });
+
+  test('getIncrementalDiff truncates long diffs', async () => {
+    const longDiff = Array.from({ length: 100 }, (_, i) => `+line ${i}`).join('\n');
+    const ds = createGitDataSource({
+      repositoryPath: '/repo',
+      baseSha: 'base',
+      headSha: 'head',
+      prNumber: 3,
+      github: createFakeGitHub(),
+      stateStore: {
+        async load() {
+          return { reviewedHeadSha: 'prev', findings: [], reviewedAt: 1 };
+        },
+        async save() {},
+      },
+      execGit: async (args) => {
+        if (args[0] === 'diff' && args[2]?.includes('...')) {
+          return { stdout: longDiff, stderr: '' };
+        }
+        return { stdout: DIFF, stderr: '' };
+      },
+    });
+    const result = await ds.getIncrementalDiff(10);
+    assert.equal(result.truncated, true);
+    assert.match(result.content, /truncated/);
+  });
+
+  test('getReviewState caches the state across calls', async () => {
+    let loadCalls = 0;
+    const ds = createGitDataSource({
+      repositoryPath: '/repo',
+      baseSha: 'base',
+      headSha: 'head',
+      prNumber: 3,
+      github: createFakeGitHub(),
+      stateStore: {
+        async load() {
+          loadCalls += 1;
+          return { reviewedHeadSha: 'cached', findings: [], reviewedAt: 1 };
+        },
+        async save() {},
+      },
+      execGit: async () => ({ stdout: DIFF, stderr: '' }),
+    });
+    await ds.getReviewState();
+    await ds.getReviewState();
+    await ds.getIncrementalDiff(1000);
+    assert.equal(loadCalls, 1);
+  });
+
+  test('getIncrementalDiff falls back gracefully when execGit throws (e.g. force-push)', async () => {
+    const ds = createGitDataSource({
+      repositoryPath: '/repo',
+      baseSha: 'base',
+      headSha: 'head',
+      prNumber: 3,
+      github: createFakeGitHub(),
+      stateStore: {
+        async load() {
+          return { reviewedHeadSha: 'oldsha', findings: [], reviewedAt: 1 };
+        },
+        async save() {},
+      },
+      execGit: async (args) => {
+        if (args[0] === 'diff' && args[2]?.includes('...')) {
+          throw new Error('fatal: bad object oldsha');
+        }
+        return { stdout: DIFF, stderr: '' };
+      },
+    });
+    const result = await ds.getIncrementalDiff(1000);
+    assert.equal(result.isFirstReview, true);
+    assert.equal(result.previousReviewedSha, 'oldsha');
+    assert.equal(result.content, '');
+    assert.equal(result.truncated, false);
+    assert.equal(result.totalLines, 0);
+  });
 });
