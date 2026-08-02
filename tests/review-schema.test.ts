@@ -49,7 +49,7 @@ describe('review schema', () => {
     const tooMany = {
       summary: 's',
       verdict: 'COMMENT',
-      findings: Array.from({ length: 11 }, () => ({
+      findings: Array.from({ length: 51 }, () => ({
         severity: 'low',
         path: 'a.ts',
         line: 1,

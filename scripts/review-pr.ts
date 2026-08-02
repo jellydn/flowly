@@ -12,10 +12,8 @@
  *   GITHUB_REPOSITORY  – owner/repo (set automatically by GitHub Actions)
  *   PR_NUMBER          – pull-request number
  *   BASE_SHA           – base commit SHA
- *   HEAD_SHA           – head commit SHA
- *   OPENROUTER_API_KEY – LLM provider key (or another provider's key)
- *
  * Optional:
+ *   OPENROUTER_API_KEY   – LLM provider key (or another provider's key depending on REPO_ASSISTANT_MODEL)
  *   REPOSITORY_PATH    – checkout root (defaults to the current directory)
  *   REPO_ASSISTANT_MODEL – model specifier (defaults to openrouter/cohere/north-mini-code:free)
  *   PR_REVIEW_MAX_*    – file-aware limits (see review/limits.ts)

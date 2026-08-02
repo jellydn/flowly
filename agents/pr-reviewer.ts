@@ -43,6 +43,9 @@ export function PrReviewer() {
   const limits: ReviewLimits = parseReviewLimits(env);
 
   const prNumber = Number(requireEnv('PR_NUMBER', env));
+  if (!Number.isInteger(prNumber) || prNumber <= 0) {
+    throw new Error(`PR_NUMBER must be a positive integer (got "${env['PR_NUMBER']}").`);
+  }
   const baseSha = requireEnv('BASE_SHA', env);
   const headSha = requireEnv('HEAD_SHA', env);
   const repositoryPath = env['REPOSITORY_PATH'] ?? '.';

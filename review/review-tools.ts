@@ -41,13 +41,14 @@ export function createListChangedFilesTool(dataSource: PrDataSource, limits: Rev
     async run() {
       const all = await dataSource.listChangedFiles();
       const reviewed = all.slice(0, limits.maxFiles);
-      const skippedCount = all.filter((f) => f.skip).length;
+      const skippedCount = reviewed.filter((f) => f.skip).length;
       return {
         output: {
           files: reviewed,
           totalFiles: all.length,
           truncated: all.length > limits.maxFiles,
           skippedByFilter: skippedCount,
+          skippedByFilterTotal: all.filter((f) => f.skip).length,
         },
       };
     },

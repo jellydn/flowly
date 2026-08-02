@@ -19,7 +19,7 @@ export const verdictSchema = v.picklist(['COMMENT', 'REQUEST_CHANGES']);
  * source of truth for the cap; {@link ./limits.ts} derives its configurable
  * maximum from this constant to keep the two from drifting apart.
  */
-export const REVIEW_FINDINGS_CEILING = 10;
+export const REVIEW_FINDINGS_CEILING = 50;
 
 export const findingSchema = v.object({
   severity: severitySchema,

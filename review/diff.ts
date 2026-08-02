@@ -49,7 +49,7 @@ export function parseUnifiedDiff(diff: string): FileDiff[] {
 
     if (line.startsWith('diff --git ')) {
       // Start a new file entry. Path is resolved from the +++ line below.
-      if (current) files.push(current);
+      if (current && current.path) files.push(current);
       current = {
         path: '',
         status: 'modified',

@@ -31,7 +31,7 @@ function parseNum(raw: string | undefined, fallback: number, min: number, max: n
   if (raw === undefined || raw === '') return fallback;
   const n = Number(raw);
   if (!Number.isInteger(n) || n < min || n > max) {
-    throw new Error(`${raw} is not an integer in [${min}, ${max}]; using default ${fallback}.`);
+    throw new Error(`${raw} is not an integer in [${min}, ${max}].`);
   }
   return n;
 }

@@ -36,8 +36,8 @@ describe('review limits', () => {
     assert.throws(() => parseReviewLimits({ PR_REVIEW_MAX_FINDINGS: 'abc' }));
   });
 
-  test('caps PR_REVIEW_MAX_FINDINGS at the schema ceiling (10)', () => {
-    assert.throws(() => parseReviewLimits({ PR_REVIEW_MAX_FINDINGS: '11' }));
-    assert.equal(parseReviewLimits({ PR_REVIEW_MAX_FINDINGS: '10' }).maxFindings, 10);
+  test('caps PR_REVIEW_MAX_FINDINGS at the schema ceiling (50)', () => {
+    assert.throws(() => parseReviewLimits({ PR_REVIEW_MAX_FINDINGS: '51' }));
+    assert.equal(parseReviewLimits({ PR_REVIEW_MAX_FINDINGS: '50' }).maxFindings, 50);
   });
 });

@@ -114,6 +114,23 @@ describe('parseUnifiedDiff', () => {
     assert.equal(parsed[0].additions, 2);
     assert.equal(parsed[0].deletions, 2);
   });
+
+  test('ignores diff entries without resolved path (mode-only / binary without markers)', () => {
+    const diff = [
+      'diff --git a/bin.dat b/bin.dat',
+      'old mode 100644',
+      'new mode 100755',
+      'diff --git a/valid.ts b/valid.ts',
+      '--- a/valid.ts',
+      '+++ b/valid.ts',
+      '@@ -1,1 +1,1 @@',
+      '-a',
+      '+b',
+    ].join('\n');
+    const parsed = parseUnifiedDiff(diff);
+    assert.equal(parsed.length, 1);
+    assert.equal(parsed[0].path, 'valid.ts');
+  });
 });
 
 describe('hunkForLine', () => {
