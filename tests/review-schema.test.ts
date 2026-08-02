@@ -108,7 +108,13 @@ describe('review schema', () => {
       ...validResult,
       previousFindingClassifications: [
         { path: 'src/auth.ts', line: 42, title: 'SQL injection', status: 'resolved' },
-        { path: 'src/utils.ts', line: 10, title: 'Unused import', status: 'still-present', note: 'Still there' },
+        {
+          path: 'src/utils.ts',
+          line: 10,
+          title: 'Unused import',
+          status: 'still-present',
+          note: 'Still there',
+        },
       ],
     });
     assert.equal(parsed.ok, true);
@@ -139,9 +145,7 @@ describe('review schema', () => {
   test('rejects a classification missing required fields', () => {
     const parsed = safeParseReviewResult({
       ...validResult,
-      previousFindingClassifications: [
-        { path: 'src/auth.ts', line: 42, status: 'resolved' },
-      ],
+      previousFindingClassifications: [{ path: 'src/auth.ts', line: 42, status: 'resolved' }],
     });
     assert.equal(parsed.ok, false);
   });

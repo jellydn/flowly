@@ -1,8 +1,5 @@
 import * as v from 'valibot';
-import {
-  findingSchema,
-  type Finding,
-} from './schema.ts';
+import { findingSchema } from './schema.ts';
 
 /**
  * Persistent review state stored in a hidden PR comment between review runs.

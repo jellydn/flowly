@@ -72,8 +72,7 @@ describe('parseReviewState', () => {
   });
 
   test('returns null for a state missing reviewedHeadSha', () => {
-    const body =
-      '<!-- flue-review-state\n{"findings":[],"reviewedAt":1}\n-->';
+    const body = '<!-- flue-review-state\n{"findings":[],"reviewedAt":1}\n-->';
     assert.equal(parseReviewState(body), null);
   });
 

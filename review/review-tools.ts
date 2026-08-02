@@ -128,15 +128,12 @@ export function createGetPreviousReviewStateTool(dataSource: PrDataSource) {
           reviewedAt: state.reviewedAt,
           message: `Previous review was at ${state.reviewedHeadSha.slice(0, 7)} with ${state.findings.length} finding(s). Use get_incremental_diff to see what changed since then, then classify each previous finding in submit_review.`,
         },
-        };
+      };
     },
   });
 }
 
-export function createGetIncrementalDiffTool(
-  dataSource: PrDataSource,
-  limits: ReviewLimits,
-) {
+export function createGetIncrementalDiffTool(dataSource: PrDataSource, limits: ReviewLimits) {
   return defineTool({
     name: 'get_incremental_diff',
     description: `Return the incremental diff since the last reviewed SHA (git diff prevSha...headSha), truncated to at most ${limits.maxDiffLines} lines. When this is the first review, returns isFirstReview=true with an empty diff. Use this after get_previous_review_state to focus on what changed since the last review.`,

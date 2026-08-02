@@ -238,7 +238,7 @@ what changed. The agent classifies each previous finding as `resolved`,
 `still-present`, `obsolete`, or `uncertain`, and the publisher renders those
 classifications in the review body with status icons (✅ ⚠️ 🗑️ ❓).
 
-State comments are filtered to bot accounts (`*[bot]`) to prevent untrusted PR
+State comments are filtered to the expected bot account (`github-actions[bot]` by default, configurable via `REVIEW_BOT_LOGIN`) to prevent untrusted PR
 participants from spoofing review state. State persistence is best-effort: if
 saving state fails after a review was posted, the error is reported in
 `validationIssues` but the run succeeds — the next run falls back to a full
