@@ -1,0 +1,25 @@
+# Configuration file for `prek`, a git hook framework written in Rust.
+# See https://prek.j178.dev for more information.
+#:schema https://www.schemastore.org/prek.json
+
+default_install_hook_types = ["pre-commit"]
+default_stages = ["pre-commit"]
+
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+id = "oxfmt"
+name = "oxfmt"
+entry = "oxfmt --check"
+language = "system"
+types_or = ["javascript", "ts", "tsx", "json", "css", "html"]
+exclude = '^eval/fixtures/'
+
+[[repos.hooks]]
+id = "oxlint"
+name = "oxlint"
+entry = "oxlint"
+language = "system"
+types_or = ["javascript", "ts", "tsx"]
+exclude = '^eval/fixtures/'
