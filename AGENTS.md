@@ -18,6 +18,8 @@ Read-only repository-analysis agent built on Flue 2.0. Two agents: a general rep
 - **oxlint and oxfmt are not npm devDependencies** — they resolve from PATH (installed via mise), not `node_modules`. If a hook errors with "command not found", they're missing from PATH.
 - `.oxlintrc.json` enables the `typescript`, `unicorn`, and `oxc` plugins with `correctness` as error; unused imports/vars fail the hook.
 - `.oxfmtrc.json` is the format contract: 2-space indent, single quotes, semicolons, trailing commas, 100-col width. oxfmt `--check` fails on anything that deviates.
+- After editing files, run `oxfmt <paths>` (without `--check`) to normalize them — a partially-formatted edit fails the oxfmt hook.
+- Both hooks `exclude = '^eval/fixtures/'` — that fixture repo is deliberately committed unformatted (see Constraints), so a hook failure there is expected and must not be "fixed".
 - `npm run check` and CI do not run these — lint/format are enforced locally by prek only.
 
 ## Setup & runtime

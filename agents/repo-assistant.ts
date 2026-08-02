@@ -22,14 +22,10 @@ export const description =
 
 export function RepoAssistant() {
   const env = process.env;
-  const repository = createRepositoryReaderSync(
-    env.REPOSITORY_PATH ?? '../oak',
-  );
+  const repository = createRepositoryReaderSync(env.REPOSITORY_PATH ?? '../oak');
   const budget = createStepBudget(parseMaxSteps(env.REPO_ASSISTANT_MAX_STEPS));
   const debug = createDebugLogger(env.REPO_ASSISTANT_DEBUG === 'true');
-  const reliabilityLog = createReliabilityLogger(
-    env.REPO_ASSISTANT_DEBUG === 'true',
-  );
+  const reliabilityLog = createReliabilityLogger(env.REPO_ASSISTANT_DEBUG === 'true');
   const retryConfig = parseRetryConfig(env);
   const injector = createFailureInjector(env);
   const planStore = createPlanStore();

@@ -38,21 +38,27 @@ Tests are top-level and named by responsibility. Suites use `describe`/`test`; t
 ## Coverage by Concern
 
 **Repository and tools:**
+
 - Path traversal, escaping symlinks, ignored directories, file limits, line bounds, literal search, empty results, shared budget, debug logging, and file-read failures.
 
 **Planning:**
+
 - Rule-based plan generation, normalization, PlanRun state transitions, historical/current results, executor skips, answer termination, cancellation, replanning, reflection, and compatibility with legacy stores.
 
 **Shared execution:**
+
 - Unknown tools, successful invocation, Flue envelope normalization, input forwarding, metadata, preflight/resolution callbacks, pre-abort behavior, in-flight cancellation, and compatibility exports.
 
 **Registry/search:**
+
 - Stable inspection registration order, all four wrapped tools, shared budget use, source/documentation scopes, early cancellation, bounded matches, and `filesSearched` behavior.
 
 **Reliability:**
+
 - Error classification, transient retry/backoff, cancellation, timeout, permanent failures, output validation, safe messages, fallback, failure injection, and structured observability.
 
 **Evidence and answers:**
+
 - Documentation/code evidence extraction, deduplication, excerpt truncation, confidence levels, citations, insufficient-evidence responses, duplicate-call blocking, early stopping, and iteration limits.
 
 ## Running Checks
@@ -78,4 +84,4 @@ The deterministic suite does not require an LLM key. `eval/run-eval.sh` is the m
 
 ---
 
-*Testing analysis: 2026-08-01*
+_Testing analysis: 2026-08-01_

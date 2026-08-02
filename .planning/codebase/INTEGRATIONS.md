@@ -5,11 +5,13 @@
 ## APIs and External Services
 
 **LLM provider:**
+
 - The documented default model is OpenRouter's `openrouter/qwen/qwen3-coder`, selected through Flue's model specifier. See `.env.example`, `README.md`, and `agents/repo-assistant.ts`.
 - Application code does not import an OpenRouter SDK; Flue's runtime and CLI perform provider communication.
 - Authentication is environment-based through `OPENROUTER_API_KEY`.
 
 **Flue services:**
+
 - `@flue/runtime` supplies model execution, typed tool protocol, sandbox lifecycle, skill loading, durability settings, and agent routing.
 - `@flue/vite` packages the agent and imported `skills/analyzing-repositories/SKILL.md` during the build.
 
@@ -57,4 +59,4 @@
 
 ---
 
-*Integration audit: 2026-08-01*
+_Integration audit: 2026-08-01_

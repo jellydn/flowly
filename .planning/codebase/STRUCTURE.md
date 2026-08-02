@@ -29,9 +29,11 @@ flue-repo-assistant/
 ## Responsibility Directories
 
 **`agents/`**
+
 - `repo-assistant.ts`: creates the repository reader, budget, reliability settings, `InspectionRegistry`, planning tools, sandbox, skill, and model configuration.
 
 **`tools/`**
+
 - `contracts.ts`: canonical inspection/planner names and shared output/evidence limits.
 - `repository.ts`: `RepositoryReader`, path confinement, file discovery, shared budget, and debug logging.
 - `inspection-registry.ts`: constructs and orders the four reliable inspection tools.
@@ -39,6 +41,7 @@ flue-repo-assistant/
 - `list-files.ts`, `read-file.ts`, `search-code.ts`, `search-docs.ts`: model-facing typed tool factories.
 
 **`planner/`**
+
 - `plan-run.ts`: deep plan lifecycle state and shared execution/replan/reflection behavior.
 - `plan-store.ts`: narrow compatibility interface and legacy result-preservation adapters.
 - `planner.ts`: deterministic plan generation and `create_plan` tool.
@@ -47,17 +50,20 @@ flue-repo-assistant/
 - `types.ts`: plan, step, result, status, and reflection types.
 
 **`investigation/`**
+
 - `tool-call.ts`: generic bounded execution-loop protocol.
 - `tool-execution.ts`: normalized tool outcomes, resolution, metadata, cancellation, and compatibility exports.
 - `loop.ts`: deterministic investigation adapter.
 - `evidence.ts`, `answer.ts`, `call-tracker.ts`, `types.ts`: evidence, citations, confidence, duplicate-call prevention, and domain types.
 
 **`reliability/`**
+
 - `tool-invocation.ts`: Flue v2 context/envelope normalization.
 - `resilient-tool.ts`: reliable inspection-tool construction and execution.
 - `retry.ts`, `errors.ts`, `validation.ts`, `fallback.ts`, `observability.ts`, `failure-injection.ts`: policy and support modules.
 
 **`tests/`**
+
 - `tools.test.ts`, `repository.test.ts`: repository safety, tool contracts, and budgets.
 - `planner.test.ts`: plan lifecycle, execution, replanning, reflection, and cancellation.
 - `tool-execution.test.ts`: invocation metadata, cancellation, callback behavior, and compatibility exports.
@@ -104,4 +110,4 @@ flue-repo-assistant/
 
 ---
 
-*Structure analysis: 2026-08-01*
+_Structure analysis: 2026-08-01_
