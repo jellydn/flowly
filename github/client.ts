@@ -77,9 +77,7 @@ export class GitHubClient {
     if (!token) throw new Error('GITHUB_TOKEN is required for the PR reviewer.');
     const repository = env['GITHUB_REPOSITORY'];
     if (!repository || !repository.includes('/')) {
-      throw new Error(
-        'GITHUB_REPOSITORY must be set to "owner/repo" for the PR reviewer.',
-      );
+      throw new Error('GITHUB_REPOSITORY must be set to "owner/repo" for the PR reviewer.');
     }
     const [owner, repo] = repository.split('/');
     return new GitHubClient({
@@ -99,10 +97,7 @@ export class GitHubClient {
   }
 
   /** POST /repos/{owner}/{repo}/pulls/{prNumber}/reviews */
-  async submitReview(
-    prNumber: number,
-    payload: GitHubReviewPayload,
-  ): Promise<SubmitReviewResult> {
+  async submitReview(prNumber: number, payload: GitHubReviewPayload): Promise<SubmitReviewResult> {
     return this.requestJson<SubmitReviewResult>(
       'POST',
       `/repos/${this.owner}/${this.repo}/pulls/${prNumber}/reviews`,
@@ -110,11 +105,7 @@ export class GitHubClient {
     );
   }
 
-  private async requestJson<T>(
-    method: string,
-    path: string,
-    body?: unknown,
-  ): Promise<T> {
+  private async requestJson<T>(method: string, path: string, body?: unknown): Promise<T> {
     const url = `${this.apiUrl}${path}`;
     const response = await fetch(url, {
       method,

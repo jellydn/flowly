@@ -124,9 +124,14 @@ export function parseUnifiedDiff(diff: string): FileDiff[] {
     }
 
     if (inHunk && current) {
-      if (line.startsWith('+') && !line.startsWith('+++')) {
+      // Inside a hunk body the `+++ `/`--- ` file headers never appear (they
+      // precede the first `@@`), so count by the first char alone. Gating on
+      // `!startsWith('+++')` would wrongly skip an added line whose content
+      // begins with `++` (e.g. `++i;` → diff line `+++i;`).
+      const first = line[0];
+      if (first === '+') {
         current.additions += 1;
-      } else if (line.startsWith('-') && !line.startsWith('---')) {
+      } else if (first === '-') {
         current.deletions += 1;
       }
     }
@@ -149,10 +154,7 @@ function stripPrefix(value: string): string {
  * deleted or binary). Used by the trusted adapter to clamp inline comments to
  * valid diff lines.
  */
-export function hunkForLine(
-  file: FileDiff,
-  line: number,
-): DiffHunk | null {
+export function hunkForLine(file: FileDiff, line: number): DiffHunk | null {
   if (file.hunks.length === 0) return null;
 
   let best: DiffHunk | null = null;
@@ -162,8 +164,7 @@ export function hunkForLine(
     if (line >= hunk.newStart && line <= hunk.newEnd) {
       return hunk;
     }
-    const distance =
-      line < hunk.newStart ? hunk.newStart - line : line - hunk.newEnd;
+    const distance = line < hunk.newStart ? hunk.newStart - line : line - hunk.newEnd;
     if (distance < bestDistance) {
       bestDistance = distance;
       best = hunk;
@@ -182,7 +183,10 @@ export function findFileDiff(files: FileDiff[], path: string): FileDiff | undefi
  * Truncate a diff string to at most `maxLines` lines, appending a truncation
  * marker when content is dropped. Keeps the output bounded for the model.
  */
-export function truncateDiff(diff: string, maxLines: number): { content: string; truncated: boolean; totalLines: number } {
+export function truncateDiff(
+  diff: string,
+  maxLines: number,
+): { content: string; truncated: boolean; totalLines: number } {
   const lines = diff.split(/\r?\n/);
   if (lines.length <= maxLines) {
     return { content: diff, truncated: false, totalLines: lines.length };

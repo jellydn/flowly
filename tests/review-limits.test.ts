@@ -1,9 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import {
-  DEFAULT_REVIEW_LIMITS,
-  parseReviewLimits,
-} from '../review/limits.ts';
+import { DEFAULT_REVIEW_LIMITS, parseReviewLimits } from '../review/limits.ts';
 
 describe('review limits', () => {
   test('defaults match the proposal', () => {
@@ -37,5 +34,10 @@ describe('review limits', () => {
     assert.throws(() => parseReviewLimits({ PR_REVIEW_MAX_FILES: '0' }));
     assert.throws(() => parseReviewLimits({ PR_REVIEW_MAX_FILES: '200' }));
     assert.throws(() => parseReviewLimits({ PR_REVIEW_MAX_FINDINGS: 'abc' }));
+  });
+
+  test('caps PR_REVIEW_MAX_FINDINGS at the schema ceiling (10)', () => {
+    assert.throws(() => parseReviewLimits({ PR_REVIEW_MAX_FINDINGS: '11' }));
+    assert.equal(parseReviewLimits({ PR_REVIEW_MAX_FINDINGS: '10' }).maxFindings, 10);
   });
 });

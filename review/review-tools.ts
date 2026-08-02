@@ -1,26 +1,10 @@
-/**
- * Review-specific tool factories for the PR reviewer agent. Each tool is a
- * thin, trusted wrapper over a {@link PrDataSource} or {@link ReviewPublisher}.
- *
- * The agent calls these tools; the tools perform the git/GitHub work in trusted
- * code. The model never receives a generic shell, the GitHub token, or
- * unrestricted filesystem access — only the validated, bounded outputs these
- * tools return.
- */
-
 import { defineTool } from '@flue/runtime';
 import * as v from 'valibot';
 import type { ReviewPublisher } from '../github/adapter.ts';
-import type { ReviewLimits } from './limits.ts';
-import { reviewResultSchema, type ReviewResult } from './schema.ts';
-import type {
-  ChangedFile,
-  GetDiffResult,
-  PrDataSource,
-  PrMetadata,
-  ReadChangedFileResult,
-} from './pr-data.ts';
 import type { DiffHunk } from './diff.ts';
+import type { ReviewLimits } from './limits.ts';
+import type { GetDiffResult, PrDataSource, PrMetadata, ReadChangedFileResult } from './pr-data.ts';
+import { type ReviewResult, reviewResultSchema } from './schema.ts';
 
 const MAX_PATH_LENGTH = 500;
 
@@ -37,10 +21,7 @@ export function createGetPrMetadataTool(dataSource: PrDataSource) {
   });
 }
 
-export function createGetPrDiffTool(
-  dataSource: PrDataSource,
-  limits: ReviewLimits,
-) {
+export function createGetPrDiffTool(dataSource: PrDataSource, limits: ReviewLimits) {
   return defineTool({
     name: 'get_pr_diff',
     description: `Return the unified diff for the whole PR, truncated to at most ${limits.maxDiffLines} lines. Use this to see exactly what changed. Skip-reviewed files (lockfiles, generated, snapshots, vendored) are still present in the diff but should not be analyzed.`,
@@ -52,10 +33,7 @@ export function createGetPrDiffTool(
   });
 }
 
-export function createListChangedFilesTool(
-  dataSource: PrDataSource,
-  limits: ReviewLimits,
-) {
+export function createListChangedFilesTool(dataSource: PrDataSource, limits: ReviewLimits) {
   return defineTool({
     name: 'list_changed_files',
     description: `List the files changed in this PR with per-file additions, deletions, status, and a skip flag. Capped at ${limits.maxFiles} files; the rest are summarized. Use this to pick which files to inspect closely.`,
@@ -80,7 +58,7 @@ export function createReadChangedFileTool(dataSource: PrDataSource) {
   return defineTool({
     name: 'read_changed_file',
     description:
-      'Read a bounded line range (≤400 lines) from the post-PR version of a changed file. Use after list_changed_files to inspect surrounding context for a finding. Returns numbered lines and the total line count.',
+      "Read a bounded line range (≤400 lines) from the post-PR version of a changed file. The path must be one of the PR's changed files (see list_changed_files); other paths are rejected. Use after list_changed_files to inspect surrounding context for a finding. Returns numbered lines and the total line count.",
     input: v.object({
       path: v.pipe(v.string(), v.minLength(1), v.maxLength(MAX_PATH_LENGTH)),
       startLine: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1)), 1),
@@ -115,9 +93,7 @@ export function createGetDiffHunksTool(dataSource: PrDataSource) {
   });
 }
 
-export function createSubmitReviewTool(
-  publisher: ReviewPublisher,
-) {
+export function createSubmitReviewTool(publisher: ReviewPublisher) {
   return defineTool({
     name: 'submit_review',
     description:

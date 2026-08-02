@@ -7,6 +7,8 @@
  * {@link parseReviewLimits}.
  */
 
+import { REVIEW_FINDINGS_CEILING } from './schema.ts';
+
 export type ReviewLimits = {
   /** Maximum number of changed files to review. */
   maxFiles: number;
@@ -14,7 +16,7 @@ export type ReviewLimits = {
   maxDiffLines: number;
   /** Maximum read_file / search_code context calls. */
   maxContextReads: number;
-  /** Maximum findings accepted by submit_review. */
+  /** Maximum findings accepted by submit_review (capped by the schema ceiling). */
   maxFindings: number;
 };
 
@@ -25,26 +27,17 @@ export const DEFAULT_REVIEW_LIMITS: ReviewLimits = {
   maxFindings: 10,
 };
 
-function parseNum(
-  raw: string | undefined,
-  fallback: number,
-  min: number,
-  max: number,
-): number {
+function parseNum(raw: string | undefined, fallback: number, min: number, max: number): number {
   if (raw === undefined || raw === '') return fallback;
   const n = Number(raw);
   if (!Number.isInteger(n) || n < min || n > max) {
-    throw new Error(
-      `${raw} is not an integer in [${min}, ${max}]; using default ${fallback}.`,
-    );
+    throw new Error(`${raw} is not an integer in [${min}, ${max}]; using default ${fallback}.`);
   }
   return n;
 }
 
 /** Parse review limits from environment variables. */
-export function parseReviewLimits(
-  env: Record<string, string | undefined>,
-): ReviewLimits {
+export function parseReviewLimits(env: Record<string, string | undefined>): ReviewLimits {
   return {
     maxFiles: parseNum(env['PR_REVIEW_MAX_FILES'], DEFAULT_REVIEW_LIMITS.maxFiles, 1, 100),
     maxDiffLines: parseNum(
@@ -63,7 +56,7 @@ export function parseReviewLimits(
       env['PR_REVIEW_MAX_FINDINGS'],
       DEFAULT_REVIEW_LIMITS.maxFindings,
       0,
-      50,
+      REVIEW_FINDINGS_CEILING,
     ),
   };
 }

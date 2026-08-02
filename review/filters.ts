@@ -49,17 +49,9 @@ const GENERATED_PATTERNS = [
   /\.g\.dart$/i,
 ];
 
-const SNAPSHOT_PATTERNS = [
-  /__snapshots__\//i,
-  /\.snap$/i,
-];
+const SNAPSHOT_PATTERNS = [/__snapshots__\//i, /\.snap$/i];
 
-export type SkipReason =
-  | 'lockfile'
-  | 'vendored'
-  | 'generated'
-  | 'snapshot'
-  | 'binary';
+export type SkipReason = 'lockfile' | 'vendored' | 'generated' | 'snapshot' | 'binary';
 
 const BINARY_EXTENSIONS = new Set([
   '.png',

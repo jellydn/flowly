@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { createGitDataSource } from '../review/pr-data.ts';
 import type { GitHubClient } from '../github/client.ts';
+import { createGitDataSource } from '../review/pr-data.ts';
 
 const DIFF = [
   'diff --git a/src/auth.ts b/src/auth.ts',
@@ -74,20 +74,22 @@ describe('git data source', () => {
   });
 
   test('listChangedFiles reflects skip flags', async () => {
-    const ds = createSource([
-      'diff --git a/src/index.ts b/src/index.ts',
-      '--- a/src/index.ts',
-      '+++ b/src/index.ts',
-      '@@ -1,1 +1,1 @@',
-      '-a',
-      '+b',
-      'diff --git a/yarn.lock b/yarn.lock',
-      '--- a/yarn.lock',
-      '+++ b/yarn.lock',
-      '@@ -1,1 +1,1 @@',
-      '-a',
-      '+b',
-    ].join('\n'));
+    const ds = createSource(
+      [
+        'diff --git a/src/index.ts b/src/index.ts',
+        '--- a/src/index.ts',
+        '+++ b/src/index.ts',
+        '@@ -1,1 +1,1 @@',
+        '-a',
+        '+b',
+        'diff --git a/yarn.lock b/yarn.lock',
+        '--- a/yarn.lock',
+        '+++ b/yarn.lock',
+        '@@ -1,1 +1,1 @@',
+        '-a',
+        '+b',
+      ].join('\n'),
+    );
     const files = await ds.listChangedFiles();
     assert.equal(files.length, 2);
     assert.equal(files[0].skip, false);
@@ -119,6 +121,50 @@ describe('git data source', () => {
   test('readChangedFile rejects path traversal', async () => {
     const ds = createSource();
     await assert.rejects(() => ds.readChangedFile('../etc/passwd'));
+  });
+
+  test('readChangedFile rejects a path not among the changed files', async () => {
+    const ds = createSource();
+    await assert.rejects(
+      () => ds.readChangedFile('src/untouched.ts', 1, 2),
+      /not among the PR's changed files/,
+    );
+  });
+
+  test('readChangedFile reports truncated only when the range is cut short', async () => {
+    const ds = createSource(DIFF, 'l1\nl2\nl3\nl4\nl5');
+    const exact = await ds.readChangedFile('src/auth.ts', 1, 3);
+    assert.equal(exact.truncated, false);
+    assert.equal(exact.endLine, 3);
+    const beyond = await ds.readChangedFile('src/auth.ts', 4, 99);
+    assert.equal(beyond.truncated, true);
+    assert.equal(beyond.endLine, 5);
+  });
+
+  test('getMetadata reports the reviewed (env) SHAs, not the API SHAs', async () => {
+    const ds = createGitDataSource({
+      repositoryPath: '/repo',
+      baseSha: 'env-base',
+      headSha: 'env-head',
+      prNumber: 3,
+      github: {
+        async getPr() {
+          return {
+            number: 3,
+            title: 't',
+            body: 'b',
+            user: { login: 'x' },
+            head: { sha: 'api-head', ref: 'feat' },
+            base: { sha: 'api-base', ref: 'main' },
+            draft: false,
+          };
+        },
+      } as unknown as GitHubClient,
+      execGit: async () => ({ stdout: DIFF, stderr: '' }),
+    });
+    const meta = await ds.getMetadata();
+    assert.equal(meta.baseSha, 'env-base');
+    assert.equal(meta.headSha, 'env-head');
   });
 
   test('caches the diff across calls', async () => {

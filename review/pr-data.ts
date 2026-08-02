@@ -11,15 +11,15 @@
 import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { GitHubClient } from '../github/client.ts';
-import { classifyFile, type SkipReason } from './filters.ts';
+import type { GitHubClient } from '../github/client.ts';
 import {
+  type DiffHunk,
+  type FileDiff,
   findFileDiff,
   parseUnifiedDiff,
   truncateDiff,
-  type DiffHunk,
-  type FileDiff,
 } from './diff.ts';
+import { classifyFile, type SkipReason } from './filters.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -144,8 +144,11 @@ export function createGitDataSource(options: GitDataSourceOptions): PrDataSource
         title: pr.title,
         body: pr.body,
         author: pr.user.login,
-        baseSha: pr.base.sha,
-        headSha: pr.head.sha,
+        // Report the SHAs actually under review (from the CI env / options),
+        // not the GitHub API's — on a `synchronize` race the API head/base can
+        // diverge from the diff we parsed, which would mislead the model.
+        baseSha: options.baseSha,
+        headSha: options.headSha,
         changedFiles: toChangedFiles(files),
       };
       return cachedMetadata;
@@ -176,18 +179,19 @@ export function createGitDataSource(options: GitDataSourceOptions): PrDataSource
       if (absolute !== root && !absolute.startsWith(`${root}${path.sep}`)) {
         throw new Error('Path escapes the repository root.');
       }
+      // Confine reads to the PR's changed files. Without this the tool is a
+      // superset of read_file (the working tree equals head in CI) and would
+      // let the model bypass the context-read budget that bounds read_file /
+      // search_code.
+      const files = await fetchFiles();
+      if (!findFileDiff(files, filePath)) {
+        throw new Error(`"${filePath}" is not among the PR's changed files.`);
+      }
       // Read the post-PR version from the checked-out working tree (head).
-      const { stdout } = await execGit(
-        ['show', `${options.headSha}:${filePath}`],
-        root,
-      );
+      const { stdout } = await execGit(['show', `${options.headSha}:${filePath}`], root);
       const lines = stdout.split(/\r?\n/);
       const requestedEnd = endLine ?? startLine + MAX_RETURNED_LINES - 1;
-      const clampedEnd = Math.min(
-        requestedEnd,
-        startLine + MAX_RETURNED_LINES - 1,
-        lines.length,
-      );
+      const clampedEnd = Math.min(requestedEnd, startLine + MAX_RETURNED_LINES - 1, lines.length);
       const content = lines
         .slice(startLine - 1, clampedEnd)
         .map((line, index) => `${startLine + index}: ${line}`)
@@ -198,10 +202,11 @@ export function createGitDataSource(options: GitDataSourceOptions): PrDataSource
         endLine: clampedEnd,
         totalLines: lines.length,
         content,
-        truncated: requestedEnd > clampedEnd || clampedEnd < lines.length,
+        // Truncated only when the requested range was cut short (by the
+        // per-call line cap or EOF) — not merely because the file has more
+        // lines beyond an explicitly-requested range.
+        truncated: requestedEnd > clampedEnd,
       };
     },
   };
 }
-
-

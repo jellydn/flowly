@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import { createReviewPublisher } from '../github/adapter.ts';
-import type { GitHubClient, GitHubReviewPayload } from '../github/client.ts';
+import { GitHubApiError, type GitHubClient, type GitHubReviewPayload } from '../github/client.ts';
 import type { ReviewLimits } from '../review/limits.ts';
 import { DEFAULT_REVIEW_LIMITS } from '../review/limits.ts';
 
@@ -15,6 +15,25 @@ const DIFF = [
   '+new one',
   '+new two',
   ' context',
+].join('\n');
+
+const DIFF_WITH_DELETED = [
+  'diff --git a/src/auth.ts b/src/auth.ts',
+  '--- a/src/auth.ts',
+  '+++ b/src/auth.ts',
+  '@@ -10,3 +10,5 @@',
+  ' context',
+  '-old',
+  '+new one',
+  '+new two',
+  ' context',
+  'diff --git a/src/old.ts b/src/old.ts',
+  'deleted file mode 100644',
+  '--- a/src/old.ts',
+  '+++ /dev/null',
+  '@@ -1,2 +0,0 @@',
+  '-gone one',
+  '-gone two',
 ].join('\n');
 
 const limits: ReviewLimits = DEFAULT_REVIEW_LIMITS;
@@ -207,10 +226,7 @@ describe('review publisher', () => {
       limits,
     });
 
-    await assert.rejects(
-      () => publisher.publish({ verdict: 'COMMENT' }),
-      /invalid review result/,
-    );
+    await assert.rejects(() => publisher.publish({ verdict: 'COMMENT' }), /invalid review result/);
     assert.equal(client.submitted.length, 0);
   });
 
@@ -232,5 +248,124 @@ describe('review publisher', () => {
     assert.equal(result.submittedFindings, 0);
     assert.equal(client.submitted[0].payload.comments.length, 0);
     assert.match(client.submitted[0].payload.body, /No blocking issues found/);
+  });
+
+  test('drops findings on deleted files but still posts the review', async () => {
+    const client = createFakeClient();
+    const publisher = createReviewPublisher({
+      client,
+      prNumber: 1,
+      diffProvider: async () => DIFF_WITH_DELETED,
+      limits,
+    });
+
+    const result = await publisher.publish({
+      summary: 's',
+      verdict: 'COMMENT',
+      findings: [
+        {
+          severity: 'medium',
+          path: 'src/old.ts',
+          line: 1,
+          title: 'on deleted file',
+          explanation: 'e',
+          confidence: 0.6,
+        },
+        {
+          severity: 'medium',
+          path: 'src/auth.ts',
+          line: 11,
+          title: 'valid finding',
+          explanation: 'e',
+          confidence: 0.6,
+        },
+      ],
+    });
+
+    // The deleted-file finding cannot be an inline comment (no right-side
+    // lines) but must not sink the whole review.
+    assert.equal(result.submittedFindings, 1);
+    assert.equal(result.skippedFindings, 1);
+    const comments = client.submitted[0].payload.comments;
+    assert.equal(comments.length, 1);
+    assert.equal(comments[0].path, 'src/auth.ts');
+    assert.match(client.submitted[0].payload.body, /not posted inline/);
+    assert.match(client.submitted[0].payload.body, /deleted/);
+  });
+
+  test('falls back to a body-only review when inline comments 422', async () => {
+    const submitted: GitHubReviewPayload[] = [];
+    const client = {
+      async submitReview(_prNumber: number, payload: GitHubReviewPayload) {
+        submitted.push(payload);
+        if (payload.comments.length > 0) {
+          throw new GitHubApiError('Validation Failed', 422, '{"message":"invalid line"}');
+        }
+        return { id: 7, html_url: 'https://github.com/o/r/pulls/1#review-7' };
+      },
+    } as unknown as GitHubClient;
+
+    const publisher = createReviewPublisher({
+      client,
+      prNumber: 1,
+      diffProvider: async () => DIFF,
+      limits,
+    });
+
+    const result = await publisher.publish({
+      summary: 's',
+      verdict: 'COMMENT',
+      findings: [
+        {
+          severity: 'medium',
+          path: 'src/auth.ts',
+          line: 11,
+          title: 't',
+          explanation: 'e',
+          confidence: 0.7,
+        },
+      ],
+    });
+
+    assert.equal(submitted.length, 2);
+    assert.equal(submitted[0].comments.length, 1);
+    assert.equal(submitted[1].comments.length, 0);
+    assert.equal(result.reviewId, 7);
+    assert.equal(result.submittedFindings, 0);
+    assert.match(result.validationIssues.join('\n'), /body-only/);
+  });
+
+  test('rethrows non-422 submit errors', async () => {
+    const client = {
+      async submitReview() {
+        throw new GitHubApiError('Server Error', 500, 'boom');
+      },
+    } as unknown as GitHubClient;
+
+    const publisher = createReviewPublisher({
+      client,
+      prNumber: 1,
+      diffProvider: async () => DIFF,
+      limits,
+    });
+
+    await assert.rejects(
+      () =>
+        publisher.publish({
+          summary: 's',
+          verdict: 'COMMENT',
+          findings: [
+            {
+              severity: 'low',
+              path: 'src/auth.ts',
+              line: 11,
+              title: 't',
+              explanation: 'e',
+              confidence: 0.5,
+            },
+          ],
+        }),
+      /Server Error/,
+    );
   });
 });

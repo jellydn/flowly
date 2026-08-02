@@ -1,11 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import {
-  findFileDiff,
-  hunkForLine,
-  parseUnifiedDiff,
-  truncateDiff,
-} from '../review/diff.ts';
+import { findFileDiff, hunkForLine, parseUnifiedDiff, truncateDiff } from '../review/diff.ts';
 
 const SAMPLE_DIFF = [
   'diff --git a/src/auth.ts b/src/auth.ts',
@@ -70,19 +65,13 @@ describe('parseUnifiedDiff', () => {
 
   test('extracts hunk line ranges', () => {
     const auth = findFileDiff(files, 'src/auth.ts');
-    assert.deepEqual(auth?.hunks, [
-      { oldStart: 10, oldEnd: 16, newStart: 10, newEnd: 18 },
-    ]);
+    assert.deepEqual(auth?.hunks, [{ oldStart: 10, oldEnd: 16, newStart: 10, newEnd: 18 }]);
   });
 
   test('handles single-line hunk headers (no count)', () => {
-    const diff = [
-      'diff --git a/a.ts b/a.ts',
-      '--- a/a.ts',
-      '+++ b/a.ts',
-      '@@ -5 +5 @@',
-      '+x',
-    ].join('\n');
+    const diff = ['diff --git a/a.ts b/a.ts', '--- a/a.ts', '+++ b/a.ts', '@@ -5 +5 @@', '+x'].join(
+      '\n',
+    );
     const parsed = parseUnifiedDiff(diff);
     assert.equal(parsed[0].hunks[0].oldEnd, 5);
     assert.equal(parsed[0].hunks[0].newEnd, 5);
@@ -109,6 +98,22 @@ describe('parseUnifiedDiff', () => {
     assert.equal(parsed[0].path, 'new.ts');
     assert.equal(parsed[0].oldPath, 'old.ts');
   });
+
+  test('counts added/deleted lines whose content starts with ++/--', () => {
+    const diff = [
+      'diff --git a/a.ts b/a.ts',
+      '--- a/a.ts',
+      '+++ b/a.ts',
+      '@@ -1,2 +1,2 @@',
+      '---i;',
+      '-plain',
+      '+++i;',
+      '+plain',
+    ].join('\n');
+    const parsed = parseUnifiedDiff(diff);
+    assert.equal(parsed[0].additions, 2);
+    assert.equal(parsed[0].deletions, 2);
+  });
 });
 
 describe('hunkForLine', () => {
@@ -128,7 +133,13 @@ describe('hunkForLine', () => {
   });
 
   test('returns null for a file with no hunks', () => {
-    const file = { path: 'x', status: 'modified' as const, additions: 0, deletions: 0, hunks: [] };
+    const file = {
+      path: 'x',
+      status: 'modified' as const,
+      additions: 0,
+      deletions: 0,
+      hunks: [],
+    };
     assert.equal(hunkForLine(file, 1), null);
   });
 });

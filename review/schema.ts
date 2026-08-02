@@ -9,14 +9,17 @@ import * as v from 'valibot';
  * array and a summary such as "No blocking issues found."
  */
 
-export const severitySchema = v.picklist([
-  'critical',
-  'high',
-  'medium',
-  'low',
-]);
+export const severitySchema = v.picklist(['critical', 'high', 'medium', 'low']);
 
 export const verdictSchema = v.picklist(['COMMENT', 'REQUEST_CHANGES']);
+
+/**
+ * Hard ceiling on findings per review. This schema is both the `submit_review`
+ * tool input and what the trusted adapter re-validates, so it is the single
+ * source of truth for the cap; {@link ./limits.ts} derives its configurable
+ * maximum from this constant to keep the two from drifting apart.
+ */
+export const REVIEW_FINDINGS_CEILING = 10;
 
 export const findingSchema = v.object({
   severity: severitySchema,
@@ -31,10 +34,7 @@ export const findingSchema = v.object({
 export const reviewResultSchema = v.object({
   summary: v.pipe(v.string(), v.minLength(1), v.maxLength(4000)),
   verdict: verdictSchema,
-  findings: v.pipe(
-    v.array(findingSchema),
-    v.maxLength(10),
-  ),
+  findings: v.pipe(v.array(findingSchema), v.maxLength(REVIEW_FINDINGS_CEILING)),
 });
 
 export type Severity = v.InferOutput<typeof severitySchema>;
