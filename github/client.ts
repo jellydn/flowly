@@ -119,15 +119,15 @@ export class GitHubClient {
 
   /**
    * GET /repos/{owner}/{repo}/issues/{prNumber}/comments — list all PR-level
-   * (issue) comments. Paginates through all pages (capped at 500 comments) so
+   * (issue) comments. Paginates through all pages (capped at 2000 comments) so
    * the caller can search for a hidden state comment anywhere in the thread.
    */
   async listIssueComments(prNumber: number): Promise<IssueComment[]> {
     const all: IssueComment[] = [];
     let page = 1;
     const perPage = 100;
-    // Cap at 5 pages (500 comments) to bound API usage.
-    while (page <= 5) {
+    // Cap at 20 pages (2000 comments) to bound API usage.
+    while (page <= 20) {
       const batch = await this.requestJson<IssueComment[]>(
         'GET',
         `/repos/${this.owner}/${this.repo}/issues/${prNumber}/comments?per_page=${perPage}&page=${page}`,
