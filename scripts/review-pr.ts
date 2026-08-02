@@ -17,7 +17,7 @@
  *
  * Optional:
  *   REPOSITORY_PATH    – checkout root (defaults to the current directory)
- *   REPO_ASSISTANT_MODEL – model specifier (defaults to openrouter/qwen/qwen3-coder)
+ *   REPO_ASSISTANT_MODEL – model specifier (defaults to openrouter/cohere/north-mini-code:free)
  *   PR_REVIEW_MAX_*    – file-aware limits (see review/limits.ts)
  */
 

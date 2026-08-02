@@ -6,7 +6,7 @@ Read-only repository-analysis agent built on Flue 2.0. Two agents: a general rep
 
 - `npm start -- --input '{"message":"<question>"}'` — run the repo assistant.
 - `npx flue run agents/repo-assistant.ts -m "..."` — invoke Flue directly.
-- `npm run review-pr` — run the PR review agent. Requires `GITHUB_TOKEN`, `GITHUB_REPOSITORY`, `PR_NUMBER`, `BASE_SHA`, `HEAD_SHA`, and an LLM key. `submit_review` posts the review.
+- `npm run review-pr` — run the PR review agent. Requires `GITHUB_TOKEN`, `GITHUB_REPOSITORY`, `PR_NUMBER`, `BASE_SHA`, `HEAD_SHA`, and an LLM key. Defaults to the free `openrouter/cohere/north-mini-code:free` model; override with `REPO_ASSISTANT_MODEL`. `submit_review` posts the review.
 - `npm run check` — runs `typecheck && test && build` in that exact order. CI runs only this. It does **not** run oxlint/oxfmt.
 - `npm test` — `tsx --test tests/*.test.ts` (Node's built-in test runner, not a separate framework).
 - `npm run build` — `vite build` (emits `dist/`, already gitignored).

@@ -1,16 +1,8 @@
 'use agent';
-import { useModel, useTool, useSandbox } from '@flue/runtime';
-import { restrictedSandbox } from '../sandbox.ts';
-import {
-  createDebugLogger,
-  createRepositoryReaderSync,
-  createStepBudget,
-} from '../tools/repository.ts';
-import { createReadFileTool } from '../tools/read-file.ts';
-import { createSearchCodeTool } from '../tools/search-code.ts';
-import { parseReviewLimits, type ReviewLimits } from '../review/limits.ts';
-import { GitHubClient } from '../github/client.ts';
+import { useModel, useSandbox, useTool } from '@flue/runtime';
 import { createReviewPublisher } from '../github/adapter.ts';
+import { GitHubClient } from '../github/client.ts';
+import { parseReviewLimits, type ReviewLimits } from '../review/limits.ts';
 import { createGitDataSource } from '../review/pr-data.ts';
 import {
   createGetDiffHunksTool,
@@ -20,6 +12,14 @@ import {
   createReadChangedFileTool,
   createSubmitReviewTool,
 } from '../review/review-tools.ts';
+import { restrictedSandbox } from '../sandbox.ts';
+import { createReadFileTool } from '../tools/read-file.ts';
+import {
+  createDebugLogger,
+  createRepositoryReaderSync,
+  createStepBudget,
+} from '../tools/repository.ts';
+import { createSearchCodeTool } from '../tools/search-code.ts';
 
 export const description =
   'Reviews pull requests for correctness, security, regressions, missing tests, and error-handling problems. Inspects the diff and surrounding context with read-only tools, then submits one structured GitHub review with inline findings. Never auto-approves.';
@@ -67,7 +67,7 @@ export function PrReviewer() {
     limits,
   });
 
-  useModel(env.REPO_ASSISTANT_MODEL ?? 'openrouter/qwen/qwen3-coder');
+  useModel(env.REPO_ASSISTANT_MODEL ?? 'openrouter/cohere/north-mini-code:free');
 
   // PR-data tools (trusted; do not consume the context-read budget)
   useTool(createGetPrMetadataTool(dataSource));
