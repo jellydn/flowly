@@ -1,0 +1,175 @@
+import assert from 'node:assert/strict';
+import { describe, test } from 'node:test';
+import { invokeTool } from '../reliability/tool-invocation.ts';
+import {
+  createGetDiffHunksTool,
+  createGetPrDiffTool,
+  createGetPrMetadataTool,
+  createListChangedFilesTool,
+  createReadChangedFileTool,
+  createSubmitReviewTool,
+} from '../review/review-tools.ts';
+import type { PrDataSource } from '../review/pr-data.ts';
+import type { ReviewPublisher } from '../github/adapter.ts';
+import { DEFAULT_REVIEW_LIMITS } from '../review/limits.ts';
+
+const DIFF = [
+  'diff --git a/src/auth.ts b/src/auth.ts',
+  '--- a/src/auth.ts',
+  '+++ b/src/auth.ts',
+  '@@ -10,3 +10,5 @@',
+  ' context',
+  '-old',
+  '+new one',
+  '+new two',
+  ' context',
+  'diff --git a/package-lock.json b/package-lock.json',
+  '--- a/package-lock.json',
+  '+++ b/package-lock.json',
+  '@@ -1,1 +1,2 @@',
+  ' {',
+  '+  "new": "dep"',
+].join('\n');
+
+function createFakeDataSource(): PrDataSource {
+  return {
+    async getMetadata() {
+      return {
+        number: 7,
+        title: 'Fix auth',
+        body: 'Improves error handling',
+        author: 'alice',
+        baseSha: 'aaa',
+        headSha: 'hhh',
+        changedFiles: [
+          { path: 'src/auth.ts', status: 'modified', additions: 2, deletions: 1, skip: false },
+          { path: 'package-lock.json', status: 'modified', additions: 1, deletions: 0, skip: true, skipReason: 'lockfile' },
+        ],
+      };
+    },
+    async getDiff() {
+      return { content: DIFF, truncated: false, totalLines: DIFF.split('\n').length };
+    },
+    async listChangedFiles() {
+      return [
+        { path: 'src/auth.ts', status: 'modified', additions: 2, deletions: 1, skip: false },
+        { path: 'package-lock.json', status: 'modified', additions: 1, deletions: 0, skip: true, skipReason: 'lockfile' },
+      ];
+    },
+    async getDiffHunks(p) {
+      if (p === 'src/auth.ts') {
+        return [{ oldStart: 10, oldEnd: 12, newStart: 10, newEnd: 14 }];
+      }
+      return [];
+    },
+    async readChangedFile(p, startLine = 1, endLine?) {
+      const content = `1: import { x } from "./x.ts";\n2: export const y = x;\n3: `;
+      return {
+        path: p,
+        startLine,
+        endLine: endLine ?? 3,
+        totalLines: 3,
+        content,
+        truncated: false,
+      };
+    },
+  };
+}
+
+async function run<T>(tool: Parameters<typeof invokeTool>[0], data: Record<string, unknown>): Promise<T> {
+  return invokeTool<T>(tool, { toolCallId: 'test', data });
+}
+
+describe('review tools', () => {
+  test('get_pr_metadata returns metadata and changed files', async () => {
+    const ds = createFakeDataSource();
+    const tool = createGetPrMetadataTool(ds);
+    const result = await run<{ number: number; changedFiles: unknown[] }>(tool, {});
+    assert.equal(result.number, 7);
+    assert.equal(result.changedFiles.length, 2);
+  });
+
+  test('get_pr_diff returns truncated diff content', async () => {
+    const ds = createFakeDataSource();
+    const tool = createGetPrDiffTool(ds, DEFAULT_REVIEW_LIMITS);
+    const result = await run<{ content: string; truncated: boolean; totalLines: number }>(tool, {});
+    assert.match(result.content, /diff --git/);
+    assert.equal(result.truncated, false);
+  });
+
+  test('list_changed_files reports skip flags and counts', async () => {
+    const ds = createFakeDataSource();
+    const tool = createListChangedFilesTool(ds, DEFAULT_REVIEW_LIMITS);
+    const result = await run<{
+      files: Array<{ path: string; skip: boolean }>;
+      totalFiles: number;
+      skippedByFilter: number;
+    }>(tool, {});
+    assert.equal(result.totalFiles, 2);
+    assert.equal(result.skippedByFilter, 1);
+    const lockfile = result.files.find((f) => f.path === 'package-lock.json');
+    assert.equal(lockfile?.skip, true);
+  });
+
+  test('read_changed_file returns numbered lines', async () => {
+    const ds = createFakeDataSource();
+    const tool = createReadChangedFileTool(ds);
+    const result = await run<{ path: string; content: string; totalLines: number }>(
+      tool,
+      { path: 'src/auth.ts' },
+    );
+    assert.match(result.content, /^1:/);
+    assert.equal(result.totalLines, 3);
+  });
+
+  test('read_changed_file rejects endLine < startLine', async () => {
+    const ds = createFakeDataSource();
+    const tool = createReadChangedFileTool(ds);
+    await assert.rejects(() =>
+      run(tool, { path: 'src/auth.ts', startLine: 10, endLine: 5 }),
+    );
+  });
+
+  test('get_diff_hunks returns hunk ranges for a file', async () => {
+    const ds = createFakeDataSource();
+    const tool = createGetDiffHunksTool(ds);
+    const result = await run<{ path: string; hunks: Array<{ newStart: number }> }>(
+      tool,
+      { path: 'src/auth.ts' },
+    );
+    assert.equal(result.hunks.length, 1);
+    assert.equal(result.hunks[0].newStart, 10);
+  });
+
+  test('submit_review publishes and terminates the turn', async () => {
+    let published: unknown = null;
+    const fakePublisher: ReviewPublisher = {
+      async publish(result) {
+        published = result;
+        return {
+          reviewId: 99,
+          htmlUrl: 'https://example/review/99',
+          submittedFindings: 1,
+          skippedFindings: 0,
+          validationIssues: [],
+        };
+      },
+    };
+    const tool = createSubmitReviewTool(fakePublisher);
+    const raw = await tool.run({
+      toolCallId: 'test',
+      log: { info() {}, warn() {}, error() {} },
+      data: {
+        summary: 's',
+        verdict: 'COMMENT',
+        findings: [
+          { severity: 'low', path: 'a.ts', line: 1, title: 't', explanation: 'e', confidence: 0.5 },
+        ],
+      },
+    });
+    const envelope = raw as { output: { reviewId: number; message: string }; terminate?: boolean };
+    assert.equal(envelope.output.reviewId, 99);
+    assert.equal(envelope.terminate, true);
+    assert.ok(published);
+  });
+});

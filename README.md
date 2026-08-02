@@ -18,6 +18,8 @@ Rust-focused monorepo for privacy-preserving distributed systems.
 - One Flue agent
 - Four typed, read-only tools (`list_files`, `read_file`, `search_code`,
   `search_docs`)
+- A PR review agent (`agents/pr-reviewer.ts`) with review-specific tools and a
+  trusted GitHub adapter — never auto-approves
 - Bounded investigation loop with evidence collection and deduplication
 - Grounded answers with file citations and confidence levels
 - One reusable Agent Skill
@@ -161,6 +163,54 @@ The repository boundary is application-controlled, not model-controlled:
 Path checks assume the inspected checkout is stable while a tool call runs. Do
 not use this educational agent against a repository tree being concurrently
 modified by an untrusted process.
+
+## PR Review agent
+
+A second agent, `agents/pr-reviewer.ts`, reviews pull requests. It reuses the
+read-only inspection tools (`read_file`, `search_code`) for surrounding context
+and adds review-specific tools backed by a trusted GitHub/git boundary:
+
+- `get_pr_metadata` — PR number, title, body, author, and the changed-file list
+  (with skip flags for lockfiles, generated, vendored, and binary files).
+- `get_pr_diff` — the unified diff, truncated to a configurable line limit.
+- `list_changed_files` — per-file additions/deletions, status, and skip flags.
+- `read_changed_file` — a bounded line range from the post-PR version of a file.
+- `get_diff_hunks` — diff hunk line ranges for validating inline findings.
+- `submit_review` — posts one structured GitHub review with inline comments.
+
+### Analysis vs. mutation separation
+
+The model never holds the GitHub token or a generic shell. It emits a structured
+`ReviewResult` through `submit_review`; a trusted adapter
+(`github/adapter.ts`) re-validates the schema, confirms each finding's path is
+in the PR diff, clamps line numbers to valid diff hunks, caps the finding count,
+and posts exactly one review (`COMMENT` or `REQUEST_CHANGES`, never `APPROVE`)
+through a thin `fetch`-based GitHub client (`github/client.ts`). PR data is
+fetched by `git diff`/`git show` in trusted code (`review/pr-data.ts`), never
+from the sandbox.
+
+### File-aware limits
+
+Instead of the shared 8-call inspection budget, the reviewer uses configurable
+limits (`PR_REVIEW_MAX_FILES=30`, `PR_REVIEW_MAX_DIFF_LINES=4000`,
+`PR_REVIEW_MAX_CONTEXT_READS=20`, `PR_REVIEW_MAX_FINDINGS=10`). Generated files,
+lockfiles, snapshots, and vendored code are detected and skipped.
+
+### Running it
+
+A GitHub Actions workflow (`.github/workflows/pr-review.yml`) runs the reviewer
+on `opened`, `reopened`, `synchronize`, and `ready_for_review` events. Locally:
+
+```bash
+GITHUB_TOKEN=… GITHUB_REPOSITORY=owner/repo PR_NUMBER=42 \
+  BASE_SHA=… HEAD_SHA=… REPOSITORY_PATH=. OPENROUTER_API_KEY=… \
+  npm run review-pr
+```
+
+The first implementation is a full review only: it never modifies code, pushes
+commits, or auto-approves. Incremental review (persisting the last reviewed SHA
+and classifying previous findings as resolved/still-present/obsolete) is planned
+as a follow-up.
 
 ## Day 16: Tools for agents
 
@@ -625,7 +675,20 @@ The Day 21 test suite covers:
 ```text
 flue-repo-assistant/
 ├── agents/
-│   └── repo-assistant.ts
+│   ├── repo-assistant.ts
+│   └── pr-reviewer.ts
+├── github/
+│   ├── adapter.ts          # trusted review publisher
+│   └── client.ts           # thin GitHub REST client
+├── review/
+│   ├── diff.ts             # unified-diff parser
+│   ├── filters.ts          # skip lockfiles / generated / vendored
+│   ├── limits.ts           # file-aware review limits
+│   ├── pr-data.ts          # git + GitHub PR data source
+│   ├── review-tools.ts     # review-specific tool factories
+│   └── schema.ts           # ReviewResult Valibot schema
+├── scripts/
+│   └── review-pr.ts        # CI entrypoint (npm run review-pr)
 ├── investigation/
 │   ├── answer.ts
 │   ├── call-tracker.ts
