@@ -250,18 +250,30 @@ export function createGitDataSource(options: GitDataSourceOptions): PrDataSource
       // Use the three-dot notation: diff from the merge base of the two SHAs
       // to the new head. When the previous SHA is an ancestor of the head
       // (normal case — commits were added), this equals the direct diff.
-      const { stdout } = await execGit(
-        ['diff', '--no-color', `${state.reviewedHeadSha}...${options.headSha}`],
-        root,
-      );
-      const truncated = truncateDiff(stdout, maxLines);
-      return {
-        isFirstReview: false,
-        previousReviewedSha: state.reviewedHeadSha,
-        content: truncated.content,
-        truncated: truncated.truncated,
-        totalLines: truncated.totalLines,
-      };
+      try {
+        const { stdout } = await execGit(
+          ['diff', '--no-color', `${state.reviewedHeadSha}...${options.headSha}`],
+          root,
+        );
+        const truncated = truncateDiff(stdout, maxLines);
+        return {
+          isFirstReview: false,
+          previousReviewedSha: state.reviewedHeadSha,
+          content: truncated.content,
+          truncated: truncated.truncated,
+          totalLines: truncated.totalLines,
+        };
+      } catch {
+        // If git diff fails (e.g. force-push rewrote history and state.reviewedHeadSha
+        // is no longer reachable), degrade gracefully to a full review signal.
+        return {
+          isFirstReview: true,
+          previousReviewedSha: state.reviewedHeadSha,
+          content: '',
+          truncated: false,
+          totalLines: 0,
+        };
+      }
     },
   };
 }

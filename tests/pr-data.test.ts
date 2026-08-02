@@ -199,7 +199,12 @@ describe('git data source', () => {
   });
 
   test('getIncrementalDiff returns isFirstReview when state is null', async () => {
-    const store = { async load() { return null; }, async save() {} };
+    const store = {
+      async load() {
+        return null;
+      },
+      async save() {},
+    };
     const ds = createGitDataSource({
       repositoryPath: '/repo',
       baseSha: 'base',
@@ -245,9 +250,7 @@ describe('git data source', () => {
     assert.equal(result.previousReviewedSha, 'prevsha');
     assert.equal(result.content, 'incremental diff content');
     // Verify the three-dot notation was used
-    const incrementalCall = capturedArgs.find(
-      (a) => a[0] === 'diff' && a[2]?.includes('...'),
-    );
+    const incrementalCall = capturedArgs.find((a) => a[0] === 'diff' && a[2]?.includes('...'));
     assert.ok(incrementalCall, 'expected a diff call with three-dot notation');
     assert.equal(incrementalCall![2], 'prevsha...newhead');
   });
@@ -299,5 +302,33 @@ describe('git data source', () => {
     await ds.getReviewState();
     await ds.getIncrementalDiff(1000);
     assert.equal(loadCalls, 1);
+  });
+
+  test('getIncrementalDiff falls back gracefully when execGit throws (e.g. force-push)', async () => {
+    const ds = createGitDataSource({
+      repositoryPath: '/repo',
+      baseSha: 'base',
+      headSha: 'head',
+      prNumber: 3,
+      github: createFakeGitHub(),
+      stateStore: {
+        async load() {
+          return { reviewedHeadSha: 'oldsha', findings: [], reviewedAt: 1 };
+        },
+        async save() {},
+      },
+      execGit: async (args) => {
+        if (args[0] === 'diff' && args[2]?.includes('...')) {
+          throw new Error('fatal: bad object oldsha');
+        }
+        return { stdout: DIFF, stderr: '' };
+      },
+    });
+    const result = await ds.getIncrementalDiff(1000);
+    assert.equal(result.isFirstReview, true);
+    assert.equal(result.previousReviewedSha, 'oldsha');
+    assert.equal(result.content, '');
+    assert.equal(result.truncated, false);
+    assert.equal(result.totalLines, 0);
   });
 });
