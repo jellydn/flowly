@@ -290,6 +290,10 @@ function formatReviewBody(
     }
   }
 
+  function toSingleLine(str: string): string {
+    return str.replace(/[\r\n]+/g, ' ').trim();
+  }
+
   if (proposedLearnings && proposedLearnings.length > 0) {
     lines.push(
       '',
@@ -299,8 +303,10 @@ function formatReviewBody(
       '',
     );
     for (const learning of proposedLearnings) {
-      lines.push(`- **[${learning.category}]** ${learning.content}`);
-      lines.push(`  — _${learning.justification}_`);
+      const content = toSingleLine(learning.content);
+      const justification = toSingleLine(learning.justification);
+      lines.push(`- **[${learning.category}]** ${content}`);
+      lines.push(`  — _${justification}_`);
     }
   }
 

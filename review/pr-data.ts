@@ -9,7 +9,7 @@
  */
 
 import { execFile } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { lstatSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { GitHubClient } from '../github/client.ts';
@@ -137,6 +137,9 @@ const REVIEW_CONTEXT_FILES: Array<{ path: string; label: string }> = [
 
 /** Maximum lines read per context file to keep the tool output bounded. */
 const MAX_CONTEXT_FILE_LINES = 200;
+
+/** Maximum bytes read per context file before the file is skipped (1 MB). */
+const MAX_CONTEXT_FILE_BYTES = 1024 * 1024;
 
 /**
  * Real data source backed by `git diff` and the GitHub REST API. The diff and
@@ -318,6 +321,13 @@ export function createGitDataSource(options: GitDataSourceOptions): PrDataSource
     async getReviewContext(): Promise<ReviewContextResult> {
       if (cachedReviewContext) return cachedReviewContext;
       const entries: ReviewContextEntry[] = [];
+      const realRoot = (() => {
+        try {
+          return realpathSync(root);
+        } catch {
+          return root;
+        }
+      })();
 
       for (const { path: relPath, label } of REVIEW_CONTEXT_FILES) {
         const absolute = path.resolve(root, relPath);
@@ -327,9 +337,18 @@ export function createGitDataSource(options: GitDataSourceOptions): PrDataSource
         }
         let content: string;
         try {
-          content = readFileSync(absolute, 'utf8');
+          const stat = lstatSync(absolute);
+          // Skip non-regular files (e.g. symlinks) and files exceeding the size cap.
+          if (!stat.isFile() || stat.size > MAX_CONTEXT_FILE_BYTES) {
+            continue;
+          }
+          const canonical = realpathSync(absolute);
+          if (canonical !== realRoot && !canonical.startsWith(`${realRoot}${path.sep}`)) {
+            continue;
+          }
+          content = readFileSync(canonical, 'utf8');
         } catch {
-          // File doesn't exist — skip silently.
+          // File doesn't exist or is unreadable — skip silently.
           continue;
         }
         const lines = content.split(/\r?\n/);

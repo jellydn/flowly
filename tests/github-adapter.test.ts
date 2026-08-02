@@ -716,4 +716,32 @@ describe('review publisher', () => {
     const body = client.submitted[0].payload.body;
     assert.doesNotMatch(body, /Proposed repository learnings/);
   });
+
+  test('normalizes multiline proposed learnings to single lines in review body', async () => {
+    const client = createFakeClient();
+    const publisher = createReviewPublisher({
+      client,
+      prNumber: 1,
+      headSha: 'head',
+      diffProvider: async () => DIFF,
+      limits,
+    });
+
+    await publisher.publish({
+      summary: 'Review with multiline learnings.',
+      verdict: 'COMMENT',
+      findings: [],
+      proposedLearnings: [
+        {
+          category: 'convention',
+          content: 'Line 1\nLine 2',
+          justification: 'Justification line 1\r\nJustification line 2',
+        },
+      ],
+    });
+
+    const body = client.submitted[0].payload.body;
+    assert.match(body, /- \*\*\[convention\]\*\* Line 1 Line 2/);
+    assert.match(body, /— _Justification line 1 Justification line 2_/);
+  });
 });

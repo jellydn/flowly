@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, test } from 'node:test';
@@ -340,10 +340,7 @@ describe('git data source', () => {
     try {
       writeFileSync(join(dir, 'AGENTS.md'), '# Project\nUse Node 22.');
       mkdirSync(join(dir, '.flue'), { recursive: true });
-      writeFileSync(
-        join(dir, '.flue', 'review-instructions.md'),
-        '# Review\nFocus on security.',
-      );
+      writeFileSync(join(dir, '.flue', 'review-instructions.md'), '# Review\nFocus on security.');
       const ds = createGitDataSource({
         repositoryPath: dir,
         baseSha: 'base',
@@ -426,6 +423,49 @@ describe('git data source', () => {
       const second = await ds.getReviewContext();
       assert.equal(second.files[0].content, first.files[0].content);
       assert.match(second.files[0].content, /# Project/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('getReviewContext skips symlinked context files', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'flue-review-ctx-'));
+    try {
+      const target = join(dir, 'outside.txt');
+      writeFileSync(target, '# Secret outside repo');
+      symlinkSync(target, join(dir, 'AGENTS.md'));
+
+      const ds = createGitDataSource({
+        repositoryPath: dir,
+        baseSha: 'base',
+        headSha: 'head',
+        prNumber: 3,
+        github: createFakeGitHub(),
+        execGit: async () => ({ stdout: DIFF, stderr: '' }),
+      });
+      const result = await ds.getReviewContext();
+      assert.equal(result.files.length, 0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('getReviewContext skips files exceeding the size limit', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'flue-review-ctx-'));
+    try {
+      const largeContent = 'a'.repeat(1024 * 1024 + 1);
+      writeFileSync(join(dir, 'AGENTS.md'), largeContent);
+
+      const ds = createGitDataSource({
+        repositoryPath: dir,
+        baseSha: 'base',
+        headSha: 'head',
+        prNumber: 3,
+        github: createFakeGitHub(),
+        execGit: async () => ({ stdout: DIFF, stderr: '' }),
+      });
+      const result = await ds.getReviewContext();
+      assert.equal(result.files.length, 0);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
