@@ -3,7 +3,14 @@ import * as v from 'valibot';
 import type { ReviewPublisher } from '../github/adapter.ts';
 import type { DiffHunk } from './diff.ts';
 import type { ReviewLimits } from './limits.ts';
-import type { GetDiffResult, PrDataSource, PrMetadata, ReadChangedFileResult } from './pr-data.ts';
+import type {
+  GetDiffResult,
+  IncrementalDiffResult,
+  PrDataSource,
+  PrMetadata,
+  ReadChangedFileResult,
+} from './pr-data.ts';
+import type { ReviewState } from './review-state.ts';
 import { type ReviewResult, reviewResultSchema } from './schema.ts';
 
 const MAX_PATH_LENGTH = 500;
@@ -90,6 +97,55 @@ export function createGetDiffHunksTool(dataSource: PrDataSource) {
     async run({ data }) {
       const hunks: DiffHunk[] = await dataSource.getDiffHunks(data.path);
       return { output: { path: data.path, hunks } };
+    },
+  });
+}
+
+export function createGetPreviousReviewStateTool(dataSource: PrDataSource) {
+  return defineTool({
+    name: 'get_previous_review_state',
+    description:
+      'Load the previous review state from the hidden PR comment. Returns the reviewed head SHA, the findings from the last review, and the timestamp — or null when this is the first review. Call this early to determine whether this is a full review or an incremental review.',
+    input: v.object({}),
+    async run() {
+      const state: ReviewState | null = await dataSource.getReviewState();
+      if (!state) {
+        return {
+          output: {
+            isFirstReview: true,
+            reviewedHeadSha: null,
+            findings: [],
+            reviewedAt: null,
+            message: 'No previous review found. This is the first review — review the full diff.',
+          },
+        };
+      }
+      return {
+        output: {
+          isFirstReview: false,
+          reviewedHeadSha: state.reviewedHeadSha,
+          findings: state.findings,
+          reviewedAt: state.reviewedAt,
+          message: `Previous review was at ${state.reviewedHeadSha.slice(0, 7)} with ${state.findings.length} finding(s). Use get_incremental_diff to see what changed since then, then classify each previous finding in submit_review.`,
+        },
+        };
+    },
+  });
+}
+
+export function createGetIncrementalDiffTool(
+  dataSource: PrDataSource,
+  limits: ReviewLimits,
+) {
+  return defineTool({
+    name: 'get_incremental_diff',
+    description: `Return the incremental diff since the last reviewed SHA (git diff prevSha...headSha), truncated to at most ${limits.maxDiffLines} lines. When this is the first review, returns isFirstReview=true with an empty diff. Use this after get_previous_review_state to focus on what changed since the last review.`,
+    input: v.object({}),
+    async run() {
+      const result: IncrementalDiffResult = await dataSource.getIncrementalDiff(
+        limits.maxDiffLines,
+      );
+      return { output: result };
     },
   });
 }

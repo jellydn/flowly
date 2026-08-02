@@ -33,6 +33,18 @@ export type GitHubReviewPayload = {
 
 export type SubmitReviewResult = { id: number; html_url: string };
 
+/** A GitHub issue (PR) comment as returned by the REST API. */
+export type IssueComment = {
+  id: number;
+  body: string;
+  created_at: string;
+  updated_at: string;
+  user: { login: string } | null;
+};
+
+/** Result of creating or updating an issue comment. */
+export type IssueCommentResult = { id: number; html_url: string };
+
 export class GitHubApiError extends Error {
   constructor(
     message: string,
@@ -102,6 +114,46 @@ export class GitHubClient {
       'POST',
       `/repos/${this.owner}/${this.repo}/pulls/${prNumber}/reviews`,
       payload,
+    );
+  }
+
+  /**
+   * GET /repos/{owner}/{repo}/issues/{prNumber}/comments — list all PR-level
+   * (issue) comments. Paginates through all pages (capped at 500 comments) so
+   * the caller can search for a hidden state comment anywhere in the thread.
+   */
+  async listIssueComments(prNumber: number): Promise<IssueComment[]> {
+    const all: IssueComment[] = [];
+    let page = 1;
+    const perPage = 100;
+    // Cap at 5 pages (500 comments) to bound API usage.
+    while (page <= 5) {
+      const batch = await this.requestJson<IssueComment[]>(
+        'GET',
+        `/repos/${this.owner}/${this.repo}/issues/${prNumber}/comments?per_page=${perPage}&page=${page}`,
+      );
+      all.push(...batch);
+      if (batch.length < perPage) break;
+      page += 1;
+    }
+    return all;
+  }
+
+  /** POST /repos/{owner}/{repo}/issues/{prNumber}/comments */
+  async createIssueComment(prNumber: number, body: string): Promise<IssueCommentResult> {
+    return this.requestJson<IssueCommentResult>(
+      'POST',
+      `/repos/${this.owner}/${this.repo}/issues/${prNumber}/comments`,
+      { body },
+    );
+  }
+
+  /** PATCH /repos/{owner}/{repo}/issues/comments/{commentId} */
+  async updateIssueComment(commentId: number, body: string): Promise<IssueCommentResult> {
+    return this.requestJson<IssueCommentResult>(
+      'PATCH',
+      `/repos/${this.owner}/${this.repo}/issues/comments/${commentId}`,
+      { body },
     );
   }
 
