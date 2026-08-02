@@ -7,8 +7,6 @@ const isolatedMemorySandbox = bash(() => new Bash());
 // model-facing filesystem and shell tools. Repository access is available only
 // through this project's four custom, bounded tools.
 export const restrictedSandbox: SandboxFactory = {
-  createSessionEnv: isolatedMemorySandbox.createSessionEnv.bind(
-    isolatedMemorySandbox,
-  ),
+  createSessionEnv: isolatedMemorySandbox.createSessionEnv.bind(isolatedMemorySandbox),
   tools: () => [],
 };

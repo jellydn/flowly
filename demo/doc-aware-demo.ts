@@ -41,16 +41,32 @@ const scenarios: Scenario[] = [
     question: 'How does authentication work in this repository?',
     decide: async (state) => {
       if (state.iteration === 0)
-        return { type: 'call', tool: 'search_docs', input: { query: 'authentication', path: '.', caseSensitive: false } };
+        return {
+          type: 'call',
+          tool: 'search_docs',
+          input: { query: 'authentication', path: '.', caseSensitive: false },
+        };
       if (state.iteration === 1)
-        return { type: 'call', tool: 'search_code', input: { query: 'login', path: '.', caseSensitive: false } };
+        return {
+          type: 'call',
+          tool: 'search_code',
+          input: { query: 'login', path: '.', caseSensitive: false },
+        };
       if (state.iteration === 2) {
         const docEv = state.evidence.find((e) => e.sourceType === 'documentation');
-        if (docEv) return { type: 'call', tool: 'read_file', input: { path: docEv.filePath, startLine: 1 } };
+        if (docEv)
+          return { type: 'call', tool: 'read_file', input: { path: docEv.filePath, startLine: 1 } };
       }
       if (state.iteration === 3) {
-        const codeEv = state.evidence.find((e) => e.sourceType === 'code' && e.filePath.endsWith('.ts'));
-        if (codeEv) return { type: 'call', tool: 'read_file', input: { path: codeEv.filePath, startLine: 1 } };
+        const codeEv = state.evidence.find(
+          (e) => e.sourceType === 'code' && e.filePath.endsWith('.ts'),
+        );
+        if (codeEv)
+          return {
+            type: 'call',
+            tool: 'read_file',
+            input: { path: codeEv.filePath, startLine: 1 },
+          };
       }
       return { type: 'stop', reason: 'sufficient evidence collected' };
     },
@@ -60,9 +76,17 @@ const scenarios: Scenario[] = [
     question: 'Where is the database initialized?',
     decide: async (state) => {
       if (state.iteration === 0)
-        return { type: 'call', tool: 'search_docs', input: { query: 'database', path: '.', caseSensitive: false } };
+        return {
+          type: 'call',
+          tool: 'search_docs',
+          input: { query: 'database', path: '.', caseSensitive: false },
+        };
       if (state.iteration === 1)
-        return { type: 'call', tool: 'search_code', input: { query: 'database', path: '.', caseSensitive: false } };
+        return {
+          type: 'call',
+          tool: 'search_code',
+          input: { query: 'database', path: '.', caseSensitive: false },
+        };
       return { type: 'stop', reason: 'no evidence found' };
     },
   },
@@ -71,16 +95,30 @@ const scenarios: Scenario[] = [
     question: 'Which environment variables are required?',
     decide: async (state) => {
       if (state.iteration === 0)
-        return { type: 'call', tool: 'search_docs', input: { query: 'environment variable', path: '.', caseSensitive: false } };
+        return {
+          type: 'call',
+          tool: 'search_docs',
+          input: { query: 'environment variable', path: '.', caseSensitive: false },
+        };
       if (state.iteration === 1)
-        return { type: 'call', tool: 'search_code', input: { query: 'process.env', path: '.', caseSensitive: true } };
+        return {
+          type: 'call',
+          tool: 'search_code',
+          input: { query: 'process.env', path: '.', caseSensitive: true },
+        };
       if (state.iteration === 2) {
         const docEv = state.evidence.find((e) => e.sourceType === 'documentation');
-        if (docEv) return { type: 'call', tool: 'read_file', input: { path: docEv.filePath, startLine: 1 } };
+        if (docEv)
+          return { type: 'call', tool: 'read_file', input: { path: docEv.filePath, startLine: 1 } };
       }
       if (state.iteration === 3) {
         const codeEv = state.evidence.find((e) => e.sourceType === 'code');
-        if (codeEv) return { type: 'call', tool: 'read_file', input: { path: codeEv.filePath, startLine: 1 } };
+        if (codeEv)
+          return {
+            type: 'call',
+            tool: 'read_file',
+            input: { path: codeEv.filePath, startLine: 1 },
+          };
       }
       return { type: 'stop', reason: 'sufficient evidence' };
     },
@@ -90,12 +128,21 @@ const scenarios: Scenario[] = [
     question: 'Summarize the repository architecture.',
     decide: async (state) => {
       if (state.iteration === 0)
-        return { type: 'call', tool: 'search_docs', input: { query: 'architecture', path: '.', caseSensitive: false } };
+        return {
+          type: 'call',
+          tool: 'search_docs',
+          input: { query: 'architecture', path: '.', caseSensitive: false },
+        };
       if (state.iteration === 1)
         return { type: 'call', tool: 'list_files', input: { path: '.', depth: 3 } };
       if (state.iteration === 2) {
         const docEv = state.evidence.find((e) => e.filePath === 'docs/architecture.md');
-        if (docEv) return { type: 'call', tool: 'read_file', input: { path: 'docs/architecture.md', startLine: 1 } };
+        if (docEv)
+          return {
+            type: 'call',
+            tool: 'read_file',
+            input: { path: 'docs/architecture.md', startLine: 1 },
+          };
       }
       return { type: 'stop', reason: 'sufficient evidence' };
     },
@@ -105,13 +152,18 @@ const scenarios: Scenario[] = [
     question: 'Where is payment processing implemented?',
     decide: async (state) => {
       if (state.iteration === 0)
-        return { type: 'call', tool: 'search_code', input: { query: 'payment', path: '.', caseSensitive: false } };
+        return {
+          type: 'call',
+          tool: 'search_code',
+          input: { query: 'payment', path: '.', caseSensitive: false },
+        };
       if (state.iteration === 1) {
         // Check if any source code matched (not just misleading notes)
         const codeMatches = state.evidence.filter(
           (e) => e.sourceType === 'code' && !e.filePath.endsWith('.md'),
         );
-        if (codeMatches.length === 0) return { type: 'stop', reason: 'no payment implementation found' };
+        if (codeMatches.length === 0)
+          return { type: 'stop', reason: 'no payment implementation found' };
       }
       return { type: 'stop', reason: 'investigated' };
     },
@@ -123,9 +175,10 @@ function printResult(question: string, result: InvestigationResult): void {
   console.log('  Tools used:  ', result.toolsUsed.join(' → '));
   console.log('  Iterations:  ', `${result.iterations}/${DEFAULT_MAX_ITERATIONS}`);
   console.log('  Stop reason: ', result.stopReason);
-  console.log('  Cited files: ', result.answer.sources.length > 0
-    ? result.answer.sources.join(', ')
-    : '(none)');
+  console.log(
+    '  Cited files: ',
+    result.answer.sources.length > 0 ? result.answer.sources.join(', ') : '(none)',
+  );
   console.log('  Confidence:  ', result.answer.confidence);
   console.log('  Success:     ', !result.answer.insufficientEvidence);
   if (result.errors.length > 0) {
@@ -158,12 +211,7 @@ async function main() {
     console.log(`Scenario: ${scenario.name}`);
     console.log('------------------------------------------------------------');
 
-    const result = await runInvestigation(
-      scenario.question,
-      tools,
-      budget,
-      scenario.decide,
-    );
+    const result = await runInvestigation(scenario.question, tools, budget, scenario.decide);
     printResult(scenario.question, result);
   }
 

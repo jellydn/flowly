@@ -1,27 +1,36 @@
 # AGENTS.md
 
-Read-only repository-analysis agent built on [Flue](https://flueframework.com/) 2.0. The agent observes a single configured repo via four custom read-only tools, then answers with file/line citations.
+Read-only repository-analysis agent built on Flue 2.0. Two agents: a general repo assistant and a PR reviewer. Both are wired through `app.ts` and built with `vite build`.
 
 ## Commands
 
-- `npm start -- --input '{"message":"<question>"}'` — run the agent (wraps `flue run agents/repo-assistant.ts`).
+- `npm start -- --input '{"message":"<question>"}'` — run the repo assistant.
 - `npx flue run agents/repo-assistant.ts -m "..."` — invoke Flue directly.
-- `npm run review-pr` — run the PR review agent (`scripts/review-pr.ts`). Requires `GITHUB_TOKEN`, `GITHUB_REPOSITORY`, `PR_NUMBER`, `BASE_SHA`, `HEAD_SHA`, and an LLM key. The agent's `submit_review` tool posts the review.
-- `npm run check` — runs `typecheck && test && build` in that exact order. CI runs only this.
+- `npm run review-pr` — run the PR review agent. Requires `GITHUB_TOKEN`, `GITHUB_REPOSITORY`, `PR_NUMBER`, `BASE_SHA`, `HEAD_SHA`, and an LLM key. `submit_review` posts the review.
+- `npm run check` — runs `typecheck && test && build` in that exact order. CI runs only this. It does **not** run oxlint/oxfmt.
 - `npm test` — `tsx --test tests/*.test.ts` (Node's built-in test runner, not a separate framework).
 - `npm run build` — `vite build` (emits `dist/`, already gitignored).
+- `prek run --all-files` — runs the repo's linter and formatter (see Lint & format below).
 
-## Setup & runtime quirks
+## Lint & format
 
-- Requires **Node.js >= 22.19.0** (CI pins `24.18.1`). Older Node fails.
-- Needs an LLM key: `cp .env.example .env` and set `OPENROUTER_API_KEY` (default model is `openrouter/qwen/qwen3-coder`). `REPO_ASSISTANT_MODEL` accepts any specifier from Flue's models.json.
-- `REPOSITORY_PATH` defaults to `../oak` and is resolved to an absolute, realpath'd directory. The inspected repo must be a sibling checkout (README's `parent/{flue-repo-assistant,oak}` layout). Override with an absolute path when targeting another repo.
+- `prek.toml` defines two local `system` hooks: `oxfmt` (`oxfmt --check`) and `oxlint` (`oxlint`). Run them with `prek run --all-files`; `prek install` wires the pre-commit shim. `prek` is the hook manager — there is no `npm run lint`/`npm run fmt` script.
+- **oxlint and oxfmt are not npm devDependencies** — they resolve from PATH (installed via mise), not `node_modules`. If a hook errors with "command not found", they're missing from PATH.
+- `.oxlintrc.json` enables the `typescript`, `unicorn`, and `oxc` plugins with `correctness` as error; unused imports/vars fail the hook.
+- `.oxfmtrc.json` is the format contract: 2-space indent, single quotes, semicolons, trailing commas, 100-col width. oxfmt `--check` fails on anything that deviates.
+- `npm run check` and CI do not run these — lint/format are enforced locally by prek only.
 
-## Architecture (not obvious from filenames)
+## Setup & runtime
 
-- `agents/repo-assistant.ts` is the only agent and the entrypoint. It uses the `'use agent'` directive and exports `RepoAssistant()`, which calls hooks (`useModel`, `useTool`, `useSandbox`, `useSkill`) and returns the system prompt synchronously.
-- `agents/pr-reviewer.ts` is the PR review agent. It exports `PrReviewer()` and reuses the read-only `read_file`/`search_code` tools (with a separate file-aware budget) plus review-specific tools in `review/review-tools.ts`. The agent is also mounted at `/agents/pr-reviewer` in `app.ts`.
-- `app.ts` is the route map required by `vite build` — mounts the agents via `createAgentRouter`.
+- Requires **Node.js >= 22.19.0**.
+- Copy `.env.example` to `.env` and set `OPENROUTER_API_KEY`. Default model is `openrouter/qwen/qwen3-coder`; `REPO_ASSISTANT_MODEL` accepts any specifier from Flue's models.json.
+- `REPOSITORY_PATH` defaults to `../oak` and is resolved to an absolute, realpath'd directory. Override with an absolute path.
+
+## Architecture
+
+- `agents/repo-assistant.ts` is the only general agent and the entrypoint. It uses the `'use agent'` directive and exports `RepoAssistant()`, which calls hooks (`useModel`, `useTool`, `useSandbox`, `useSkill`) and returns the system prompt synchronously.
+- `agents/pr-reviewer.ts` exports `PrReviewer()` and is mounted at `/agents/pr-reviewer` in `app.ts`. It reuses `read_file`/`search_code` with a separate context-read budget, plus review-specific tools in `review/review-tools.ts`.
+- `app.ts` is the route map required by `vite build` — mounts both agents via `createAgentRouter`.
 - `vite.config.ts` loads the `@flue/vite` plugin for dev/build.
 - The four tools in `tools/` (`list-files`, `read-file`, `search-code`, `search-docs`) are created by factory functions in `tools/repository.ts`, which holds the real `RepositoryReader` (path confinement + budgets) and the shared `StepBudget`. The agent uses `createRepositoryReaderSync` because v2 agent render functions are synchronous.
 - `sandbox.ts` replaces Flue's default filesystem/shell tools with an empty toolset — repository access exists ONLY through the four custom inspection tools. The agent cannot write, run shell, or touch Git/network.
@@ -37,4 +46,4 @@ Read-only repository-analysis agent built on [Flue](https://flueframework.com/) 
 - Tool contexts use `data` (not `input`) and require `toolCallId` and `log` fields. Tool run functions return `{ output: value }` envelopes in v2.
 - The agent instructions forbid delegation (`task`/subagents) — there are no declared subagent profiles. Don't add them.
 - The PR reviewer never auto-approves: `review/schema.ts` restricts `verdict` to `COMMENT` | `REQUEST_CHANGES`. The trusted adapter is the only code that calls the GitHub review API, and it never uses `APPROVE`. The model never sees `GITHUB_TOKEN`.
-- `dist/`, `.flue-vite/`, and `.env` are build/runtime artifacts (gitignored). The `.amp/` dir is unrelated tooling state.
+- `dist/` and `.env` are build/runtime artifacts (gitignored).
