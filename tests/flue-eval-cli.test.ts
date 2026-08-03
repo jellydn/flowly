@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -69,10 +69,34 @@ test('report store round-trips a full report', async (t) => {
 test('CLI run command is smoke-testable via tsx without an LLM key', async (t) => {
   const dir = await mkdtemp(path.join(tmpdir(), 'flue-eval-run-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
+  // Single-model config so stdout is exactly one JSON report.
+  const configPath = path.join(dir, 'config.json');
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      suite: {
+        id: 'capstone',
+        name: 'Repository Assistant Capstone',
+        repositoryPath: 'eval/fixtures/sample-repo',
+        maxSteps: 8,
+        scenarios: [
+          {
+            id: 'cap-1',
+            prompt: 'What is the purpose of this repository?',
+            expectedSources: ['README.md'],
+            expectedKeywords: ['authentication', 'configuration'],
+            requiresCitation: true,
+            requiresToolCall: true,
+          },
+        ],
+      },
+      models: [{ id: 'openrouter/qwen/qwen3-coder', provider: 'openrouter', label: 'Qwen3 Coder' }],
+    }),
+  );
   const { spawnSync } = await import('node:child_process');
   const result = spawnSync(
     'npx',
-    ['tsx', 'scripts/flue-eval.ts', 'run', '--json'],
+    ['tsx', 'scripts/flue-eval.ts', 'run', configPath, '--json'],
     {
       cwd: process.cwd(),
       env: { ...process.env, FLUE_EVAL_RESULTS_DIR: dir },
@@ -83,6 +107,7 @@ test('CLI run command is smoke-testable via tsx without an LLM key', async (t) =
   assert.equal(result.status, 0, result.stderr);
   const output = JSON.parse(result.stdout) as BenchmarkReport;
   assert.equal(output.suiteId, 'capstone');
-  assert.equal(output.totalScenarios, 7);
+  assert.equal(output.totalScenarios, 1);
+  assert.equal(output.passed, 1);
   assert.ok(output.summary.qualityScore > 0);
 });

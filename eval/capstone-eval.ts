@@ -23,7 +23,7 @@
  */
 
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   createDebugLogger,
   createRepositoryReader,
@@ -544,7 +544,15 @@ async function main() {
   process.exit(report.failed > 0 ? 1 : 0);
 }
 
-main().catch((err) => {
-  console.error('Capstone evaluation failed:', err);
-  process.exit(1);
-});
+// Only run the suite when this file is executed directly (e.g. via
+// `eval/run-capstone-eval.sh` or `npm run capstone:eval`). Importing the
+// module (as the benchmark framework does for capstoneScenarios) must not
+// execute main().
+const isMain = process.argv[1] !== undefined &&
+  import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain) {
+  main().catch((err) => {
+    console.error('Capstone evaluation failed:', err);
+    process.exit(1);
+  });
+}

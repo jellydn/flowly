@@ -46,6 +46,11 @@ function fail(message: string, code = 1): never {
   process.exit(code);
 }
 
+/** First positional argument, skipping flags (e.g. `run --json` -> config path). */
+function positional(rest: string[]): string | undefined {
+  return rest.find((arg) => !arg.startsWith('--'));
+}
+
 function usage(): never {
   console.error(`Usage:
   npm run eval -- run <config.json> [--live] [--json]
@@ -149,7 +154,7 @@ async function main(): Promise<number> {
 
   switch (command) {
     case 'run': {
-      const configPath = rest[0] ?? DEFAULT_CONFIG;
+      const configPath = positional(rest) ?? DEFAULT_CONFIG;
       const live = rest.includes('--live');
       const json = rest.includes('--json');
       const { reports } = await runAll(configPath, live);
@@ -157,7 +162,7 @@ async function main(): Promise<number> {
       return 0;
     }
     case 'compare': {
-      const configPath = rest[0] ?? DEFAULT_CONFIG;
+      const configPath = positional(rest) ?? DEFAULT_CONFIG;
       const live = rest.includes('--live');
       const { suiteName, suiteId, reports } = await runAll(configPath, live);
       const comparison: ModelComparison = {
@@ -195,7 +200,7 @@ async function main(): Promise<number> {
       return 0;
     }
     case 'report': {
-      const runId = rest[0];
+      const runId = positional(rest);
       if (!runId) usage();
       const report = await store.load(runId);
       if (!report) {
