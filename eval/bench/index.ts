@@ -23,3 +23,21 @@ export type { LoadResult } from './config.ts';
 export { estimateCost, computeSummary, scoreScenario, buildReport } from './metrics.ts';
 export { createMemoryBenchmarkStore, createFileBenchmarkStore } from './store.ts';
 export type { BenchmarkStore } from './store.ts';
+export {
+  estimateTokens,
+  estimateTokensFromResult,
+  checkScenario,
+  runScenario,
+  runBenchmark,
+} from './runner.ts';
+export type { ScenarioChecks, RunBenchmarkOptions } from './runner.ts';
+export { createKeywordJudge, createLlmJudge, formatJudgePrompt } from './judge.ts';
+export type { Judge, JudgeInput, JudgeVerdict } from './judge.ts';
+export {
+  PROVIDER_PRICING,
+  pricingForProvider,
+  withDefaultPricing,
+  createStaticModelCall,
+  createOpenAiCompatibleClient,
+} from './providers.ts';
+export type { ModelCallFn } from './providers.ts';
