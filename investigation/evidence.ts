@@ -109,5 +109,26 @@ export function extractEvidence(tool: string, output: unknown, collector: Eviden
       sourceType: isDocumentationFile(result.path) ? 'documentation' : 'code',
       relevance: 1.0,
     });
+  } else if (tool === 'retrieve') {
+    const result = output as {
+      results?: Array<{
+        path: string;
+        startLine: number;
+        endLine: number;
+        excerpt: string;
+        score: number;
+        sourceType: EvidenceSourceType;
+      }>;
+    };
+    for (const item of result.results ?? []) {
+      collector.add({
+        filePath: item.path,
+        lineStart: item.startLine,
+        lineEnd: item.endLine,
+        excerpt: item.excerpt,
+        sourceType: item.sourceType,
+        relevance: Math.max(0.3, Math.min(0.8, item.score)),
+      });
+    }
   }
 }

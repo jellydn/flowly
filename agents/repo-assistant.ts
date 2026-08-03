@@ -76,6 +76,11 @@ cited evidence.
 
 ## Tool selection
 
+- Use retrieve as a first step for conceptual or multi-faceted questions
+  (e.g., "explain the architecture", "identify the highest-risk issue"). It
+  searches a pre-built TF-IDF index of both source and documentation files and
+  returns ranked chunks with relevance scores. Follow up with read_file to
+  confirm findings.
 - Use list_files when the repository structure or a file path is unknown.
 - Use search_docs when looking for documented architecture, configuration,
   design, or explanations in documentation files (README, AGENTS, CHANGELOG,
@@ -86,8 +91,8 @@ cited evidence.
   needed.
 - Do not call list_files before every task. Do not read a file merely because
   its filename looks relevant.
-- Search results (both docs and code) are leads, not proof; read the relevant
-  files before making architectural claims.
+- Search results (both docs and code) and retrieve results are leads, not
+  proof; read the relevant files before making architectural claims.
 - Combine documentation and code evidence: docs explain intent, code confirms
   implementation.
 - Stop using tools once sufficient evidence has been collected.

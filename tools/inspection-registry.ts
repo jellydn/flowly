@@ -3,13 +3,14 @@ import { createListFilesTool } from './list-files.ts';
 import { createReadFileTool } from './read-file.ts';
 import { createSearchCodeTool } from './search-code.ts';
 import { createSearchDocsTool } from './search-docs.ts';
+import { createRetrieveTool } from './retrieve.ts';
 import type { DebugLogger, RepositoryReader, StepBudget } from './repository.ts';
 import type { FailureInjector } from '../reliability/failure-injection.ts';
 import type { ReliabilityLogger } from '../reliability/observability.ts';
 import type { RetryConfig, SleepFn } from '../reliability/retry.ts';
 import { createReliableInspectionTool } from '../reliability/resilient-tool.ts';
 
-export type InspectionToolName = 'list_files' | 'read_file' | 'search_code' | 'search_docs';
+export type InspectionToolName = 'list_files' | 'read_file' | 'search_code' | 'search_docs' | 'retrieve';
 
 export type InspectionRegistryOptions = {
   repository: RepositoryReader;
@@ -34,6 +35,7 @@ const TOOL_NAMES = [
   'read_file',
   'search_code',
   'search_docs',
+  'retrieve',
 ] as const satisfies readonly InspectionToolName[];
 
 const rawToolFactories: Readonly<Record<InspectionToolName, RawToolFactory>> = {
@@ -41,6 +43,7 @@ const rawToolFactories: Readonly<Record<InspectionToolName, RawToolFactory>> = {
   read_file: (repository, debug) => createReadFileTool(repository, undefined, debug),
   search_code: (repository, debug) => createSearchCodeTool(repository, undefined, debug),
   search_docs: (repository, debug) => createSearchDocsTool(repository, undefined, debug),
+  retrieve: (repository, debug) => createRetrieveTool(repository, undefined, debug),
 };
 
 /**

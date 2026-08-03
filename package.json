@@ -10,7 +10,9 @@
     "start": "flue run agents/repo-assistant.ts",
     "review-pr": "node --import tsx scripts/review-pr.ts",
     "test": "tsx --test tests/*.test.ts",
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "capstone:eval": "tsx eval/capstone-eval.ts",
+    "capstone:demo": "tsx demo/capstone-demo.ts"
   },
   "dependencies": {
     "@flue/runtime": "^2.0.0",

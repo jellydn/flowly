@@ -4,6 +4,7 @@ export const INSPECTION_TOOL_NAMES = [
   'read_file',
   'search_code',
   'search_docs',
+  'retrieve',
 ] as const;
 
 export type InspectionTool = (typeof INSPECTION_TOOL_NAMES)[number];

@@ -11,6 +11,7 @@ import { noFailureInjection } from './failure-injection.ts';
 import {
   validateListResult,
   validateReadResult,
+  validateRetrieveResult,
   validateSearchDocsResult,
   validateSearchResult,
   type ValidationResult,
@@ -25,6 +26,7 @@ const validators: Record<string, ToolValidator<unknown>> = {
   read_file: validateReadResult,
   search_code: validateSearchResult,
   search_docs: validateSearchDocsResult,
+  retrieve: validateRetrieveResult,
 };
 
 export type InspectionToolFactory = (budget: undefined, debug: DebugLogger) => ToolDefinition;
@@ -237,6 +239,10 @@ function countResult(toolName: string, result: unknown): number | undefined {
   if (toolName === 'read_file') {
     const total = (result as { totalLines?: number })?.totalLines;
     return total;
+  }
+  if (toolName === 'retrieve') {
+    const results = (result as { results?: unknown[] })?.results;
+    return Array.isArray(results) ? results.length : undefined;
   }
   return undefined;
 }
