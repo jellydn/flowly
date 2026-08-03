@@ -957,6 +957,8 @@ flue-repo-assistant/
 │   ├── README.md
 │   ├── run-eval.sh
 │   └── fixtures/sample-repo/   # bundled evaluation fixture
+├── docs/
+│   └── adr/                   # architecture decision records
 ├── sandbox.ts
 ├── app.ts                    # Flue 2 route map
 ├── flue.config.ts
