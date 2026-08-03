@@ -9,6 +9,7 @@
     "check": "npm run typecheck && npm test && npm run build",
     "start": "flue run agents/repo-assistant.ts",
     "review-pr": "node --import tsx scripts/review-pr.ts",
+    "route-event": "node --import tsx scripts/route-event.ts",
     "test": "tsx --test tests/*.test.ts",
     "typecheck": "tsc",
     "capstone:eval": "tsx eval/capstone-eval.ts",

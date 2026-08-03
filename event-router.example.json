@@ -1,0 +1,9 @@
+{
+  "routes": {
+    "pull_request.opened": "review",
+    "pull_request_review.submitted": "address-review",
+    "issues.opened": "planner",
+    "issues.labeled.implement": "implementation",
+    "workflow_run.completed.failure": "ci-fix"
+  }
+}
