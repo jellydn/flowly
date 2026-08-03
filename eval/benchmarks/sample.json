@@ -1,0 +1,82 @@
+{
+  "suite": {
+    "id": "capstone",
+    "name": "Repository Assistant Capstone",
+    "description": "Bundled benchmark: repository-analysis scenarios scored on citation accuracy, retrieval relevance, tool success, and answer completeness. Deterministic mode reuses the capstone deciders (no LLM key required).",
+    "repositoryPath": "eval/fixtures/sample-repo",
+    "maxSteps": 8,
+    "scenarios": [
+      {
+        "id": "cap-1",
+        "prompt": "What is the purpose of this repository?",
+        "expectedSources": ["README.md"],
+        "expectedKeywords": ["authentication", "configuration"],
+        "requiresCitation": true,
+        "requiresToolCall": true
+      },
+      {
+        "id": "cap-2",
+        "prompt": "Where is authentication implemented?",
+        "expectedSources": ["src/auth.ts", "src/services/user-service.ts"],
+        "expectedKeywords": ["login", "token", "issueToken"],
+        "requiresCitation": true,
+        "requiresToolCall": true
+      },
+      {
+        "id": "cap-3",
+        "prompt": "What happens when a GitHub API request times out?",
+        "expectedKeywords": ["timeout", "retry", "not found"],
+        "requiresCitation": false,
+        "requiresToolCall": true
+      },
+      {
+        "id": "cap-4",
+        "prompt": "Identify one architectural risk in this repository.",
+        "expectedSources": ["docs/architecture.md", "README.md"],
+        "expectedKeywords": ["risk", "architecture"],
+        "requiresCitation": true,
+        "requiresToolCall": true
+      },
+      {
+        "id": "cap-5",
+        "prompt": "Which file should be changed to add a new authentication method?",
+        "expectedSources": ["src/auth.ts"],
+        "expectedKeywords": ["auth", "login", "token"],
+        "requiresCitation": true,
+        "requiresToolCall": true
+      },
+      {
+        "id": "cap-6",
+        "prompt": "Review this repository, explain its architecture, identify the highest-risk issue, and suggest an implementation plan.",
+        "expectedSources": ["docs/architecture.md", "src/index.ts", "src/auth.ts"],
+        "expectedKeywords": ["architecture", "risk"],
+        "requiresCitation": true,
+        "requiresToolCall": true
+      },
+      {
+        "id": "cap-7",
+        "prompt": "What is the difference between listing files and searching code?",
+        "expectedKeywords": ["list", "search", "difference"],
+        "requiresCitation": false,
+        "requiresToolCall": false
+      }
+    ]
+  },
+  "models": [
+    {
+      "id": "openrouter/qwen/qwen3-coder",
+      "provider": "openrouter",
+      "label": "Qwen3 Coder"
+    },
+    {
+      "id": "anthropic/claude-3.5-sonnet",
+      "provider": "anthropic",
+      "label": "Claude 3.5 Sonnet"
+    },
+    {
+      "id": "deepseek/deepseek-chat",
+      "provider": "deepseek",
+      "label": "DeepSeek Chat"
+    }
+  ]
+}
