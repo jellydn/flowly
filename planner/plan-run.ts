@@ -244,6 +244,10 @@ export function isEmptyResult(tool: PlanTool, output: unknown): boolean {
     const entries = (output as { entries?: unknown[] })?.entries;
     return Array.isArray(entries) && entries.length === 0;
   }
+  if (tool === 'retrieve') {
+    const results = (output as { results?: unknown[] })?.results;
+    return Array.isArray(results) && results.length === 0;
+  }
   return false;
 }
 
@@ -259,6 +263,10 @@ function summarizeResult(tool: PlanTool, output: unknown): string {
   if (tool === 'read_file') {
     const total = (output as { totalLines?: number })?.totalLines;
     return total !== undefined ? `${total} lines read` : 'file read';
+  }
+  if (tool === 'retrieve') {
+    const results = (output as { results?: unknown[] })?.results;
+    return `${Array.isArray(results) ? results.length : 0} chunks retrieved`;
   }
   return 'done';
 }

@@ -32,7 +32,7 @@ after(async () => {
 
 describe('inspection registry', () => {
   test('builds one reliable tool per inspection contract in stable order', async () => {
-    const budget = createStepBudget(4);
+    const budget = createStepBudget(5);
     const registry = createInspectionRegistry({
       repository: await createRepositoryReader(root),
       budget,
@@ -44,10 +44,10 @@ describe('inspection registry', () => {
 
     assert.deepEqual(
       registry.list.map((tool) => tool.name),
-      ['list_files', 'read_file', 'search_code', 'search_docs'],
+      ['list_files', 'read_file', 'search_code', 'search_docs', 'retrieve'],
     );
     assert.equal(registry.get('read_file'), registry.tools.read_file);
-    assert.equal(registry.list.length, 4);
+    assert.equal(registry.list.length, 5);
 
     const listResult = await runTool<{ entries: unknown[] }>(registry.get('list_files'), {
       path: '.',
@@ -67,11 +67,15 @@ describe('inspection registry', () => {
       path: '.',
       caseSensitive: false,
     });
+    const retrieveResult = await runTool<{ results: unknown[] }>(registry.get('retrieve'), {
+      query: 'authentication',
+    });
 
     assert.ok(listResult.entries.length > 0);
     assert.match(readResult.content, /Sample Repository/);
     assert.ok(codeResult.matches.length > 0);
     assert.ok(docsResult.matches.length > 0);
-    assert.equal(budget.used, 4);
+    assert.ok(retrieveResult.results.length > 0);
+    assert.equal(budget.used, 5);
   });
 });

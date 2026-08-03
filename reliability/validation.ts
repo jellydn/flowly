@@ -242,3 +242,65 @@ export function validateSearchDocsResult(output: unknown): ValidationResult<{
 
   return { ok: true, value: shape.value as never };
 }
+
+/**
+ * Validate a retrieve result shape: must have `results` (array), `query`
+ * (string), `resultCount` (number), `indexStats` (object), and `inspection`
+ * (object). Each result must have path, startLine, endLine, excerpt, score,
+ * and sourceType.
+ */
+export function validateRetrieveResult(output: unknown): ValidationResult<{
+  query: string;
+  results: Array<{
+    path: string;
+    startLine: number;
+    endLine: number;
+    excerpt: string;
+    score: number;
+    sourceType: string;
+  }>;
+  resultCount: number;
+  indexStats: unknown;
+  inspection: unknown;
+}> {
+  const shape = validateShape(output, {
+    results: 'array',
+    query: 'string',
+    resultCount: 'number',
+    indexStats: 'object',
+    inspection: 'object',
+  });
+  if (!shape.ok) return shape;
+
+  const obj = shape.value as {
+    results: Array<{
+      path: string;
+      startLine: number;
+      endLine: number;
+      excerpt: string;
+      score: number;
+      sourceType: string;
+    }>;
+  };
+  for (const result of obj.results) {
+    if (
+      typeof result?.path !== 'string' ||
+      typeof result?.startLine !== 'number' ||
+      typeof result?.endLine !== 'number' ||
+      typeof result?.excerpt !== 'string' ||
+      typeof result?.score !== 'number' ||
+      typeof result?.sourceType !== 'string'
+    ) {
+      return {
+        ok: false,
+        error: new InvalidToolResponseError(
+          'Retrieve result entry has missing or invalid path/startLine/endLine/excerpt/score/sourceType',
+        ),
+      };
+    }
+    const size = validateContentSize(result.excerpt, 1_000);
+    if (!size.ok) return size;
+  }
+
+  return { ok: true, value: shape.value as never };
+}
