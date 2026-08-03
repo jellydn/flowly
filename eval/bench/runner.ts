@@ -5,14 +5,16 @@
  * Two execution modes:
  *   - deterministic: scenarios are driven by code-defined decision functions
  *     (no LLM required) — ideal for CI and unit tests.
- *   - live: scenarios are driven by a model call function (provider-backed),
- *     measuring real latency, token usage, and cost.
+ *   - live: scenarios gather repository evidence through the investigation
+ *     loop, then call a provider model (`modelCall`) with the question and
+ *     evidence; the model's reply becomes the answer.
  *
  * Each scenario is scored on four dimensions (tool success, citation
  * accuracy, retrieval relevance, answer completeness). The judge (keyword-
  * based by default, or an LLM judge) turns the dimensions into a 0..1
- * quality score. Patch applicability and human acceptance are optional
- * measured dimensions, reported as NaN when not measured.
+ * quality score. Patch applicability is an optional measured dimension via
+ * the `measurePatch` hook; human acceptance is reported as NaN (not yet
+ * measured — see issue #38 for the planned manual-approval flow).
  */
 
 import type { RepositoryReader } from '../../tools/repository.ts';
@@ -27,7 +29,8 @@ import { createRetrieveTool } from '../../tools/retrieve.ts';
 import { estimateCost, scoreScenario, buildReport } from './metrics.ts';
 import type { Judge } from './judge.ts';
 import { createKeywordJudge } from './judge.ts';
-import type { BenchmarkReport, BenchmarkScenario, BenchmarkSuite, ModelSpec, ScenarioResult } from './types.ts';
+import type { ModelCallFn } from './providers.ts';
+import type { BenchmarkReport, BenchmarkScenario, BenchmarkSuite, MetricPass, ModelSpec, ScenarioResult } from './types.ts';
 
 /** Approximate tokens from text length (4 chars/token heuristic). */
 export function estimateTokens(text: string): number {
@@ -109,28 +112,100 @@ export function checkScenario(
   return { toolSuccess, citationAccuracy, retrievalRelevance, answerCompleteness };
 }
 
+function buildTools(repository: RepositoryReader, maxSteps: number) {
+  const debug = createDebugLogger(false);
+  const budget = createStepBudget(maxSteps);
+  return {
+    budget,
+    tools: buildToolMap({
+      list_files: createListFilesTool(repository, budget, debug),
+      read_file: createReadFileTool(repository, budget, debug),
+      search_code: createSearchCodeTool(repository, budget, debug),
+      search_docs: createSearchDocsTool(repository, budget, debug),
+      retrieve: createRetrieveTool(repository, budget, debug),
+    }),
+  };
+}
+
+/** Live mode: gather evidence once (when tools are required), then call the model. */
+async function runLive(
+  scenario: BenchmarkScenario,
+  repository: RepositoryReader,
+  modelCall: ModelCallFn,
+  maxSteps: number,
+): Promise<InvestigationResult> {
+  const { budget, tools } = buildTools(repository, maxSteps);
+  const gather: DecisionFn = async (state) => {
+    if (state.iteration === 0) {
+      return {
+        type: 'call',
+        tool: 'retrieve',
+        input: { query: scenario.prompt, topK: 5 },
+      };
+    }
+    return { type: 'stop', reason: 'evidence gathered' };
+  };
+
+  // Tool-requiring scenarios gather evidence through the loop; conceptual
+  // scenarios answer directly from the model with no tool calls.
+  const investigation = scenario.requiresToolCall
+    ? await runInvestigation(scenario.prompt, tools, budget, gather)
+    : { answer: { answer: '', sources: [], confidence: 'Insufficient' as const, toolsUsed: [], insufficientEvidence: true, keyFindings: [] }, iterations: 0, evidence: [], errors: [], toolsUsed: [], stopReason: 'no tools required', callHistory: [] };
+
+  const evidenceText = investigation.evidence.map((e) => e.excerpt).join('\n');
+  const prompt = [
+    scenario.prompt,
+    '',
+    evidenceText ? `Repository evidence:\n${evidenceText}` : '(No repository evidence was retrieved.)',
+    '',
+    'Answer concisely with file citations when relevant (path/to/file.ts:line).',
+  ].join('\n');
+
+  const reply = await modelCall(prompt);
+
+  // Ground citations in what the model cited plus what was actually retrieved.
+  const retrievedFiles = investigation.evidence.map((e) => e.filePath);
+  const citedInReply = retrievedFiles.filter((file) => reply.includes(file));
+  const sources = citedInReply.length > 0 ? citedInReply : retrievedFiles;
+
+  return {
+    answer: {
+      answer: reply,
+      keyFindings: [],
+      sources,
+      confidence: sources.length >= 2 ? 'High' : sources.length === 1 ? 'Medium' : 'Low',
+      toolsUsed: investigation.toolsUsed,
+      insufficientEvidence: sources.length === 0,
+    },
+    iterations: investigation.iterations,
+    evidence: investigation.evidence,
+    errors: investigation.errors,
+    toolsUsed: investigation.toolsUsed,
+    stopReason: 'live model answer',
+    callHistory: investigation.callHistory,
+  };
+}
+
 /** Run one scenario and produce its result. */
 export async function runScenario(input: {
   scenario: BenchmarkScenario;
   repository: RepositoryReader;
-  decide: DecisionFn;
   judge: Judge;
   model: ModelSpec;
   maxSteps: number;
+  /** Deterministic mode decider. */
+  decide?: DecisionFn;
+  /** Live mode model call; when present, live mode is used. */
+  modelCall?: ModelCallFn;
+  /** Optional patch-applicability measurer; defaults to not measured (null). */
+  measurePatch?: (scenario: BenchmarkScenario, answer: string) => Promise<MetricPass | null>;
 }): Promise<ScenarioResult> {
-  const { scenario, repository, decide, judge, model } = input;
-  const debug = createDebugLogger(false);
-  const budget = createStepBudget(input.maxSteps);
-  const tools = buildToolMap({
-    list_files: createListFilesTool(repository, budget, debug),
-    read_file: createReadFileTool(repository, budget, debug),
-    search_code: createSearchCodeTool(repository, budget, debug),
-    search_docs: createSearchDocsTool(repository, budget, debug),
-    retrieve: createRetrieveTool(repository, budget, debug),
-  });
+  const { scenario, repository, judge, model, decide, modelCall } = input;
 
   const startedAt = Date.now();
-  const result = await runInvestigation(scenario.prompt, tools, budget, decide);
+  const result = modelCall
+    ? await runLive(scenario, repository, modelCall, input.maxSteps)
+    : await runScenarioWithDecider(scenario, repository, decide!, input.maxSteps);
   const latencyMs = Date.now() - startedAt;
 
   const checks = checkScenario(scenario, result);
@@ -138,6 +213,9 @@ export async function runScenario(input: {
   const qualityScore = verdict.score;
   const usage = estimateTokensFromResult(result);
   const costUsd = estimateCost(usage.tokensIn, usage.tokensOut, model.pricing);
+  const patchApplicability = input.measurePatch
+    ? await input.measurePatch(scenario, result.answer.answer)
+    : null;
 
   const passed =
     checks.toolSuccess.passed &&
@@ -159,7 +237,7 @@ export async function runScenario(input: {
       citationAccuracy: checks.citationAccuracy,
       retrievalRelevance: checks.retrievalRelevance,
       answerCompleteness: checks.answerCompleteness,
-      patchApplicability: null,
+      patchApplicability,
     },
     toolsUsed: result.toolsUsed,
     citedSources: result.answer.sources,
@@ -170,18 +248,30 @@ export async function runScenario(input: {
   };
 }
 
+async function runScenarioWithDecider(
+  scenario: BenchmarkScenario,
+  repository: RepositoryReader,
+  decide: DecisionFn,
+  maxSteps: number,
+): Promise<InvestigationResult> {
+  const { budget, tools } = buildTools(repository, maxSteps);
+  return runInvestigation(scenario.prompt, tools, budget, decide);
+}
+
 export type RunBenchmarkOptions = {
   mode: 'deterministic' | 'live';
   /** Deciders keyed by scenario id (deterministic mode). */
   deciders?: Record<string, DecisionFn>;
-  /** Model call function (live mode). */
-  modelCall?: (prompt: string) => Promise<string>;
+  /** Model call function (live mode); required when mode is 'live'. */
+  modelCall?: ModelCallFn;
   /** Judge override; defaults to the keyword judge. */
   judge?: Judge;
   /** Repository path; defaults to the suite's repositoryPath or the sample fixture. */
   repositoryPath?: string;
   /** Per-scenario inspection budget; defaults to the suite maxSteps or 8. */
   maxSteps?: number;
+  /** Optional patch-applicability measurer (see eval/bench/patch.ts). */
+  measurePatch?: (scenario: BenchmarkScenario, answer: string) => Promise<MetricPass | null>;
 };
 
 /**
@@ -201,14 +291,16 @@ export async function runBenchmark(
 
   const results: ScenarioResult[] = [];
   for (const scenario of suite.scenarios) {
-    const decide = resolveDecider(scenario, options);
+    const decide = options.mode === 'live' ? undefined : resolveDecider(scenario, options);
     const result = await runScenario({
       scenario,
       repository,
       decide,
+      modelCall: options.modelCall,
       judge,
       model,
       maxSteps: scenario.maxSteps ?? options.maxSteps ?? defaultSteps,
+      measurePatch: options.measurePatch,
     });
     results.push(result);
   }
@@ -228,22 +320,11 @@ function resolveDecider(
   scenario: BenchmarkScenario,
   options: RunBenchmarkOptions,
 ): DecisionFn {
-  if (options.mode === 'live' && options.modelCall) {
-    return async (state) => {
-      // In live mode the investigation is bounded: retrieve once, then stop
-      // so the model call decides the final answer. The model-call function
-      // itself is invoked by the CLI layer, not inside the loop.
-      if (state.iteration === 0) {
-        return { type: 'call', tool: 'retrieve', input: { query: state.question, topK: 5 } };
-      }
-      return { type: 'stop', reason: 'live answer produced' };
-    };
-  }
   const decider = options.deciders?.[scenario.id];
   if (!decider) {
     throw new Error(
-      `No decision function for scenario "${scenario.id}" in deterministic mode. ` +
-        'Provide `deciders` or use live mode.',
+      `No decision function for scenario "${scenario.id}" (mode: ${options.mode}). ` +
+        'Provide `deciders` for deterministic mode, or use live mode with a `modelCall`.',
     );
   }
   return decider;

@@ -158,7 +158,13 @@ async function main(): Promise<number> {
       const live = rest.includes('--live');
       const json = rest.includes('--json');
       const { reports } = await runAll(configPath, live);
-      for (const report of reports) printReport(report, json);
+      if (json) {
+        // Emit a single JSON document: an array when multiple models ran.
+        const payload = reports.length === 1 ? reports[0] : reports;
+        process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+      } else {
+        for (const report of reports) printReport(report, false);
+      }
       return 0;
     }
     case 'compare': {

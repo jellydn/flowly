@@ -31,6 +31,8 @@ export {
   runBenchmark,
 } from './runner.ts';
 export type { ScenarioChecks, RunBenchmarkOptions } from './runner.ts';
+export { createPatchCheck, extractFencedBlocks } from './patch.ts';
+export type { PatchValidator } from './patch.ts';
 export { createKeywordJudge, createLlmJudge, formatJudgePrompt } from './judge.ts';
 export type { Judge, JudgeInput, JudgeVerdict } from './judge.ts';
 export {
