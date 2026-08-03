@@ -410,7 +410,7 @@ function checkAnswerCompleteness(
 
 async function runScenario(
   scenario: EvalScenario,
-  repository: ReturnType<Awaited<ReturnType<typeof createRepositoryReader>>>,
+  repository: Awaited<ReturnType<typeof createRepositoryReader>>,
   debug: ReturnType<typeof createDebugLogger>,
 ): Promise<ScenarioResult> {
   const budget = createStepBudget(8);
