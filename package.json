@@ -13,7 +13,8 @@
     "test": "tsx --test tests/*.test.ts",
     "typecheck": "tsc",
     "capstone:eval": "tsx eval/capstone-eval.ts",
-    "capstone:demo": "tsx demo/capstone-demo.ts"
+    "capstone:demo": "tsx demo/capstone-demo.ts",
+    "eval": "tsx scripts/flue-eval.ts"
   },
   "dependencies": {
     "@flue/runtime": "^2.0.0",

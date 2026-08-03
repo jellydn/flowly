@@ -1,0 +1,49 @@
+# Example: run the model evaluation benchmark on CI.
+#
+# Copy this file to `.github/workflows/eval.yml` to activate. The example is
+# intentionally not a `.yml` so GitHub Actions does not run it by default.
+#
+# Deterministic mode needs no LLM key and is fully reproducible, so it is
+# safe to run on every push. `--live` requires a provider key (add it as a
+# repository secret, e.g. OPENROUTER_API_KEY) and is left commented out.
+#
+# The run writes reports under eval/results/ — upload them as an artifact so
+# leaderboard history survives between runs.
+
+name: Eval Benchmark
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Deterministic benchmark: no key required, reproducible.
+      - name: Run benchmark (deterministic)
+        run: npm run eval -- run --json
+
+      # Optional live benchmark against a real model:
+      # - name: Run benchmark (live)
+      #   env:
+      #     FLUE_EVAL_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      #   run: npm run eval -- run --live --json
+
+      - name: Upload benchmark reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-reports
+          path: eval/results/
+          if-no-files-found: ignore

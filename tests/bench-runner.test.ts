@@ -4,10 +4,12 @@ import {
   checkScenario,
   createKeywordJudge,
   createLlmJudge,
+  createPatchCheck,
   createStaticModelCall,
   estimateCost,
   estimateTokens,
   estimateTokensFromResult,
+  extractFencedBlocks,
   formatJudgePrompt,
   pricingForProvider,
   runBenchmark,
@@ -191,12 +193,40 @@ test('runBenchmark throws a clear error when a decider is missing', async () => 
   );
 });
 
-test('runBenchmark supports live mode with a model call', async () => {
+test('runBenchmark live mode actually invokes the model call', async () => {
+  let calls = 0;
+  const replies = ['authentication is implemented in src/auth.ts'];
   const report = await runBenchmark(suite, model, {
     mode: 'live',
-    modelCall: async () => 'authentication is implemented in src/auth.ts',
+    modelCall: async (prompt) => {
+      calls += 1;
+      assert.ok(prompt.includes(scenario.prompt)); // evidence is threaded into the prompt
+      return replies.shift() ?? 'no reply';
+    },
   });
   assert.equal(report.mode, 'live');
   assert.equal(report.totalScenarios, 1);
-  assert.ok(report.summary.qualityScore > 0);
+  assert.equal(calls, 1, 'modelCall must be invoked once per scenario');
+  assert.ok(report.results[0].answer.includes('src/auth.ts'));
+});
+
+test('extractFencedBlocks pulls code blocks from an answer', () => {
+  const blocks = extractFencedBlocks('Here is a patch:\n```ts\nconst x = 1;\n```\nand more');
+  assert.deepEqual(blocks, ['const x = 1;']);
+});
+
+test('createPatchCheck reports not measured without expected files', async () => {
+  const check = createPatchCheck();
+  const plain: BenchmarkScenario = { id: 's', prompt: 'p' };
+  const result = await check(plain, 'no patch here');
+  assert.equal(result, null);
+});
+
+test('createPatchCheck fails without a fenced block and passes with one', async () => {
+  const check = createPatchCheck();
+  const noBlock = await check(scenario, 'just prose, no code fence');
+  assert.ok(noBlock && !noBlock.passed);
+
+  const withBlock = await check(scenario, 'Here:\n```ts\n// change auth.ts\n```');
+  assert.ok(withBlock && withBlock.passed);
 });

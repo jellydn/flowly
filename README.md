@@ -386,6 +386,47 @@ The command prints the JSON decision to stdout and writes `agent=<id>` to
 (see `.github/workflows/event-router.example` — copy it to a `.yml` file to
 activate).
 
+## Model evaluation benchmark
+
+`eval/bench/` is a built-in evaluation framework inspired by
+[OpenRouter ORI Eval](https://openrouter.ai/ori/eval): it compares models on
+real repository-assistant workloads. A named suite of scenarios runs against
+one or more models and produces reports with a quality score, latency, token
+usage, cost, tool-call success rate, and patch applicability.
+
+### Commands
+
+```bash
+npm run eval -- run              # run the bundled suite (deterministic, no LLM key)
+npm run eval -- run --live --json  # provider-backed run
+npm run eval -- compare <config.json>
+npm run eval -- leaderboard
+npm run eval -- report <runId>
+```
+
+Deterministic mode reuses the capstone decision functions, so it is fully
+reproducible without a provider key — safe for CI. `--live` calls a real model
+through an OpenAI-compatible client (`FLUE_EVAL_API_KEY`, default
+OpenRouter). Results persist as JSON under `eval/results/` (override with
+`FLUE_EVAL_RESULTS_DIR`).
+
+### Benchmark suites
+
+A suite is a JSON file with a `suite` (scenarios + expected sources/keywords)
+and `models` list. The bundled `eval/benchmarks/sample.json` runs the seven
+capstone scenarios. Custom suites define their own prompts and expectations;
+scenario ids must map to decision functions in deterministic mode (see
+`eval/bench/runner.ts` and the bundled capstone deciders).
+
+### Scoring
+
+Each scenario is scored on four dimensions: tool success, citation accuracy,
+retrieval relevance, and answer completeness. A judge (keyword-based by
+default, or an LLM judge via `eval/bench/judge.ts`) turns the dimensions into
+a 0..1 quality score. Cost is estimated from token usage × provider pricing
+(`eval/bench/providers.ts`). See `.github/workflows/eval.example` for a CI
+integration example.
+
 ## Day 16: Tools for agents
 
 This section documents the Day 16 learning focus: **file tools, search tools,
