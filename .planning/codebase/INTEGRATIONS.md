@@ -1,73 +1,74 @@
 # External Integrations
 
-**Analysis Date:** 2026-08-02
+**Analysis Date:** 2026-08-04
 
 ## APIs & External Services
 
-**LLM inference:**
-- OpenRouter - Default provider for the repository assistant (`openrouter/qwen/qwen3-coder`) and PR reviewer (`openrouter/cohere/north-mini-code:free`); `REPO_ASSISTANT_MODEL` can select another model/provider from Flue's catalog. Selection occurs in `agents/repo-assistant.ts` and `agents/pr-reviewer.ts`.
-- SDK/Client: `@flue/runtime` 2.0.1 and `@flue/cli` 2.0.1; no provider-specific SDK is imported by application code.
-- Auth: `OPENROUTER_API_KEY` for the documented defaults, or the credential required by the selected Flue model provider.
+**LLM Providers:**
+- OpenRouter — default provider for the repo assistant and PR reviewer; also the default base URL for live benchmark runs
+- SDK/Client: Flue runtime + a thin OpenAI-compatible `fetch` client (`eval/bench/providers.ts`)
+- Auth: `OPENROUTER_API_KEY` (assistant/reviewer), `FLUE_EVAL_API_KEY` (benchmark `--live`, falls back to `OPENROUTER_API_KEY`)
+- Model specifiers come from Flue's models.json; default `openrouter/qwen/qwen3-coder`; PR reviewer default `openrouter/cohere/north-mini-code:free`
 
-**Source control and pull requests:**
-- GitHub REST API - Reads PR metadata, posts COMMENT/REQUEST_CHANGES reviews with inline comments, and creates/updates hidden issue comments containing incremental review state through `github/client.ts`, `github/adapter.ts`, and `review/review-state-store.ts`.
-- SDK/Client: Custom fetch-based `GitHubClient` in `github/client.ts`; local PR diffs and file snapshots use the system `git` executable from trusted code in `review/pr-data.ts`.
-- Auth: `GITHUB_TOKEN`; repository and API endpoint are selected by `GITHUB_REPOSITORY` and optional `GITHUB_API_URL`.
+**GitHub (REST):**
+- PR review data and review submission (`github/client.ts`, `github/adapter.ts`)
+- SDK/Client: fetch-based, no official SDK
+- Auth: `GITHUB_TOKEN`
 
 ## Data Storage
 
 **Databases:**
-- None; no database provider or ORM is configured in `package.json` or application code.
-- Connection: None
-- Client: None
+- None (no database dependency; Flue keeps a local `node_modules/.cache/flue/run.db` runtime cache)
 
 **File Storage:**
-- Local filesystem only - `tools/repository.ts` performs bounded, read-only access to the checkout selected by `REPOSITORY_PATH`; PR file versions are read with trusted `git show` in `review/pr-data.ts`. Persistent review state is stored remotely as a hidden GitHub PR issue comment, not in a database.
+- Local filesystem only — inspected repository (read-only) plus these writable-by-tool paths: `eval/results/` (benchmark reports), event-router delivery store file (`EVENT_ROUTER_STORE`)
 
 **Caching:**
-- In-process only - `review/pr-data.ts` caches diff, parsed files, metadata, and review state for one run; `github/adapter.ts` caches parsed diff validation data. No external cache service exists.
+- TF-IDF repository index built in memory and cached per process (`index/repository-indexer.ts`, lazy build on first `retrieve`)
 
 ## Authentication & Identity
 
 **Auth Provider:**
-- Custom service-token authentication; there is no end-user identity or session system.
-- Implementation: Flue consumes the selected LLM provider credential from environment variables. `GitHubClient.fromEnv` in `github/client.ts` sends `GITHUB_TOKEN` as a Bearer token and derives owner/repository from `GITHUB_REPOSITORY`; `review/review-state-store.ts` trusts state comments only from `REVIEW_BOT_LOGIN` (default `github-actions[bot]`). Credentials are never exposed through model tool schemas or `sandbox.ts`.
+- Custom / token-based
+- Implementation: API keys in env (`OPENROUTER_API_KEY`, `GITHUB_TOKEN`, `FLUE_EVAL_API_KEY`); the model never receives the GitHub token — trusted application code (`github/adapter.ts`) holds it
 
 ## Monitoring & Observability
 
 **Error Tracking:**
-- None; no external error-tracking or metrics service is configured.
+- None (no Sentry/DataDog)
 
 **Logs:**
-- stderr/console logging only. `REPO_ASSISTANT_DEBUG=true` enables sanitized tool logs in `tools/repository.ts` and structured retry/fallback events in `reliability/observability.ts`; `scripts/review-pr.ts` emits orchestration status. Logs intentionally omit secrets, file contents, absolute repository paths, and model reasoning.
+- Structured JSON logs via debug flags: `REPO_ASSISTANT_DEBUG=true` (one safe line per tool call), event-router structured decision logs (`EVENT_ROUTER_DEBUG`), reliability observability events. Logs never include secrets, file contents, or payload content
 
 ## CI/CD & Deployment
 
 **Hosting:**
-- No production host or deployment workflow is configured. The application targets Node via `flue.config.ts`; GitHub-hosted Ubuntu runners host automation jobs only.
+- GitHub Actions only (no long-running server deployment)
 
 **CI Pipeline:**
-- GitHub Actions - `.github/workflows/ci.yml` runs `npm ci` and `npm run check` (typecheck, Node tests, Vite build) on pushes to `main` and pull requests. `.github/workflows/pr-review.yml` checks out full Git history and runs the Flue reviewer for non-draft PRs on opened, reopened, synchronize, and ready-for-review events.
+- GitHub Actions `.github/workflows/ci.yml` — `npm run check` (typecheck + test + build) on push/PR, Node 24.18.1
+- `.github/workflows/pr-review.yml` — runs `npm run review-pr` on PR events with a 15-min timeout
+- `.github/workflows/event-router.example` and `.github/workflows/eval.example` — example workflows (copy to `.yml` to activate)
 
 ## Environment Configuration
 
 **Required env vars:**
-- General assistant: `OPENROUTER_API_KEY` for the default OpenRouter model; `REPOSITORY_PATH`, `REPO_ASSISTANT_MODEL`, `REPO_ASSISTANT_MAX_STEPS`, `REPO_ASSISTANT_DEBUG`, retry/backoff/timeout variables, and failure-injection variables are optional/defaulted in `.env.example`.
-- PR reviewer: `GITHUB_TOKEN`, `GITHUB_REPOSITORY`, `PR_NUMBER`, `BASE_SHA`, and `HEAD_SHA`, plus a key for the configured LLM model. `REPOSITORY_PATH`, `GITHUB_API_URL`, `REVIEW_BOT_LOGIN`, `REPO_ASSISTANT_MODEL`, and `PR_REVIEW_MAX_FILES`, `PR_REVIEW_MAX_DIFF_LINES`, `PR_REVIEW_MAX_CONTEXT_READS`, and `PR_REVIEW_MAX_FINDINGS` are optional/defaulted in code.
+- `OPENROUTER_API_KEY` (live runs), `GITHUB_TOKEN` (review workflow; provided by Actions)
+- Review: `GITHUB_REPOSITORY`, `PR_NUMBER`, `BASE_SHA`, `HEAD_SHA`
+- Event router: `GITHUB_EVENT_NAME`, `GITHUB_EVENT_PATH` (both set by Actions)
+- Optional: `REPOSITORY_PATH`, `REPO_ASSISTANT_MODEL`, `REPO_ASSISTANT_MAX_STEPS`, `REPO_ASSISTANT_DEBUG`, `PR_REVIEW_MAX_*`, `EVENT_ROUTER_CONFIG/STORE/DEBUG`, `FLUE_EVAL_*`
 
 **Secrets location:**
-- Local secrets belong in gitignored `.env` based on `.env.example`. GitHub Actions supplies `secrets.GITHUB_TOKEN` and `secrets.OPENROUTER_API_KEY` to `.github/workflows/pr-review.yml`; repository/event metadata comes from GitHub Actions context variables.
+- `.env` (gitignored) locally; GitHub Actions secrets / `secrets.GITHUB_TOKEN` in CI
 
 ## Webhooks & Callbacks
 
 **Incoming:**
-- GitHub `pull_request` events trigger `.github/workflows/pr-review.yml` for `opened`, `reopened`, `synchronize`, and `ready_for_review`; this is an Actions event trigger, not an application-owned webhook endpoint.
-- Flue HTTP routes `/agents/repo-assistant` and `/agents/pr-reviewer`, plus health endpoint `/api/ping`, are mounted in `app.ts`; no public deployment is configured.
+- GitHub webhooks via Actions events: `pull_request`, `issues`, `issue_comment`, `pull_request_review`, `pull_request_review_comment`, `workflow_run` — normalized by the event router (`github/events/`)
 
 **Outgoing:**
-- GitHub REST endpoints under `/repos/{owner}/{repo}/pulls/{number}` and `/repos/{owner}/{repo}/issues/...` are called by `github/client.ts` to read PRs, submit reviews, and maintain state comments.
-- LLM inference requests are delegated to Flue based on `REPO_ASSISTANT_MODEL`; no generic outgoing webhook integration exists.
+- GitHub review submissions via `submit_review` → trusted adapter → REST API; optional `$GITHUB_OUTPUT` dispatch (`agent=<id>`) from the event router
 
 ---
 
-*Integration audit: 2026-08-02*
+*Integration audit: 2026-08-04*
