@@ -20,6 +20,8 @@ Rust-focused monorepo for privacy-preserving distributed systems.
   `search_docs`)
 - A PR review agent (`agents/pr-reviewer.ts`) with review-specific tools and a
   trusted GitHub adapter — never auto-approves
+- A GitHub event router (`github/events/`) that maps repository events to
+  configured agents with declarative routes and filters
 - Bounded investigation loop with evidence collection and deduplication
 - Grounded answers with file citations and confidence levels
 - One reusable Agent Skill
@@ -305,6 +307,84 @@ GITHUB_TOKEN=… GITHUB_REPOSITORY=owner/repo PR_NUMBER=42 \
 The reviewer supports full reviews (opened / reopened / ready_for_review),
 incremental reviews (synchronize), and repository-specific memory (Phase 3).
 It never modifies code, pushes commits, or auto-approves.
+
+## GitHub event router
+
+`github/events/` is a dependency-light router that maps GitHub events to
+configured agent IDs — the foundation for event-driven agent workflows (PR
+review, CI repair, issue planning, implementation). It normalizes webhook /
+GitHub Actions payloads into a stable internal event model, applies filters,
+and decides which agent should handle each delivery. **Agent execution is out
+of scope** — the router only decides; a workflow wires the actual dispatch.
+
+### Configuration
+
+A JSON config file maps routes to agents. Two shapes are accepted. The
+shorthand map matches the issue's declarative design:
+
+```json
+{
+  "routes": {
+    "pull_request.opened": "review",
+    "pull_request_review.submitted": "address-review",
+    "issues.opened": "planner",
+    "issues.labeled.implement": "implementation",
+    "workflow_run.completed.failure": "ci-fix"
+  }
+}
+```
+
+Route keys are `event`, `event.action`, or `event.action.detail` (a label for
+issue/PR events, a conclusion for `workflow_run`). The array form supports the
+same keys plus explicit filters:
+
+```json
+{
+  "routes": [
+    {
+      "event": "issues",
+      "action": "labeled",
+      "agent": "implementation",
+      "filter": { "label": ["implement"], "actor": ["bot"] }
+    }
+  ]
+}
+```
+
+Filters (`action`, `branch`, `label`, `actor`, `repository`, `conclusion`)
+are AND-ed within a route; all must match. Invalid routes fail validation with
+actionable errors naming the route key and the offending field, so a
+misconfigured file is caught before any event is routed.
+
+### Supported events
+
+`pull_request`, `issues`, `issue_comment`, `pull_request_review`,
+`pull_request_review_comment`, and `workflow_run`. Unsupported or malformed
+events are ignored safely (exit 0 with a structured log line) rather than
+crashing the workflow.
+
+### Duplicate deliveries
+
+Webhooks can be redelivered. The router remembers each dispatched event's
+fingerprint — in memory by default, or persisted to a JSON file via
+`EVENT_ROUTER_STORE` so a rerun of the same workflow doesn't double-dispatch.
+
+### Running it
+
+A GitHub Actions step runs `npm run route-event` with `GITHUB_EVENT_NAME` and
+`GITHUB_EVENT_PATH` (both set automatically by Actions):
+
+```bash
+GITHUB_EVENT_NAME=${{ github.event_name }} \
+GITHUB_EVENT_PATH=${{ github.event_path }} \
+EVENT_ROUTER_CONFIG=event-router.config.json \
+npm run route-event
+```
+
+The command prints the JSON decision to stdout and writes `agent=<id>` to
+`$GITHUB_OUTPUT` on dispatch, so downstream steps can branch on the result
+(see `.github/workflows/event-router.example` — copy it to a `.yml` file to
+activate).
 
 ## Day 16: Tools for agents
 

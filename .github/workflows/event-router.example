@@ -1,0 +1,48 @@
+name: Event Router (example)
+
+# Example wiring for the GitHub event router. Copy this file (without the
+# ".example" suffix) and adjust the event triggers and downstream steps to
+# your needs. The router itself only decides WHICH agent handles an event;
+# agent execution is out of scope and wired here via `needs`.
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+  issues:
+    types: [opened, closed, labeled, unlabeled]
+  issue_comment:
+    types: [created, edited]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+  workflow_run:
+    workflows: [CI]
+    types: [completed, requested]
+
+permissions:
+  contents: read
+
+jobs:
+  route:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Route event
+        id: route
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          EVENT_ROUTER_CONFIG: event-router.config.json
+        run: npm run route-event
+
+      # Every step below can read the dispatched agent from the route step's
+      # GITHUB_OUTPUT (`agent`), e.g. via `if: steps.route.outputs.agent == 'review'`.
+      - name: Show decision
+        run: echo "dispatched agent = ${{ steps.route.outputs.agent }}"
