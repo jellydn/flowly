@@ -24,6 +24,7 @@ import {
   createStepBudget,
 } from '../tools/repository.ts';
 import { createSearchCodeTool } from '../tools/search-code.ts';
+import { withInspectionBudget } from '../reliability/resilient-tool.ts';
 
 export const description =
   'Reviews pull requests for correctness, security, regressions, missing tests, and error-handling problems. Inspects the diff and surrounding context with read-only tools, then submits one structured GitHub review with inline findings. Never auto-approves.';
@@ -95,8 +96,8 @@ export function PrReviewer() {
   useTool(createGetDiffHunksTool(dataSource));
 
   // Context-inspection tools (read-only; share the context-read budget)
-  useTool(createReadFileTool(repository, contextBudget, debug));
-  useTool(createSearchCodeTool(repository, contextBudget, debug));
+  useTool(withInspectionBudget(createReadFileTool(repository), contextBudget, debug));
+  useTool(withInspectionBudget(createSearchCodeTool(repository), contextBudget, debug));
 
   // Trusted review publisher — validates and posts; terminates the turn.
   useTool(createSubmitReviewTool(publisher));

@@ -28,7 +28,7 @@ export type InspectionRegistry = {
   get(name: InspectionToolName): ToolDefinition;
 };
 
-type RawToolFactory = (repository: RepositoryReader, debug: DebugLogger) => ToolDefinition;
+type RawToolFactory = (repository: RepositoryReader) => ToolDefinition;
 
 const TOOL_NAMES = [
   'list_files',
@@ -39,11 +39,11 @@ const TOOL_NAMES = [
 ] as const satisfies readonly InspectionToolName[];
 
 const rawToolFactories: Readonly<Record<InspectionToolName, RawToolFactory>> = {
-  list_files: (repository, debug) => createListFilesTool(repository, undefined, debug),
-  read_file: (repository, debug) => createReadFileTool(repository, undefined, debug),
-  search_code: (repository, debug) => createSearchCodeTool(repository, undefined, debug),
-  search_docs: (repository, debug) => createSearchDocsTool(repository, undefined, debug),
-  retrieve: (repository, debug) => createRetrieveTool(repository, undefined, debug),
+  list_files: (repository) => createListFilesTool(repository),
+  read_file: (repository) => createReadFileTool(repository),
+  search_code: (repository) => createSearchCodeTool(repository),
+  search_docs: (repository) => createSearchDocsTool(repository),
+  retrieve: (repository) => createRetrieveTool(repository),
 };
 
 /**
@@ -57,7 +57,7 @@ export function createInspectionRegistry(options: InspectionRegistryOptions): In
   for (const name of TOOL_NAMES) {
     const factory = rawToolFactories[name];
     tools[name] = createReliableInspectionTool(
-      (_budget, rawDebug) => factory(options.repository, rawDebug),
+      () => factory(options.repository),
       options.budget,
       options.debug,
       options.retryConfig,

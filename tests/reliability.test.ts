@@ -15,7 +15,9 @@ import { executeWithFallback } from '../reliability/fallback.ts';
 import { createReliabilityLogger } from '../reliability/observability.ts';
 import {
   createReliableInspectionTool,
+  runReliableAttempt,
   SafeToolError,
+  withInspectionBudget,
   wrapToolWithReliability,
 } from '../reliability/resilient-tool.ts';
 import {
@@ -37,7 +39,6 @@ import {
   createDebugLogger,
   createRepositoryReader,
   createStepBudget,
-  markBudgetFreeTool,
 } from '../tools/repository.ts';
 import { createSampleRepo, removeRepo } from './helpers.ts';
 
@@ -409,7 +410,7 @@ describe('wrapToolWithReliability', () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const wrapped = createReliableInspectionTool(
-      (rawBudget, rawDebug) => createReadFileTool(repository, rawBudget, rawDebug),
+      () => createReadFileTool(repository),
       budget,
       noDebug(),
       fastRetry,
@@ -452,7 +453,7 @@ describe('wrapToolWithReliability', () => {
       },
     };
     const wrapped = wrapToolWithReliability(
-      markBudgetFreeTool(rawTool),
+      rawTool,
       budget,
       noDebug(),
       fastRetry,
@@ -486,7 +487,7 @@ describe('wrapToolWithReliability', () => {
       },
     };
     const wrapped = wrapToolWithReliability(
-      markBudgetFreeTool(rawTool),
+      rawTool,
       budget,
       noDebug(),
       fastRetry,
@@ -523,7 +524,7 @@ describe('wrapToolWithReliability', () => {
       },
     };
     const wrapped = wrapToolWithReliability(
-      markBudgetFreeTool(rawTool),
+      rawTool,
       budget,
       noDebug(),
       fastRetry,
@@ -567,7 +568,7 @@ describe('wrapToolWithReliability', () => {
       },
     };
     const wrapped = wrapToolWithReliability(
-      markBudgetFreeTool(rawTool),
+      rawTool,
       budget,
       noDebug(),
       { ...fastRetry, timeoutMs: 100 },
@@ -611,7 +612,7 @@ describe('wrapToolWithReliability', () => {
       },
     };
     const wrapped = wrapToolWithReliability(
-      markBudgetFreeTool(rawTool),
+      rawTool,
       budget,
       noDebug(),
       fastRetry,
@@ -631,6 +632,98 @@ describe('wrapToolWithReliability', () => {
 });
 
 // ---------------------------------------------------------------------------
+// 5b. Inspection-budget composition seam
+// ---------------------------------------------------------------------------
+
+describe('withInspectionBudget', () => {
+  test('attaches the budget snapshot to outputs that lack one and consumes one step', async () => {
+    const repository = await createRepositoryReader(root);
+    const budget = createStepBudget(8);
+    const rawTool = createReadFileTool(repository);
+    const tool = withInspectionBudget(rawTool, budget, noDebug());
+    const result = (
+      (await tool.run({
+        toolCallId: 'test',
+        log: { info() {}, warn() {}, error() {} },
+        data: { path: 'src/config.ts', startLine: 1 },
+      })) as any
+    ).output as { content: string; inspection: InspectionMetadata };
+    assert.match(result.content, /PORT/);
+    assert.equal(result.inspection.used, 1);
+    assert.equal(result.inspection.remaining, 7);
+    assert.equal(budget.used, 1);
+  });
+
+  test('a failed call consumes exactly one step and wraps the error', async () => {
+    const repository = await createRepositoryReader(root);
+    const budget = createStepBudget(8);
+    const tool = withInspectionBudget(createReadFileTool(repository), budget, noDebug());
+    await assert.rejects(
+      tool.run({
+        toolCallId: 'test',
+        log: { info() {}, warn() {}, error() {} },
+        data: { path: 'missing.ts', startLine: 1 },
+      }) as Promise<unknown>,
+      /read_file failed.*ENOENT/i,
+    );
+    assert.equal(budget.used, 1);
+  });
+
+  test('a budgeted tool is sealed and cannot be composed again', async () => {
+    const repository = await createRepositoryReader(root);
+    const budget = createStepBudget(8);
+    const budgeted = withInspectionBudget(createReadFileTool(repository), budget, noDebug());
+    assert.throws(
+      () =>
+        wrapToolWithReliability(
+          budgeted,
+          budget,
+          noDebug(),
+          fastRetry,
+          noReliabilityLog(),
+          noFailureInjection,
+        ),
+      /already composed/i,
+    );
+  });
+
+  test('a reliable tool is sealed and cannot be budgeted again', async () => {
+    const repository = await createRepositoryReader(root);
+    const budget = createStepBudget(8);
+    const reliable = wrapToolWithReliability(
+      createReadFileTool(repository),
+      budget,
+      noDebug(),
+      fastRetry,
+      noReliabilityLog(),
+      noFailureInjection,
+    );
+    assert.throws(
+      () => withInspectionBudget(reliable, budget, noDebug()),
+      /already composed/i,
+    );
+  });
+
+  test('runReliableAttempt rejects a sealed budgeted tool', async () => {
+    const repository = await createRepositoryReader(root);
+    const budget = createStepBudget(8);
+    const budgeted = withInspectionBudget(createReadFileTool(repository), budget, noDebug());
+    await assert.rejects(
+      runReliableAttempt(
+        budgeted,
+        { path: 'src/config.ts', startLine: 1 },
+        'search_with_fallback',
+        fastRetry,
+        noReliabilityLog(),
+        noFailureInjection,
+        instantSleep,
+      ),
+      /already composed/i,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 6. Fallback behaviour
 // ---------------------------------------------------------------------------
 
@@ -638,7 +731,7 @@ describe('fallback', () => {
   test('primary tool fails transiently, fallback read_file succeeds', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
-    const readFile = createReadFileTool(repository, undefined, noDebug());
+    const readFile = createReadFileTool(repository);
     const failingSearch: ToolDefinition = {
       name: 'search_code',
       description: 'test',
@@ -649,8 +742,8 @@ describe('fallback', () => {
       },
     };
     const result = await executeWithFallback(
-      markBudgetFreeTool(failingSearch),
-      markBudgetFreeTool(readFile),
+      failingSearch,
+      readFile,
       { query: 'auth', path: '.', caseSensitive: false },
       'src/auth.ts',
       'search_with_fallback',
@@ -689,8 +782,8 @@ describe('fallback', () => {
       },
     };
     const result = await executeWithFallback(
-      markBudgetFreeTool(failingSearch),
-      markBudgetFreeTool(failingRead),
+      failingSearch,
+      failingRead,
       { query: 'auth', path: '.', caseSensitive: false },
       'nonexistent.ts',
       'search_with_fallback',
@@ -729,8 +822,8 @@ describe('fallback', () => {
       },
     };
     const result = await executeWithFallback(
-      markBudgetFreeTool(failingSearch),
-      markBudgetFreeTool(malformedRead),
+      failingSearch,
+      malformedRead,
       { query: 'auth', path: '.', caseSensitive: false },
       'src/auth.ts',
       'search_with_fallback',
@@ -749,7 +842,7 @@ describe('fallback', () => {
   test('failure injection applies to fallback through the shared resilience path', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
-    const readFile = createReadFileTool(repository, undefined, noDebug());
+    const readFile = createReadFileTool(repository);
     const failingSearch: ToolDefinition = {
       name: 'search_code',
       description: 'test',
@@ -760,8 +853,8 @@ describe('fallback', () => {
       },
     };
     const result = await executeWithFallback(
-      markBudgetFreeTool(failingSearch),
-      markBudgetFreeTool(readFile),
+      failingSearch,
+      readFile,
       { query: 'auth', path: '.', caseSensitive: false },
       'src/auth.ts',
       'search_with_fallback',
@@ -793,7 +886,7 @@ describe('fallback', () => {
       },
     };
     const reliableSearch = wrapToolWithReliability(
-      markBudgetFreeTool(rawSearch),
+      rawSearch,
       budget,
       noDebug(),
       fastRetry,
@@ -813,14 +906,14 @@ describe('fallback', () => {
         fastRetry,
         noReliabilityLog(),
       ),
-      /must be marked as budget-free/i,
+      /raw inspection tool/i,
     );
   });
 
   test('permanent error does not trigger fallback', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
-    const readFile = createReadFileTool(repository, undefined, noDebug());
+    const readFile = createReadFileTool(repository);
     const authFailingSearch: ToolDefinition = {
       name: 'search_code',
       description: 'test',
@@ -831,8 +924,8 @@ describe('fallback', () => {
       },
     };
     const result = await executeWithFallback(
-      markBudgetFreeTool(authFailingSearch),
-      markBudgetFreeTool(readFile),
+      authFailingSearch,
+      readFile,
       { query: 'auth', path: '.', caseSensitive: false },
       'src/auth.ts',
       'search_with_fallback',

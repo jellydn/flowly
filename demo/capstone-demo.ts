@@ -27,6 +27,7 @@ import {
 } from '../tools/repository.ts';
 import { createReadFileTool } from '../tools/read-file.ts';
 import { createRetrieveTool } from '../tools/retrieve.ts';
+import { withInspectionBudget } from '../reliability/resilient-tool.ts';
 import { buildToolMap, runInvestigation } from '../investigation/loop.ts';
 import type { DecisionFn } from '../investigation/types.ts';
 import { buildRepositoryIndex } from '../index/repository-indexer.ts';
@@ -124,8 +125,8 @@ async function main() {
   const budget = createStepBudget(8);
   const debug = createDebugLogger(false);
   const tools = buildToolMap({
-    read_file: createReadFileTool(repository, budget, debug),
-    retrieve: createRetrieveTool(repository, budget, debug),
+    read_file: withInspectionBudget(createReadFileTool(repository), budget, debug),
+    retrieve: withInspectionBudget(createRetrieveTool(repository), budget, debug),
   });
 
   const investigationStart = Date.now();

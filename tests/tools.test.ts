@@ -12,6 +12,7 @@ import {
 import { createListFilesTool } from '../tools/list-files.ts';
 import { createReadFileTool } from '../tools/read-file.ts';
 import { createSearchCodeTool } from '../tools/search-code.ts';
+import { withInspectionBudget } from '../reliability/resilient-tool.ts';
 import { createSampleRepo, removeRepo } from './helpers.ts';
 
 type Entry = { path: string; type: 'file' | 'directory'; size?: number };
@@ -59,7 +60,7 @@ describe('list_files', () => {
   test('lists allowed repository files', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
-    const tool = createListFilesTool(repository, budget, noDebug());
+    const tool = withInspectionBudget(createListFilesTool(repository), budget, noDebug());
     const result = (
       (await tool.run({
         toolCallId: 'test',
@@ -79,7 +80,7 @@ describe('list_files', () => {
 
   test('skips ignored dependency directories', async () => {
     const repository = await createRepositoryReader(root);
-    const tool = createListFilesTool(repository, createStepBudget(8), noDebug());
+    const tool = withInspectionBudget(createListFilesTool(repository), createStepBudget(8), noDebug());
     const result = (
       (await tool.run({
         toolCallId: 'test',
@@ -95,7 +96,7 @@ describe('list_files', () => {
     await symlink(path.join(root, 'src', 'config.ts'), link);
     try {
       const repository = await createRepositoryReader(root);
-      const tool = createListFilesTool(repository, createStepBudget(8), noDebug());
+      const tool = withInspectionBudget(createListFilesTool(repository), createStepBudget(8), noDebug());
       const result = (
         (await tool.run({
           toolCallId: 'test',
@@ -112,7 +113,7 @@ describe('list_files', () => {
   test('rejects traversal and absolute paths, consumes one step per call', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
-    const tool = createListFilesTool(repository, budget, noDebug());
+    const tool = withInspectionBudget(createListFilesTool(repository), budget, noDebug());
     await assert.rejects(
       async () =>
         tool.run({
@@ -139,7 +140,7 @@ describe('read_file', () => {
   test('reads an allowed file with line information', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
-    const tool = createReadFileTool(repository, budget, noDebug());
+    const tool = withInspectionBudget(createReadFileTool(repository), budget, noDebug());
     const result = (
       (await tool.run({
         toolCallId: 'test',
@@ -156,7 +157,7 @@ describe('read_file', () => {
 
   test('rejects traversal and absolute paths', async () => {
     const repository = await createRepositoryReader(root);
-    const tool = createReadFileTool(repository, createStepBudget(8), noDebug());
+    const tool = withInspectionBudget(createReadFileTool(repository), createStepBudget(8), noDebug());
     await assert.rejects(
       async () =>
         tool.run({
@@ -182,7 +183,7 @@ describe('read_file', () => {
     await writeFile(big, Buffer.alloc(1_000_001, 'a'));
     try {
       const repository = await createRepositoryReader(root);
-      const tool = createReadFileTool(repository, createStepBudget(8), noDebug());
+      const tool = withInspectionBudget(createReadFileTool(repository), createStepBudget(8), noDebug());
       await assert.rejects(
         async () =>
           tool.run({
@@ -202,7 +203,7 @@ describe('read_file', () => {
     await writeFile(longFile, `${Array.from({ length: 500 }, (_, i) => `line ${i}`).join('\n')}\n`);
     try {
       const repository = await createRepositoryReader(root);
-      const tool = createReadFileTool(repository, createStepBudget(8), noDebug());
+      const tool = withInspectionBudget(createReadFileTool(repository), createStepBudget(8), noDebug());
       const result = (
         (await tool.run({
           toolCallId: 'test',
@@ -221,7 +222,7 @@ describe('read_file', () => {
   test('consumes exactly one inspection step', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
-    const tool = createReadFileTool(repository, budget, noDebug());
+    const tool = withInspectionBudget(createReadFileTool(repository), budget, noDebug());
     await tool.run({
       toolCallId: 'test',
       log: { info() {}, warn() {}, error() {} },
@@ -235,7 +236,7 @@ describe('search_code', () => {
   test('finds literal matches across allowed text files', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
-    const tool = createSearchCodeTool(repository, budget, noDebug());
+    const tool = withInspectionBudget(createSearchCodeTool(repository), budget, noDebug());
     const result = (
       (await tool.run({
         toolCallId: 'test',
@@ -253,7 +254,7 @@ describe('search_code', () => {
 
   test('returns file paths and line numbers', async () => {
     const repository = await createRepositoryReader(root);
-    const tool = createSearchCodeTool(repository, createStepBudget(8), noDebug());
+    const tool = withInspectionBudget(createSearchCodeTool(repository), createStepBudget(8), noDebug());
     const result = (
       (await tool.run({
         toolCallId: 'test',
@@ -271,7 +272,7 @@ describe('search_code', () => {
     await writeFile(many, `${Array.from({ length: 60 }, () => 'uniquemarker').join('\n')}\n`);
     try {
       const repository = await createRepositoryReader(root);
-      const tool = createSearchCodeTool(repository, createStepBudget(8), noDebug());
+      const tool = withInspectionBudget(createSearchCodeTool(repository), createStepBudget(8), noDebug());
       const result = (
         (await tool.run({
           toolCallId: 'test',
@@ -292,7 +293,7 @@ describe('search_code', () => {
     await writeFile(big, Buffer.alloc(1_000_001, 'a'));
     try {
       const repository = await createRepositoryReader(root);
-      const tool = createSearchCodeTool(repository, createStepBudget(8), noDebug());
+      const tool = withInspectionBudget(createSearchCodeTool(repository), createStepBudget(8), noDebug());
       const result = (
         (await tool.run({
           toolCallId: 'test',
@@ -309,7 +310,7 @@ describe('search_code', () => {
 
   test('handles zero matches clearly', async () => {
     const repository = await createRepositoryReader(root);
-    const tool = createSearchCodeTool(repository, createStepBudget(8), noDebug());
+    const tool = withInspectionBudget(createSearchCodeTool(repository), createStepBudget(8), noDebug());
     const result = (
       (await tool.run({
         toolCallId: 'test',
@@ -329,7 +330,7 @@ describe('search_code', () => {
         throw new Error('permission denied');
       },
     } as any;
-    const tool = createSearchCodeTool(repository, createStepBudget(8), noDebug());
+    const tool = withInspectionBudget(createSearchCodeTool(repository), createStepBudget(8), noDebug());
     await assert.rejects(
       async () =>
         tool.run({
@@ -344,7 +345,7 @@ describe('search_code', () => {
   test('consumes exactly one inspection step', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
-    const tool = createSearchCodeTool(repository, budget, noDebug());
+    const tool = withInspectionBudget(createSearchCodeTool(repository), budget, noDebug());
     await tool.run({
       toolCallId: 'test',
       log: { info() {}, warn() {}, error() {} },
@@ -358,9 +359,9 @@ describe('shared budget', () => {
   test('all inspection tools consume the same budget', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(3);
-    const list = createListFilesTool(repository, budget, noDebug());
-    const read = createReadFileTool(repository, budget, noDebug());
-    const search = createSearchCodeTool(repository, budget, noDebug());
+    const list = withInspectionBudget(createListFilesTool(repository), budget, noDebug());
+    const read = withInspectionBudget(createReadFileTool(repository), budget, noDebug());
+    const search = withInspectionBudget(createSearchCodeTool(repository), budget, noDebug());
     await list.run({
       toolCallId: 'test',
       log: { info() {}, warn() {}, error() {} },
@@ -383,9 +384,9 @@ describe('shared budget', () => {
   test('once exhausted, every inspection tool rejects further calls', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(1);
-    const list = createListFilesTool(repository, budget, noDebug());
-    const read = createReadFileTool(repository, budget, noDebug());
-    const search = createSearchCodeTool(repository, budget, noDebug());
+    const list = withInspectionBudget(createListFilesTool(repository), budget, noDebug());
+    const read = withInspectionBudget(createReadFileTool(repository), budget, noDebug());
+    const search = withInspectionBudget(createSearchCodeTool(repository), budget, noDebug());
     await list.run({
       toolCallId: 'test',
       log: { info() {}, warn() {}, error() {} },
@@ -414,7 +415,7 @@ describe('shared budget', () => {
   test('a rejected post-exhaustion call does not make the budget negative', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(1);
-    const list = createListFilesTool(repository, budget, noDebug());
+    const list = withInspectionBudget(createListFilesTool(repository), budget, noDebug());
     await list.run({
       toolCallId: 'test',
       log: { info() {}, warn() {}, error() {} },
@@ -445,7 +446,7 @@ describe('debug logging', () => {
       lines.push(args.join(' '));
     };
     try {
-      const read = createReadFileTool(repository, budget, createDebugLogger(true));
+      const read = withInspectionBudget(createReadFileTool(repository), budget, createDebugLogger(true));
       await read.run({
         toolCallId: 'test',
         log: { info() {}, warn() {}, error() {} },
