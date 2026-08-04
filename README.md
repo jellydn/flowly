@@ -1,14 +1,11 @@
-# flue-repo-assistant
+# Flowly
 
-> A bounded, read-only repository analysis agent built with [Flue](https://flueframework.com/).
+> AI-native engineering assistant for modern development.
 
-[![CI](https://github.com/jellydn/flue-repo-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/jellydn/flue-repo-assistant/actions/workflows/ci.yml)
+[![CI](https://github.com/jellydn/flowly/actions/workflows/ci.yml/badge.svg)](https://github.com/jellydn/flowly/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-`flue-repo-assistant` is a small, read-only agent for learning the core agent
-loop: **observe → act → reflect**. It uses Flue to decide when to list files,
-read source, search code, search documentation, or answer with the evidence
-already collected.
+**Flowly** is an AI-native engineering assistant built with [Flue](https://flueframework.com/) that helps you understand codebases, review pull requests, and automate development workflows. It features bounded, read-only repository analysis through an intelligent **observe → act → reflect** loop.
 
 The default target is [jellydn/oak](https://github.com/jellydn/oak), a large
 Rust-focused monorepo for privacy-preserving distributed systems.
@@ -64,9 +61,9 @@ provider.
 ## Quick start
 
 ```bash
-git clone https://github.com/jellydn/flue-repo-assistant.git
+git clone https://github.com/jellydn/flowly.git
 git clone --depth 1 https://github.com/jellydn/oak.git
-cd flue-repo-assistant
+cd flowly
 npm install
 cp .env.example .env
 ```
@@ -76,7 +73,7 @@ Add your provider key to `.env`. The example configuration already points to
 
 ```text
 parent/
-├── flue-repo-assistant/
+├── flowly/
 └── oak/
 ```
 
@@ -927,7 +924,7 @@ The Day 21 test suite covers:
 ## Project structure
 
 ```text
-flue-repo-assistant/
+flowly/
 ├── agents/
 │   ├── repo-assistant.ts       # general inspection agent
 │   └── pr-reviewer.ts          # PR review agent (never auto-approves)

@@ -5,7 +5,7 @@
 ## Directory Layout
 
 ```
-flue-repo-assistant/
+flowly/
 ├── agents/            # Flue agent definitions (repo-assistant, pr-reviewer)
 ├── tools/             # Read-only inspection tool factories + repository reader
 ├── investigation/     # Deterministic evidence-collection loop

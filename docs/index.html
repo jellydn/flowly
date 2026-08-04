@@ -9,15 +9,15 @@
       // (JS disabled), the page and terminal render fully visible.
       document.documentElement.classList.add('js');
     </script>
-    <title>flue-repo-assistant — a bounded, read-only repository analysis agent</title>
+    <title>Flowly — AI-native engineering assistant for modern development</title>
     <meta
       name="description"
-      content="A Flue 2.0 agent that inspects a local Git repository using five read-only tools — list, read, search code, search docs, and semantic retrieve — inside an evidence-first plan → execute → reflect loop. Every answer ships with file-and-line citations."
+      content="Flowly is an AI-native engineering assistant built with Flue 2.0. It inspects repositories using five read-only tools — list, read, search code, search docs, and semantic retrieve — inside an evidence-first plan → execute → reflect loop. Every answer ships with file-and-line citations."
     />
-    <meta property="og:title" content="flue-repo-assistant — evidence, not guesses" />
+    <meta property="og:title" content="Flowly — AI-native engineering assistant" />
     <meta
       property="og:description"
-      content="A bounded, read-only repository analysis agent on Flue 2.0: five inspection tools, a shared budget, path confinement, and cited answers."
+      content="AI-native engineering assistant for modern development: repository analysis, PR review, event-driven automation, and grounded answers with citations."
     />
     <meta property="og:type" content="website" />
     <link
@@ -921,7 +921,7 @@
       <div class="container">
         <a href="#" class="nav-brand">
           <span class="nav-brand-dot"></span>
-          flue-repo-assistant
+          Flowly
         </a>
         <ul class="nav-links">
           <li><a href="#how-it-works">How it works</a></li>
@@ -932,7 +932,7 @@
           <li><a href="#start">Get started</a></li>
         </ul>
         <div class="nav-actions">
-          <a href="https://github.com/jellydn/flue-repo-assistant" class="nav-cta">GitHub</a>
+          <a href="https://github.com/jellydn/flowly" class="nav-cta">GitHub</a>
           <button class="nav-burger" id="burger" aria-label="Toggle menu" aria-expanded="false">☰</button>
         </div>
       </div>
@@ -972,7 +972,7 @@
               </div>
               <div class="hero-actions">
                 <a href="#start" class="btn btn-primary">Get started</a>
-                <a href="https://github.com/jellydn/flue-repo-assistant" class="btn btn-secondary"
+                <a href="https://github.com/jellydn/flowly" class="btn btn-secondary"
                   >View on GitHub</a
                 >
               </div>
@@ -1363,32 +1363,32 @@ meta-tools (<span class="pre-accent">create_plan · replan · reflect_plan</span
             records explain why it is shaped this way.
           </p>
           <div class="docs-grid">
-            <a href="https://github.com/jellydn/flue-repo-assistant/blob/main/docs/adr/README.md" class="doc-card reveal">
+            <a href="https://github.com/jellydn/flowly/blob/main/docs/adr/README.md" class="doc-card reveal">
               <div class="doc-card-type">docs/adr</div>
               <h3>ADR index</h3>
               <p>Event router, model eval, tool-seam, and live-eval decisions.</p>
             </a>
-            <a href="https://github.com/jellydn/flue-repo-assistant/blob/main/docs/adr/0001-event-router.md" class="doc-card reveal" style="--d: 0.05s">
+            <a href="https://github.com/jellydn/flowly/blob/main/docs/adr/0001-event-router.md" class="doc-card reveal" style="--d: 0.05s">
               <div class="doc-card-type">ADR 0001</div>
               <h3>GitHub event router</h3>
               <p>Why events map to agents via declarative routes.</p>
             </a>
-            <a href="https://github.com/jellydn/flue-repo-assistant/blob/main/docs/adr/0002-model-eval-benchmark.md" class="doc-card reveal" style="--d: 0.1s">
+            <a href="https://github.com/jellydn/flowly/blob/main/docs/adr/0002-model-eval-benchmark.md" class="doc-card reveal" style="--d: 0.1s">
               <div class="doc-card-type">ADR 0002</div>
               <h3>Model eval benchmark</h3>
               <p>Deterministic scoring without a provider key.</p>
             </a>
-            <a href="https://github.com/jellydn/flue-repo-assistant/blob/main/docs/adr/0003-tool-composition-seam.md" class="doc-card reveal" style="--d: 0.15s">
+            <a href="https://github.com/jellydn/flowly/blob/main/docs/adr/0003-tool-composition-seam.md" class="doc-card reveal" style="--d: 0.15s">
               <div class="doc-card-type">ADR 0003</div>
               <h3>Tool composition seam</h3>
               <p>One seam for budgets, reliability, and search scope.</p>
             </a>
-            <a href="https://github.com/jellydn/flue-repo-assistant/blob/main/docs/adr/0004-live-eval-provider-seam.md" class="doc-card reveal" style="--d: 0.2s">
+            <a href="https://github.com/jellydn/flowly/blob/main/docs/adr/0004-live-eval-provider-seam.md" class="doc-card reveal" style="--d: 0.2s">
               <div class="doc-card-type">ADR 0004</div>
               <h3>Live-eval provider seam</h3>
               <p>Per-model providers, model-driven loop, LLM judge.</p>
             </a>
-            <a href="https://github.com/jellydn/flue-repo-assistant/blob/main/.planning/codebase/STACK.md" class="doc-card reveal" style="--d: 0.25s">
+            <a href="https://github.com/jellydn/flowly/blob/main/.planning/codebase/STACK.md" class="doc-card reveal" style="--d: 0.25s">
               <div class="doc-card-type">codemap</div>
               <h3>Code map</h3>
               <p>Stack, architecture, conventions, concerns, and more.</p>
@@ -1396,9 +1396,9 @@ meta-tools (<span class="pre-accent">create_plan · replan · reflect_plan</span
           </div>
           <p style="margin-top: 20px; font-size: 0.875rem; color: var(--text-muted)">
             Also read
-            <a href="https://github.com/jellydn/flue-repo-assistant/blob/main/README.md" style="color: var(--teal)">README.md</a>,
-            <a href="https://github.com/jellydn/flue-repo-assistant/blob/main/AGENTS.md" style="color: var(--teal)">AGENTS.md</a>, and the
-            <a href="https://github.com/jellydn/flue-repo-assistant/blob/main/eval/README.md" style="color: var(--teal)">eval documentation</a>.
+            <a href="https://github.com/jellydn/flowly/blob/main/README.md" style="color: var(--teal)">README.md</a>,
+            <a href="https://github.com/jellydn/flowly/blob/main/AGENTS.md" style="color: var(--teal)">AGENTS.md</a>, and the
+            <a href="https://github.com/jellydn/flowly/blob/main/eval/README.md" style="color: var(--teal)">eval documentation</a>.
           </p>
         </div>
       </section>
@@ -1419,7 +1419,7 @@ meta-tools (<span class="pre-accent">create_plan · replan · reflect_plan</span
               <div>
                 <p class="step-label">Clone both repositories as siblings</p>
                 <code
-                  >git clone https://github.com/jellydn/flue-repo-assistant.git
+                  >git clone https://github.com/jellydn/flowly.git
 git clone --depth 1 https://github.com/jellydn/oak.git</code
                 >
               </div>
@@ -1429,7 +1429,7 @@ git clone --depth 1 https://github.com/jellydn/oak.git</code
               <div>
                 <p class="step-label">Install dependencies and set your API key</p>
                 <code
-                  >cd flue-repo-assistant
+                  >cd flowly
 npm install
 cp .env.example .env
 <span style="color: var(--text-muted)"># add your OPENROUTER_API_KEY to .env</span></code
@@ -1474,12 +1474,12 @@ cp .env.example .env
       <div class="container">
         <p>
           Built with <a href="https://flueframework.com/">Flue</a> ·
-          <a href="https://github.com/jellydn/flue-repo-assistant">GitHub</a> · MIT licensed
+          <a href="https://github.com/jellydn/flowly">GitHub</a> · MIT licensed
         </p>
         <p>
           <a href="https://flueframework.com/docs/getting-started/quickstart/">Flue docs</a> ·
           <a href="https://arxiv.org/abs/2210.03629">ReAct paper</a> ·
-          <a href="https://github.com/jellydn/flue-repo-assistant/blob/main/docs/adr/README.md">ADRs</a>
+          <a href="https://github.com/jellydn/flowly/blob/main/docs/adr/README.md">ADRs</a>
         </p>
       </div>
     </footer>

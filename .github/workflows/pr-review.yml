@@ -1,4 +1,4 @@
-name: Flue PR Review
+name: Flowly PR Review
 
 on:
   pull_request:

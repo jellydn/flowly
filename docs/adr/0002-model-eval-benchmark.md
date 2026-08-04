@@ -9,7 +9,7 @@ Accepted
 ## Context
 
 OpenRouter ORI Eval provides a strong UX for comparing LLMs on identical
-prompts. `flue-repo-assistant` wanted the same model-comparison story but for
+prompts. **Flowly** wanted the same model-comparison story but for
 its own real workloads — repository-analysis questions, PR reviews, and coding
 tasks — with hard numbers: quality score, latency, token usage, cost,
 tool-call success rate, patch applicability, and human acceptance (issue #38).

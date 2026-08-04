@@ -1,7 +1,7 @@
 {
-  "name": "flue-repo-assistant",
+  "name": "flowly",
   "version": "0.1.0",
-  "description": "A bounded, read-only repository analysis agent built with Flue.",
+  "description": "AI-native engineering assistant for modern development.",
   "license": "MIT",
   "type": "module",
   "scripts": {

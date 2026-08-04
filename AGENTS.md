@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Read-only repository-analysis agent built on Flue 2.0. Two agents: a general repo assistant and a PR reviewer. Both are wired through `app.ts` and built with `vite build`.
+**Flowly** — AI-native engineering assistant built on Flue 2.0. Two agents: a general repo assistant and a PR reviewer. Both are wired through `app.ts` and built with `vite build`.
 
 ## Commands
 
