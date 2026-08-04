@@ -2,6 +2,7 @@ import { open, readdir, realpath, stat } from 'node:fs/promises';
 import { realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { TOOL_LIMITS } from './contracts.ts';
+import { createLineLogger } from '../reliability/observability.ts';
 
 const DEFAULT_MAX_STEPS = 8;
 const { maxFileBytes: MAX_FILE_BYTES, maxWalkFiles: MAX_WALK_FILES } = TOOL_LIMITS;
@@ -106,12 +107,13 @@ export type DebugLogger = {
  * reasoning.
  */
 export function createDebugLogger(enabled: boolean): DebugLogger {
+  // Shares the env-gated stderr sink with createReliabilityLogger.
+  const sink = createLineLogger(enabled, '[repo-assistant]');
   return {
     log(event) {
-      if (!enabled) return;
       const count = event.count === undefined ? '' : ` count=${event.count}`;
-      console.error(
-        `[repo-assistant] ${event.tool} ${event.status} input=${event.inputSummary}${count} used=${event.inspection.used} remaining=${event.inspection.remaining}/${event.inspection.limit}`,
+      sink.log(
+        `${event.tool} ${event.status} input=${event.inputSummary}${count} used=${event.inspection.used} remaining=${event.inspection.remaining}/${event.inspection.limit}`,
       );
     },
   };
