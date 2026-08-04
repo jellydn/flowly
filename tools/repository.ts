@@ -2,7 +2,6 @@ import { open, readdir, realpath, stat } from 'node:fs/promises';
 import { realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { TOOL_LIMITS } from './contracts.ts';
-import { createLineLogger } from '../reliability/observability.ts';
 
 const DEFAULT_MAX_STEPS = 8;
 const { maxFileBytes: MAX_FILE_BYTES, maxWalkFiles: MAX_WALK_FILES } = TOOL_LIMITS;
@@ -99,6 +98,28 @@ export type DebugEvent = {
 export type DebugLogger = {
   log(event: DebugEvent): void;
 };
+
+/**
+ * The shared env-gated stderr sink behind both loggers. One implementation
+ * owns the enabled check and the stderr write; the debug logger
+ * ({@link createDebugLogger}) and the reliability logger
+ * (reliability/observability.ts) are thin formatters over it.
+ */
+export type LineLogger = {
+  log(line: string): void;
+};
+
+/**
+ * Env-gated stderr logger. Lives in this leaf module so the reliability
+ * layer can depend on it without a tools→reliability edge.
+ */
+export function createLineLogger(enabled: boolean, prefix: string): LineLogger {
+  return {
+    log(line) {
+      if (enabled) console.error(`${prefix} ${line}`);
+    },
+  };
+}
 
 /**
  * Safe debug logger controlled by REPO_ASSISTANT_DEBUG. Logs only the tool
