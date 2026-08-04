@@ -1,4 +1,5 @@
 import type { ErrorCategory } from './errors.ts';
+import { createLineLogger } from '../tools/repository.ts';
 
 /**
  * Structured event emitted by the retry and fallback layers for observability.
@@ -27,9 +28,9 @@ export type ReliabilityLogger = {
  * and outcome.
  */
 export function createReliabilityLogger(enabled: boolean): ReliabilityLogger {
+  const sink = createLineLogger(enabled, '[repo-assistant:reliability]');
   return {
     log(event) {
-      if (!enabled) return;
       const safe = {
         operation: event.operation,
         attempt: event.attempt,
@@ -40,7 +41,7 @@ export function createReliabilityLogger(enabled: boolean): ReliabilityLogger {
         fallbackUsed: event.fallbackUsed,
         outcome: event.outcome,
       };
-      console.error(`[repo-assistant:reliability] ${JSON.stringify(safe)}`);
+      sink.log(JSON.stringify(safe));
     },
   };
 }

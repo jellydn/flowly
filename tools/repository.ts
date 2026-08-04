@@ -100,18 +100,41 @@ export type DebugLogger = {
 };
 
 /**
+ * The shared env-gated stderr sink behind both loggers. One implementation
+ * owns the enabled check and the stderr write; the debug logger
+ * ({@link createDebugLogger}) and the reliability logger
+ * (reliability/observability.ts) are thin formatters over it.
+ */
+export type LineLogger = {
+  log(line: string): void;
+};
+
+/**
+ * Env-gated stderr logger. Lives in this leaf module so the reliability
+ * layer can depend on it without a tools→reliability edge.
+ */
+export function createLineLogger(enabled: boolean, prefix: string): LineLogger {
+  return {
+    log(line) {
+      if (enabled) console.error(`${prefix} ${line}`);
+    },
+  };
+}
+
+/**
  * Safe debug logger controlled by REPO_ASSISTANT_DEBUG. Logs only the tool
  * name, a sanitized input summary, success/failure, a result count, and the
  * budget snapshot. Never logs file contents, absolute paths, keys, or model
  * reasoning.
  */
 export function createDebugLogger(enabled: boolean): DebugLogger {
+  // Shares the env-gated stderr sink with createReliabilityLogger.
+  const sink = createLineLogger(enabled, '[repo-assistant]');
   return {
     log(event) {
-      if (!enabled) return;
       const count = event.count === undefined ? '' : ` count=${event.count}`;
-      console.error(
-        `[repo-assistant] ${event.tool} ${event.status} input=${event.inputSummary}${count} used=${event.inspection.used} remaining=${event.inspection.remaining}/${event.inspection.limit}`,
+      sink.log(
+        `${event.tool} ${event.status} input=${event.inputSummary}${count} used=${event.inspection.used} remaining=${event.inspection.remaining}/${event.inspection.limit}`,
       );
     },
   };
