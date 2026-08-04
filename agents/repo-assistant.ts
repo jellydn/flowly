@@ -17,7 +17,7 @@ import { parseRetryConfig } from '../reliability/retry.ts';
 import { createInspectionRegistry } from '../tools/inspection-registry.ts';
 
 export const description =
-  'Answers architecture and source-code questions about one configured repository using read-only tools. Plans before executing, then reflects on the plan. Retries transient failures with backoff.';
+  'Answers architecture and source-code questions about one configured repository using read-only tools. Plans before executing, then reflects on the plan. Retries transient failures with backoff, with an optional search-to-read fallback for resilient lookup.';
 
 export function RepoAssistant() {
   const env = process.env;
@@ -27,6 +27,7 @@ export function RepoAssistant() {
   const reliabilityLog = createReliabilityLogger(env.REPO_ASSISTANT_DEBUG === 'true');
   const retryConfig = parseRetryConfig(env);
   const injector = createFailureInjector(env);
+  const searchFallback = env.REPO_ASSISTANT_SEARCH_FALLBACK === 'true';
   const planStore = createPlanStore();
 
   // The registry owns raw-tool construction, reliability wrapping, and the
@@ -38,6 +39,7 @@ export function RepoAssistant() {
     retryConfig,
     reliabilityLog,
     injector,
+    searchFallback,
   });
 
   useModel(env.REPO_ASSISTANT_MODEL ?? 'openrouter/qwen/qwen3-coder');
@@ -140,6 +142,13 @@ exponential backoff. Permanent failures (authentication, permission, not-found,
 validation) are not retried. If a tool fails after all retries, it returns a
 user-safe error message. Never fabricate information when a tool fails—report
 what could not be retrieved and answer from the evidence collected so far.
+
+When search fallback is enabled, search_code and search_docs fall back to a
+direct read_file of the path given in the search input on transient failure.
+A result with \`fallbackUsed: true\` contains file content from the fallback
+read instead of search matches; cite it like a read_file result. A result
+with \`fallbackUsed: false\` and a \`partialMessage\` means the fallback never
+ran or also failed—report what could not be retrieved.
 
 ## Repository rules
 
