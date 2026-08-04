@@ -74,7 +74,7 @@ export function createBudgetedInspectionTools(
 }
 
 /**
- * Build the four inspection tools once, applying the same reliability policy
+ * Build the five inspection tools once, applying the same reliability policy
  * to every raw tool. The returned list is the single registration source for
  * live agent composition; the named map remains convenient for deterministic
  * callers and tests.

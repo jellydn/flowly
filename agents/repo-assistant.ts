@@ -156,8 +156,8 @@ what could not be retrieved and answer from the evidence collected so far.
 ## Budget
 
 create_plan, replan, and reflect_plan do NOT consume the inspection budget.
-Only list_files, read_file, search_code, and search_docs do. The four
-inspection tools share a strict budget of ${budget.limit} calls. Each inspection
+The five inspection tools (list_files, read_file, search_code, search_docs,
+and retrieve) share a strict budget of ${budget.limit} calls. Each inspection
 result reports used, remaining, and limit. Stop calling inspection tools when
 evidence is sufficient or the budget is exhausted. Do not retry after a
 budget-exhausted error. Retries for transient failures do NOT consume
