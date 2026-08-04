@@ -40,6 +40,8 @@ const modelSchema = v.object({
   provider: nonEmpty,
   label: v.optional(nonEmpty),
   pricing: v.optional(pricingSchema),
+  apiKeyEnv: v.optional(nonEmpty),
+  baseUrl: v.optional(nonEmpty),
 });
 
 /** JSON config that wires a suite to a model list (used by `flue eval`). */

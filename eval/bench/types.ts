@@ -25,6 +25,17 @@ export type ModelSpec = {
   provider: string;
   label?: string;
   pricing?: ModelPricing;
+  /**
+   * Environment variable holding the API key for this model's provider
+   * (e.g. "OPENAI_API_KEY"). When absent, a per-provider default key env is
+   * used (see createProviderClient in providers.ts).
+   */
+  apiKeyEnv?: string;
+  /**
+   * OpenAI-compatible base URL for this model's provider. When absent, a
+   * known per-provider endpoint is used; unknown providers require this.
+   */
+  baseUrl?: string;
 };
 
 /** One evaluation question in a benchmark suite. */

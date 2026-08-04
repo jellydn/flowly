@@ -36,7 +36,8 @@ import process from 'node:process';
 import { loadBenchmarkConfigFromFile } from '../eval/bench/config.ts';
 import { createFileBenchmarkStore } from '../eval/bench/store.ts';
 import { runBenchmark } from '../eval/bench/runner.ts';
-import { withDefaultPricing, createOpenAiCompatibleClient } from '../eval/bench/providers.ts';
+import { createProviderClient, withDefaultPricing } from '../eval/bench/providers.ts';
+import type { ModelCallFn } from '../eval/bench/providers.ts';
 import { recordHumanAcceptance } from '../eval/bench/metrics.ts';
 import type { BenchmarkReport, ModelComparison, ModelSpec } from '../eval/bench/types.ts';
 import type { BenchmarkStore } from '../eval/bench/store.ts';
@@ -152,7 +153,25 @@ async function runAll(
   const resultsDir = process.env.FLUE_EVAL_RESULTS_DIR ?? DEFAULT_RESULTS_DIR;
   await mkdir(resultsDir, { recursive: true });
 
-  const modelCall = live ? createLiveModelCall() : undefined;
+  // One client per model, resolved from the model spec's provider (its own
+  // base URL and key env). Previously a single client built from
+  // FLUE_EVAL_MODEL ran every model in the config against the same endpoint,
+  // silently ignoring the config's per-model providers.
+  const modelCalls = new Map<string, ModelCallFn>();
+  if (live) {
+    for (const model of models) {
+      try {
+        modelCalls.set(model.id, createProviderClient(model, process.env));
+      } catch (error) {
+        fail(
+          `Cannot build a live client for model "${model.id}": ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+  }
+
   const reports: BenchmarkReport[] = [];
   const store = createFileBenchmarkStore(resultsDir);
 
@@ -161,21 +180,13 @@ async function runAll(
     const report = await runBenchmark(suite, model, {
       mode: live ? 'live' : 'deterministic',
       deciders: live ? undefined : buildDeciders(),
-      modelCall,
+      modelCall: modelCalls.get(model.id),
       repositoryPath: suite.repositoryPath,
     });
     await store.save(report);
     reports.push(report);
   }
   return { suiteName: suite.name, suiteId: suite.id, reports };
-}
-
-function createLiveModelCall() {
-  const apiKey = process.env.FLUE_EVAL_API_KEY ?? process.env.OPENROUTER_API_KEY;
-  if (!apiKey) fail('--live requires FLUE_EVAL_API_KEY or OPENROUTER_API_KEY');
-  const baseUrl = process.env.FLUE_EVAL_BASE_URL ?? 'https://openrouter.ai/api/v1';
-  const model = process.env.FLUE_EVAL_MODEL ?? 'openrouter/qwen/qwen3-coder';
-  return createOpenAiCompatibleClient({ apiKey, baseUrl, model });
 }
 
 function printComparison(comparison: ModelComparison): void {
