@@ -162,6 +162,8 @@ export type LeaderboardEntry = {
 export type ModelComparison = {
   suiteId: string;
   suiteName: string;
+  /** Judge used for all models: 'keyword' or the LLM judge model id. */
+  judgeLabel?: string;
   models: Array<{
     model: { id: string; provider: string; label: string };
     runId: string;
