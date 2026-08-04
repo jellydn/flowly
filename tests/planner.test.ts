@@ -18,6 +18,7 @@ import {
   createStepBudget,
 } from '../tools/repository.ts';
 import { createSearchCodeTool } from '../tools/search-code.ts';
+import { withInspectionBudget } from '../reliability/resilient-tool.ts';
 import { createSampleRepo, removeRepo, runTool } from './helpers.ts';
 
 const noDebug = () => createDebugLogger(false);
@@ -301,8 +302,8 @@ describe('executePlan', () => {
     const budget = createStepBudget(8);
     const debug = noDebug();
     const tools: Partial<Record<string, ToolDefinition>> = {
-      search_code: createSearchCodeTool(repository, budget, debug),
-      read_file: createReadFileTool(repository, budget, debug),
+      search_code: withInspectionBudget(createSearchCodeTool(repository), budget, debug),
+      read_file: withInspectionBudget(createReadFileTool(repository), budget, debug),
     };
     const plan = normalizePlan('Find auth', [
       {
@@ -332,7 +333,7 @@ describe('executePlan', () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const tools: Partial<Record<string, ToolDefinition>> = {
-      read_file: createReadFileTool(repository, budget, noDebug()),
+      read_file: withInspectionBudget(createReadFileTool(repository), budget, noDebug()),
     };
     const plan = normalizePlan('Read a file', [
       { description: 'Read some file', tool: 'read_file' },
@@ -348,7 +349,7 @@ describe('executePlan', () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const tools: Partial<Record<string, ToolDefinition>> = {
-      search_code: createSearchCodeTool(repository, budget, noDebug()),
+      search_code: withInspectionBudget(createSearchCodeTool(repository), budget, noDebug()),
     };
     const plan = normalizePlan('Find nonexistent', [
       {
@@ -367,7 +368,7 @@ describe('executePlan', () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const tools: Partial<Record<string, ToolDefinition>> = {
-      search_code: createSearchCodeTool(repository, budget, noDebug()),
+      search_code: withInspectionBudget(createSearchCodeTool(repository), budget, noDebug()),
     };
     const plan = normalizePlan('conceptual', [
       { description: 'Answer directly', tool: 'answer' },
@@ -471,9 +472,9 @@ describe('replanning', () => {
     const budget = createStepBudget(8);
     const debug = noDebug();
     const tools: Partial<Record<string, ToolDefinition>> = {
-      search_code: createSearchCodeTool(repository, budget, debug),
-      list_files: createListFilesTool(repository, budget, debug),
-      read_file: createReadFileTool(repository, budget, debug),
+      search_code: withInspectionBudget(createSearchCodeTool(repository), budget, debug),
+      list_files: withInspectionBudget(createListFilesTool(repository), budget, debug),
+      read_file: withInspectionBudget(createReadFileTool(repository), budget, debug),
     };
     const original = normalizePlan('Find nonexistent', [
       {
@@ -823,8 +824,8 @@ describe('full plan-execute-reflect cycle', () => {
 
     // Tools for execution
     const tools: Partial<Record<string, ToolDefinition>> = {
-      search_code: createSearchCodeTool(repository, budget, debug),
-      read_file: createReadFileTool(repository, budget, debug),
+      search_code: withInspectionBudget(createSearchCodeTool(repository), budget, debug),
+      read_file: withInspectionBudget(createReadFileTool(repository), budget, debug),
     };
 
     // Plan
@@ -873,9 +874,9 @@ describe('full plan-execute-reflect cycle', () => {
     const store = createPlanStore();
 
     const tools: Partial<Record<string, ToolDefinition>> = {
-      search_code: createSearchCodeTool(repository, budget, debug),
-      list_files: createListFilesTool(repository, budget, debug),
-      read_file: createReadFileTool(repository, budget, debug),
+      search_code: withInspectionBudget(createSearchCodeTool(repository), budget, debug),
+      list_files: withInspectionBudget(createListFilesTool(repository), budget, debug),
+      read_file: withInspectionBudget(createReadFileTool(repository), budget, debug),
     };
 
     // Plan with a query that won't match

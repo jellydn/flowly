@@ -23,6 +23,7 @@ import { createListFilesTool } from '../tools/list-files.ts';
 import { createReadFileTool } from '../tools/read-file.ts';
 import { createSearchCodeTool } from '../tools/search-code.ts';
 import { createSearchDocsTool } from '../tools/search-docs.ts';
+import { withInspectionBudget } from '../reliability/resilient-tool.ts';
 import { buildToolMap, runInvestigation } from '../investigation/loop.ts';
 import type { DecisionFn, InvestigationResult } from '../investigation/types.ts';
 
@@ -201,10 +202,10 @@ async function main() {
 
     const budget = createStepBudget(8);
     const tools = buildToolMap({
-      list_files: createListFilesTool(repository, budget, debug),
-      read_file: createReadFileTool(repository, budget, debug),
-      search_code: createSearchCodeTool(repository, budget, debug),
-      search_docs: createSearchDocsTool(repository, budget, debug),
+      list_files: withInspectionBudget(createListFilesTool(repository), budget, debug),
+      read_file: withInspectionBudget(createReadFileTool(repository), budget, debug),
+      search_code: withInspectionBudget(createSearchCodeTool(repository), budget, debug),
+      search_docs: withInspectionBudget(createSearchDocsTool(repository), budget, debug),
     });
 
     console.log('============================================================');

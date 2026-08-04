@@ -6,6 +6,7 @@ import {
   createDebugLogger,
 } from '../tools/repository.ts';
 import { createRetrieveTool } from '../tools/retrieve.ts';
+import { withInspectionBudget } from '../reliability/resilient-tool.ts';
 import { buildRepositoryIndex, tokenize, type RepositoryIndex } from '../index/repository-indexer.ts';
 import { createSampleRepo, removeRepo, runTool } from './helpers.ts';
 
@@ -127,7 +128,7 @@ describe('retrieve tool', () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const debug = createDebugLogger(false);
-    const tool = createRetrieveTool(repository, budget, debug);
+    const tool = withInspectionBudget(createRetrieveTool(repository), budget, debug);
 
     const result = await runTool<{
       query: string;
@@ -155,7 +156,7 @@ describe('retrieve tool', () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(3);
     const debug = createDebugLogger(false);
-    const tool = createRetrieveTool(repository, budget, debug);
+    const tool = withInspectionBudget(createRetrieveTool(repository), budget, debug);
 
     await runTool(tool, { query: 'test' });
     assert.equal(budget.used, 1);
@@ -168,7 +169,7 @@ describe('retrieve tool', () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const debug = createDebugLogger(false);
-    const tool = createRetrieveTool(repository, budget, debug);
+    const tool = withInspectionBudget(createRetrieveTool(repository), budget, debug);
 
     const result = await runTool<{
       results: unknown[];
@@ -183,7 +184,7 @@ describe('retrieve tool', () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
     const debug = createDebugLogger(false);
-    const tool = createRetrieveTool(repository, budget, debug);
+    const tool = withInspectionBudget(createRetrieveTool(repository), budget, debug);
 
     const start1 = Date.now();
     await runTool(tool, { query: 'auth' });

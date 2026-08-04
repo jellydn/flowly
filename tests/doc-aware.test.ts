@@ -19,6 +19,7 @@ import {
 } from '../tools/repository.ts';
 import { createSearchCodeTool } from '../tools/search-code.ts';
 import { createSearchDocsTool } from '../tools/search-docs.ts';
+import { withInspectionBudget } from '../reliability/resilient-tool.ts';
 import { createSampleRepo, removeRepo } from './helpers.ts';
 
 const noDebug = () => createDebugLogger(false);
@@ -49,7 +50,7 @@ describe('search_docs tool', () => {
   test('finds relevant Markdown documentation files', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
-    const tool = createSearchDocsTool(repository, budget, noDebug());
+    const tool = withInspectionBudget(createSearchDocsTool(repository), budget, noDebug());
     const result = (
       (await tool.run({
         toolCallId: 'test',
@@ -68,7 +69,7 @@ describe('search_docs tool', () => {
   test('excludes irrelevant directories (node_modules)', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
-    const tool = createSearchDocsTool(repository, budget, noDebug());
+    const tool = withInspectionBudget(createSearchDocsTool(repository), budget, noDebug());
     const result = (
       (await tool.run({
         toolCallId: 'test',
@@ -83,7 +84,7 @@ describe('search_docs tool', () => {
   test('handles zero matches clearly', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
-    const tool = createSearchDocsTool(repository, budget, noDebug());
+    const tool = withInspectionBudget(createSearchDocsTool(repository), budget, noDebug());
     const result = (
       (await tool.run({
         toolCallId: 'test',
@@ -99,7 +100,7 @@ describe('search_docs tool', () => {
   test('consumes exactly one inspection step', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
-    const tool = createSearchDocsTool(repository, budget, noDebug());
+    const tool = withInspectionBudget(createSearchDocsTool(repository), budget, noDebug());
     await tool.run({
       toolCallId: 'test',
       log: { info() {}, warn() {}, error() {} },
@@ -111,7 +112,7 @@ describe('search_docs tool', () => {
   test('searches docs/ subdirectory files', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
-    const tool = createSearchDocsTool(repository, budget, noDebug());
+    const tool = withInspectionBudget(createSearchDocsTool(repository), budget, noDebug());
     const result = (
       (await tool.run({
         toolCallId: 'test',
@@ -126,9 +127,9 @@ describe('search_docs tool', () => {
   test('shares budget with other inspection tools', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(3);
-    const searchDocs = createSearchDocsTool(repository, budget, noDebug());
-    const searchCode = createSearchCodeTool(repository, budget, noDebug());
-    const readFile = createReadFileTool(repository, budget, noDebug());
+    const searchDocs = withInspectionBudget(createSearchDocsTool(repository), budget, noDebug());
+    const searchCode = withInspectionBudget(createSearchCodeTool(repository), budget, noDebug());
+    const readFile = withInspectionBudget(createReadFileTool(repository), budget, noDebug());
     await searchDocs.run({
       toolCallId: 'test',
       log: { info() {}, warn() {}, error() {} },
@@ -424,10 +425,10 @@ function buildTools(root: string, budget: ReturnType<typeof createStepBudget>) {
   return async () => {
     const repository = await createRepositoryReader(root);
     return buildToolMap({
-      list_files: createListFilesTool(repository, budget, noDebug()),
-      read_file: createReadFileTool(repository, budget, noDebug()),
-      search_code: createSearchCodeTool(repository, budget, noDebug()),
-      search_docs: createSearchDocsTool(repository, budget, noDebug()),
+      list_files: withInspectionBudget(createListFilesTool(repository), budget, noDebug()),
+      read_file: withInspectionBudget(createReadFileTool(repository), budget, noDebug()),
+      search_code: withInspectionBudget(createSearchCodeTool(repository), budget, noDebug()),
+      search_docs: withInspectionBudget(createSearchDocsTool(repository), budget, noDebug()),
     });
   };
 }

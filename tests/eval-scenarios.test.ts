@@ -9,6 +9,7 @@ import {
 import { createListFilesTool } from '../tools/list-files.ts';
 import { createReadFileTool } from '../tools/read-file.ts';
 import { createSearchCodeTool } from '../tools/search-code.ts';
+import { withInspectionBudget } from '../reliability/resilient-tool.ts';
 import { createSampleRepo, removeRepo } from './helpers.ts';
 
 /**
@@ -64,7 +65,7 @@ describe('Scenario A: direct read (read_file)', () => {
   test('reads a known config file in a single tool call', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
-    const read = createReadFileTool(repository, budget, noDebug());
+    const read = withInspectionBudget(createReadFileTool(repository), budget, noDebug());
     const result = (
       (await read.run({
         toolCallId: 'test',
@@ -84,8 +85,8 @@ describe('Scenario B: search then read (search_code -> read_file)', () => {
   test('search locates auth, read confirms the flow', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
-    const search = createSearchCodeTool(repository, budget, noDebug());
-    const read = createReadFileTool(repository, budget, noDebug());
+    const search = withInspectionBudget(createSearchCodeTool(repository), budget, noDebug());
+    const read = withInspectionBudget(createReadFileTool(repository), budget, noDebug());
 
     const searchResult = (
       (await search.run({
@@ -124,8 +125,8 @@ describe('Scenario C: structure discovery (list_files -> read_file)', () => {
   test('list then selected reads build an overview', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
-    const list = createListFilesTool(repository, budget, noDebug());
-    const read = createReadFileTool(repository, budget, noDebug());
+    const list = withInspectionBudget(createListFilesTool(repository), budget, noDebug());
+    const read = withInspectionBudget(createReadFileTool(repository), budget, noDebug());
 
     const listResult = (
       (await list.run({
@@ -155,8 +156,8 @@ describe('Scenario D: negative search (no fabricated feature)', () => {
   test('payment search hits only misleading notes; read confirms no implementation', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
-    const search = createSearchCodeTool(repository, budget, noDebug());
-    const read = createReadFileTool(repository, budget, noDebug());
+    const search = withInspectionBudget(createSearchCodeTool(repository), budget, noDebug());
+    const read = withInspectionBudget(createReadFileTool(repository), budget, noDebug());
 
     const searchResult = (
       (await search.run({

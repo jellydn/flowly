@@ -1,17 +1,6 @@
 import { defineTool } from '@flue/runtime';
 import * as v from 'valibot';
-import type {
-  DebugLogger,
-  InspectionMetadata,
-  RepositoryReader,
-  StepBudget,
-} from './repository.ts';
-import {
-  markBudgetFreeTool,
-  noInspectionBudget,
-  summarizeInput,
-  wrapWithBudget,
-} from './repository.ts';
+import type { RepositoryReader } from './repository.ts';
 import { TOOL_LIMITS } from './contracts.ts';
 import {
   buildRepositoryIndex,
@@ -43,20 +32,20 @@ async function ensureIndex(holder: IndexHolder, repository: RepositoryReader): P
 }
 
 /**
+ * Raw `retrieve` tool: a pure repository operation. It performs no budget
+ * accounting, debug logging, or error wrapping — the tool-composition seam
+ * (`withInspectionBudget` or the reliability wrapper) owns those concerns.
+ *
  * retrieve — semantic retrieval over the repository index. Use as a first
  * step when you need to find relevant files for a conceptual or multi-faceted
  * question. Returns ranked chunks with file paths, line ranges, relevance
  * scores, and source type (documentation or code). Combine with read_file to
- * confirm findings. Consumes one inspection budget slot.
+ * confirm findings. Budget consumption is owned by the composition seam.
  */
-export function createRetrieveTool(
-  repository: RepositoryReader,
-  budget: StepBudget | undefined,
-  debug: DebugLogger,
-) {
+export function createRetrieveTool(repository: RepositoryReader) {
   const holder: IndexHolder = { index: undefined, building: undefined };
 
-  const tool = defineTool({
+  return defineTool({
     name: 'retrieve',
     description:
       'Retrieve relevant repository chunks using TF-IDF semantic search over a pre-built index. Use as a first step for conceptual or multi-faceted questions (e.g., "explain the architecture", "identify the highest-risk issue"). Returns ranked chunks with file paths, line ranges, relevance scores (0-1), and source type. Combine with read_file to confirm findings. Index covers both source code and documentation files.',
@@ -66,37 +55,16 @@ export function createRetrieveTool(
     }),
     async run({ data, signal }) {
       signal?.throwIfAborted();
-      const inspection: InspectionMetadata = budget?.consume('retrieve') ?? noInspectionBudget();
-      const inputSummary = summarizeInput({ query: data.query, topK: data.topK });
-      try {
-        const index = await ensureIndex(holder, repository);
-        const results: RetrievalResult[] = index.retrieve(data.query, data.topK);
-        const result = {
+      const index = await ensureIndex(holder, repository);
+      const results: RetrievalResult[] = index.retrieve(data.query, data.topK);
+      return {
+        output: {
           query: data.query,
           results,
           resultCount: results.length,
           indexStats: index.stats,
-          inspection,
-        };
-        debug.log({
-          tool: 'retrieve',
-          status: 'success',
-          inputSummary,
-          count: results.length,
-          inspection,
-        });
-        return { output: result };
-      } catch (error) {
-        if (signal?.aborted) throw error;
-        debug.log({
-          tool: 'retrieve',
-          status: 'error',
-          inputSummary,
-          inspection,
-        });
-        throw wrapWithBudget(error, 'retrieve', inspection);
-      }
+        },
+      };
     },
   });
-  return budget === undefined ? markBudgetFreeTool(tool) : tool;
 }

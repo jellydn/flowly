@@ -1,7 +1,6 @@
 import type { ToolDefinition } from '@flue/runtime';
 import type { DebugLogger, InspectionMetadata, StepBudget } from '../tools/repository.ts';
-import { isBudgetFreeTool } from '../tools/repository.ts';
-import { runReliableAttempt } from './resilient-tool.ts';
+import { isSealedTool, runReliableAttempt } from './resilient-tool.ts';
 import { classifyError } from './errors.ts';
 import type { ReliabilityLogger } from './observability.ts';
 import type { FailureInjector } from './failure-injection.ts';
@@ -53,11 +52,11 @@ export async function executeWithFallback(
   options: FallbackOptions = {},
 ): Promise<FallbackResult> {
   options.signal?.throwIfAborted();
-  if (!isBudgetFreeTool(primaryTool)) {
-    throw new Error('Primary fallback tool must be marked as budget-free.');
+  if (isSealedTool(primaryTool)) {
+    throw new Error('Primary fallback tool must be a raw inspection tool (not composed with a budget or reliability).');
   }
-  if (fallbackTool && !isBudgetFreeTool(fallbackTool)) {
-    throw new Error('Fallback tool must be marked as budget-free.');
+  if (fallbackTool && isSealedTool(fallbackTool)) {
+    throw new Error('Fallback tool must be a raw inspection tool (not composed with a budget or reliability).');
   }
   const rawPrimaryTool = primaryTool;
   const rawFallbackTool = fallbackTool;

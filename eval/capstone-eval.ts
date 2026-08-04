@@ -34,6 +34,7 @@ import { createReadFileTool } from '../tools/read-file.ts';
 import { createSearchCodeTool } from '../tools/search-code.ts';
 import { createSearchDocsTool } from '../tools/search-docs.ts';
 import { createRetrieveTool } from '../tools/retrieve.ts';
+import { withInspectionBudget } from '../reliability/resilient-tool.ts';
 import { buildToolMap, runInvestigation } from '../investigation/loop.ts';
 import type { DecisionFn, InvestigationResult } from '../investigation/types.ts';
 import { buildRepositoryIndex } from '../index/repository-indexer.ts';
@@ -415,11 +416,11 @@ async function runScenario(
 ): Promise<ScenarioResult> {
   const budget = createStepBudget(8);
   const tools = buildToolMap({
-    list_files: createListFilesTool(repository, budget, debug),
-    read_file: createReadFileTool(repository, budget, debug),
-    search_code: createSearchCodeTool(repository, budget, debug),
-    search_docs: createSearchDocsTool(repository, budget, debug),
-    retrieve: createRetrieveTool(repository, budget, debug),
+    list_files: withInspectionBudget(createListFilesTool(repository), budget, debug),
+    read_file: withInspectionBudget(createReadFileTool(repository), budget, debug),
+    search_code: withInspectionBudget(createSearchCodeTool(repository), budget, debug),
+    search_docs: withInspectionBudget(createSearchDocsTool(repository), budget, debug),
+    retrieve: withInspectionBudget(createRetrieveTool(repository), budget, debug),
   });
 
   const start = Date.now();

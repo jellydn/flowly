@@ -73,22 +73,11 @@ export type InspectionMetadata = {
 };
 
 /**
- * Shared inspection budget consumed once per logical inspection call. The
- * reliability seam attaches the snapshot to each tool result so the model can
- * see whether it may continue.
+ * Shared inspection budget consumed once per logical inspection call. Budget
+ * consumption belongs to the tool-composition seam (see
+ * {@link withInspectionBudget} and the reliability wrapper in
+ * `reliability/resilient-tool.ts`); raw inspection tools never touch it.
  */
-const budgetFreeTools = new WeakSet<object>();
-
-/** Mark a tool as safe for resilience-owned budget accounting. */
-export function markBudgetFreeTool<T extends object>(tool: T): T {
-  budgetFreeTools.add(tool);
-  return tool;
-}
-
-export function isBudgetFreeTool(tool: object): boolean {
-  return budgetFreeTools.has(tool);
-}
-
 export type StepBudget = {
   limit: number;
   used: number;
@@ -168,10 +157,6 @@ export function parseMaxSteps(value: string | undefined): number {
     throw new Error('REPO_ASSISTANT_MAX_STEPS must be an integer from 1 to 20.');
   }
   return parsed;
-}
-
-export function noInspectionBudget(): InspectionMetadata {
-  return { used: 0, remaining: 0, limit: 0 };
 }
 
 export function createStepBudget(max: number): StepBudget {

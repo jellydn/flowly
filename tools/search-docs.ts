@@ -1,35 +1,16 @@
 import { defineTool } from '@flue/runtime';
 import * as v from 'valibot';
-import type {
-  DebugLogger,
-  InspectionMetadata,
-  RepositoryReader,
-  StepBudget,
-} from './repository.ts';
-import {
-  markBudgetFreeTool,
-  noInspectionBudget,
-  summarizeInput,
-  wrapWithBudget,
-} from './repository.ts';
+import type { RepositoryReader } from './repository.ts';
 import { searchRepository } from './repository-search.ts';
 import { TOOL_LIMITS } from './contracts.ts';
 
 /**
- * search_docs — search documentation files (Markdown, text, README, AGENTS,
- * SOUL, CHANGELOG, docs/**) for a literal string. Use when looking for
- * documented architecture, configuration guides, or design explanations whose
- * path is unknown. Excludes dependencies, build output, and generated
- * directories. Returns matching repository-relative paths, line numbers, and
- * line excerpts, plus an inspection budget snapshot. Results are leads, not
- * proof—read the matching docs before drawing conclusions.
+ * Raw `search_docs` tool: a pure repository operation. It performs no budget
+ * accounting, debug logging, or error wrapping — the tool-composition seam
+ * (`withInspectionBudget` or the reliability wrapper) owns those concerns.
  */
-export function createSearchDocsTool(
-  repository: RepositoryReader,
-  budget: StepBudget | undefined,
-  debug: DebugLogger,
-) {
-  const tool = defineTool({
+export function createSearchDocsTool(repository: RepositoryReader) {
+  return defineTool({
     name: 'search_docs',
     description:
       'Search documentation files (Markdown, text, README, AGENTS, CHANGELOG, docs/**) for a literal string. Use when looking for documented architecture, configuration, or design explanations whose path is unknown. Returns matching repository-relative paths, line numbers, and line excerpts, plus an inspection budget snapshot. Excludes dependencies and generated build output. Results are leads—read the matching documentation before drawing conclusions.',
@@ -40,48 +21,22 @@ export function createSearchDocsTool(
     }),
     async run({ data, signal }) {
       signal?.throwIfAborted();
-      const inspection: InspectionMetadata = budget?.consume('search_docs') ?? noInspectionBudget();
-      const inputSummary = summarizeInput({
-        query: data.query,
+      const { matches, truncated, filesSearched } = await searchRepository(repository, {
+        scope: 'documentation',
         path: data.path,
+        query: data.query,
         caseSensitive: data.caseSensitive,
+        signal,
       });
-      try {
-        const { matches, truncated, filesSearched } = await searchRepository(repository, {
-          scope: 'documentation',
-          path: data.path,
-          query: data.query,
-          caseSensitive: data.caseSensitive,
-          signal,
-        });
-
-        const result = {
+      return {
+        output: {
           query: data.query,
           path: data.path,
           matches,
           filesSearched,
           truncated,
-          inspection,
-        };
-        debug.log({
-          tool: 'search_docs',
-          status: 'success',
-          inputSummary,
-          count: result.matches.length,
-          inspection,
-        });
-        return { output: result };
-      } catch (error) {
-        if (signal?.aborted) throw error;
-        debug.log({
-          tool: 'search_docs',
-          status: 'error',
-          inputSummary,
-          inspection,
-        });
-        throw wrapWithBudget(error, 'search_docs', inspection);
-      }
+        },
+      };
     },
   });
-  return budget === undefined ? markBudgetFreeTool(tool) : tool;
 }
