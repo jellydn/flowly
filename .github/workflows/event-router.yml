@@ -1,8 +1,17 @@
-name: Flowly PR Review
+name: Event Router
 
 on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
+  issues:
+    types: [opened, closed, labeled, unlabeled]
+  issue_comment:
+    types: [created, edited]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+  workflow_run:
+    workflows: [CI]
+    types: [completed, requested]
 
 permissions:
   contents: read
@@ -11,8 +20,32 @@ permissions:
   checks: read
 
 jobs:
+  route:
+    runs-on: ubuntu-latest
+    outputs:
+      agent: ${{ steps.route.outputs.agent }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Route event
+        id: route
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          EVENT_ROUTER_CONFIG: event-router.config.json
+          EVENT_ROUTER_DEBUG: 'true'
+        run: npm run route-event
+
   review:
-    if: github.event.pull_request.draft == false
+    needs: route
+    if: needs.route.outputs.agent == 'review' && github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     concurrency:
       group: pr-review-${{ github.event.pull_request.number }}

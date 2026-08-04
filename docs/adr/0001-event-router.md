@@ -11,7 +11,7 @@ Accepted
 The target architecture requires GitHub events to trigger autonomous agent
 workflows: a PR review agent should run on `pull_request` events, a planner on
 new issues, a CI-repair agent on failed workflow runs. Before this decision,
-`flue-repo-assistant` was pull-only — a single agent answered repository
+**Flowly** was pull-only — a single agent answered repository
 questions, and no code mapped incoming GitHub events to agent IDs.
 
 Two conflicting needs shaped the design:

@@ -1,4 +1,4 @@
-# Design System: flue-repo-assistant
+# Design System: Flowly
 
 ## 1. Visual Theme & Atmosphere
 

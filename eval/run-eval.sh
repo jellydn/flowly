@@ -2,7 +2,7 @@
 # Run the five Day-16 evaluation scenarios against the bundled fixture repo.
 #
 # Each scenario prints its prompt and expected tool pattern, then invokes the
-# flue-repo-assistant agent with REPOSITORY_PATH pointed at the fixture and
+# Flowly agent with REPOSITORY_PATH pointed at the fixture and
 # REPO_ASSISTANT_DEBUG=true so the actual tool sequence is logged to stderr
 # (one safe line per tool call: tool name, sanitized input, status, budget).
 #

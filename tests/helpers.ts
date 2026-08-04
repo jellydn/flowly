@@ -33,7 +33,7 @@ export async function runTool<T>(
  *   node_modules/ignored.js         dependency noise that must be skipped
  */
 export async function createSampleRepo(): Promise<string> {
-  const root = await mkdtemp(path.join(tmpdir(), 'flue-repo-assistant-'));
+  const root = await mkdtemp(path.join(tmpdir(), 'flowly-'));
   await mkdir(path.join(root, 'src', 'services'), { recursive: true });
   await mkdir(path.join(root, 'src', 'utils'), { recursive: true });
   await mkdir(path.join(root, 'docs'), { recursive: true });

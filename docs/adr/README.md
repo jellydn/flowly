@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-This directory records significant architecture decisions for flue-repo-assistant
+This directory records significant architecture decisions for **Flowly**
 using the [ADR](https://github.com/joelparkerhenderson/architecture-decision-record)
 format. Each record captures the context, the decision, and the consequences.
 

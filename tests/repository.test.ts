@@ -8,7 +8,7 @@ import { createRepositoryReader, createStepBudget, parseMaxSteps } from '../tool
 let fixture: string;
 
 before(async () => {
-  fixture = await mkdtemp(path.join(tmpdir(), 'flue-repo-assistant-'));
+  fixture = await mkdtemp(path.join(tmpdir(), 'flowly-'));
   await mkdir(path.join(fixture, 'src'));
   await writeFile(
     path.join(fixture, 'src', 'main.ts'),

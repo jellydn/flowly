@@ -6,8 +6,8 @@
 
 | Field | Value |
 |-------|-------|
-| **Project Name** | flue-repo-assistant docs site |
-| **Mission** | Show how a bounded, read-only Flue 2.0 agent answers codebase questions with cited evidence — and teach the safety-through-architecture story |
+| **Project Name** | Flowly docs site |
+| **Mission** | Show how Flowly, an AI-native engineering assistant, answers codebase questions with cited evidence — and teach the safety-through-architecture story |
 | **Target Audience** | Developers evaluating the agent, Flue learners, and contributors to the repo |
 | **Voice & Tone** | Precise, calm, evidence-first; developer-to-developer |
 | **Region** | International (US English) |
