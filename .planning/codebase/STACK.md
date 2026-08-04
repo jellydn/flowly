@@ -49,7 +49,7 @@
 
 **Environment:**
 - `.env.example` documents every variable; copy to `.env`
-- `REPOSITORY_PATH` (default `../oak`), `REPO_ASSISTANT_MODEL` (default `openrouter/qwen/qwen3-coder`), `REPO_ASSISTANT_MAX_STEPS` (default 8), `REPO_ASSISTANT_DEBUG`, reliability vars (`REPO_ASSISTANT_MAX_ATTEMPTS`, `*_DELAY_MS`, `*_TIMEOUT_MS`), failure-injection vars, PR-review vars (`GITHUB_TOKEN`, `PR_NUMBER`, `BASE_SHA`, `HEAD_SHA`, `PR_REVIEW_MAX_*`), event-router vars (`GITHUB_EVENT_NAME/PATH`, `EVENT_ROUTER_CONFIG/STORE/DEBUG`), eval vars (`FLUE_EVAL_RESULTS_DIR`, `FLUE_EVAL_API_KEY`, `FLUE_EVAL_BASE_URL`, `FLUE_EVAL_MODEL`)
+- `REPOSITORY_PATH` (default `../oak`), `REPO_ASSISTANT_MODEL` (default `openrouter/qwen/qwen3-coder`), `REPO_ASSISTANT_MAX_STEPS` (default 8), `REPO_ASSISTANT_DEBUG`, `REPO_ASSISTANT_SEARCH_FALLBACK` (search→read fallback, off by default), reliability vars (`REPO_ASSISTANT_MAX_ATTEMPTS`, `*_DELAY_MS`, `*_TIMEOUT_MS`), failure-injection vars, PR-review vars (`GITHUB_TOKEN`, `PR_NUMBER`, `BASE_SHA`, `HEAD_SHA`, `PR_REVIEW_MAX_*`), event-router vars (`GITHUB_EVENT_NAME/PATH`, `EVENT_ROUTER_CONFIG/STORE/DEBUG`), eval vars (`FLUE_EVAL_RESULTS_DIR`, plus legacy `FLUE_EVAL_API_KEY`/`FLUE_EVAL_BASE_URL` fallbacks — per-model providers/keys/base URLs resolve from the config's `models[]` entries)
 
 **Build:**
 - `flue.config.ts` (target `node`), `vite.config.ts` (@flue/vite), `tsconfig.json` (strict, ES2024, ESNext modules, `allowImportingTsExtensions`, `verbatimModuleSyntax`)
