@@ -47,8 +47,8 @@ flue-repo-assistant/
 
 **`planner/`:**
 - Purpose: Plan/execute/reflect workflow, budget-free meta-tools
-- Contains: `planner.ts`, `executor.ts`, `plan-store.ts`, `reflection.ts`, `types.ts`
-- Key files: `planner.ts`, `executor.ts`
+- Contains: `planner.ts`, `plan-run.ts`, `plan-store.ts`, `reflection.ts`, `types.ts`
+- Key files: `planner.ts` (`create_plan`), `plan-run.ts` (programmatic executor + replan lifecycle)
 
 **`reliability/`:**
 - Purpose: Cross-cutting resilience and observability
