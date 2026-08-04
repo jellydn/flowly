@@ -37,8 +37,11 @@ export { createKeywordJudge, createLlmJudge, formatJudgePrompt } from './judge.t
 export type { Judge, JudgeInput, JudgeVerdict } from './judge.ts';
 export {
   PROVIDER_PRICING,
+  PROVIDER_BASE_URLS,
+  PROVIDER_KEY_ENVS,
   pricingForProvider,
   withDefaultPricing,
+  createProviderClient,
   createStaticModelCall,
   createOpenAiCompatibleClient,
 } from './providers.ts';

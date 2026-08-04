@@ -41,6 +41,68 @@ export const PROVIDER_PRICING: Record<string, ModelPricing> = {
   openrouter: { inputPer1kUsd: 0.001, outputPer1kUsd: 0.002 },
 };
 
+/**
+ * Default OpenAI-compatible base URLs per provider. Providers listed here
+ * are reached through the OpenAI-compatible chat-completions protocol;
+ * unknown providers require an explicit `baseUrl` on the model spec.
+ */
+export const PROVIDER_BASE_URLS: Record<string, string> = {
+  openrouter: 'https://openrouter.ai/api/v1',
+  openai: 'https://api.openai.com/v1',
+  anthropic: 'https://api.anthropic.com/v1',
+  google: 'https://generativelanguage.googleapis.com/v1beta/openai',
+  deepseek: 'https://api.deepseek.com/v1',
+  glm: 'https://open.bigmodel.cn/api/paas/v4',
+  qwen: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  grok: 'https://api.x.ai/v1',
+};
+
+/**
+ * Default environment variable holding the API key per provider. A model
+ * spec may override this per-model via `apiKeyEnv`.
+ */
+export const PROVIDER_KEY_ENVS: Record<string, string> = {
+  openrouter: 'OPENROUTER_API_KEY',
+  openai: 'OPENAI_API_KEY',
+  anthropic: 'ANTHROPIC_API_KEY',
+  google: 'GOOGLE_API_KEY',
+  deepseek: 'DEEPSEEK_API_KEY',
+  glm: 'ZHIPU_API_KEY',
+  qwen: 'DASHSCOPE_API_KEY',
+  grok: 'XAI_API_KEY',
+};
+
+/**
+ * Resolve the OpenAI-compatible client for a model spec. Uses the model's
+ * `baseUrl`/`apiKeyEnv` when provided, falling back to the per-provider
+ * defaults, and finally to the legacy `FLUE_EVAL_*` env vars (which keep the
+ * original single-provider CLI working). Throws an actionable error when the
+ * provider is unknown or its key is missing.
+ */
+export function createProviderClient(
+  model: ModelSpec,
+  env: Record<string, string | undefined> = process.env,
+): ModelCallFn {
+  const provider = model.provider.toLowerCase();
+  const baseUrl =
+    model.baseUrl ??
+    PROVIDER_BASE_URLS[provider] ??
+    env.FLUE_EVAL_BASE_URL;
+  if (!baseUrl) {
+    throw new Error(
+      `No base URL for provider "${model.provider}". Add a known provider or set "baseUrl" on the model spec.`,
+    );
+  }
+  const keyEnv = model.apiKeyEnv ?? PROVIDER_KEY_ENVS[provider] ?? 'FLUE_EVAL_API_KEY';
+  const apiKey = env[keyEnv] ?? env.FLUE_EVAL_API_KEY ?? env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      `No API key for provider "${model.provider}". Set ${keyEnv} (or FLUE_EVAL_API_KEY / OPENROUTER_API_KEY).`,
+    );
+  }
+  return createOpenAiCompatibleClient({ apiKey, baseUrl, model: model.id });
+}
+
 /** Look up pricing for a provider, falling back to undefined (no cost). */
 export function pricingForProvider(provider: string): ModelPricing | undefined {
   return PROVIDER_PRICING[provider.toLowerCase()];
