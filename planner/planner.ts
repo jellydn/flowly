@@ -5,7 +5,7 @@ import type { DebugLogger, StepBudget } from '../tools/repository.ts';
 import { summarizeInput } from '../tools/repository.ts';
 import { normalizePlan } from './plan-run.ts';
 import type { PlanStore } from './plan-store.ts';
-import { startPlan } from './plan-store.ts';
+import { replacePlan, startPlan } from './plan-store.ts';
 import type { Plan } from './types.ts';
 
 export { normalizePlan } from './plan-run.ts';
@@ -207,6 +207,48 @@ export function createPlanTool(store: PlanStore, budget: StepBudget, debug: Debu
         output: {
           plan,
           message: `Plan with ${plan.steps.length} steps recorded. Execute each step using the corresponding tool, then call reflect_plan.`,
+          inspection,
+        },
+      };
+    },
+  });
+}
+
+/**
+ * Model-facing replan tool: replaces the stored plan without discarding the
+ * results log from the preceding execution. Shares the step schema with
+ * {@link createPlanTool} and does not consume the inspection budget.
+ */
+export function createReplanTool(store: PlanStore, budget: StepBudget, debug: DebugLogger) {
+  return defineTool({
+    name: 'replan',
+    description:
+      'Revise the current plan when a step returns no useful results. Provide the reason and new steps. Previously executed steps are preserved in the results log. Does not consume the inspection budget.',
+    input: v.object({
+      reason: v.pipe(v.string(), v.minLength(1), v.maxLength(300)),
+      steps: v.pipe(v.array(planStepSchema), v.minLength(1), v.maxLength(10)),
+    }),
+    run({ data }) {
+      const revised = normalizePlan(store.plan?.question ?? '(replanned)', data.steps);
+      const previousResults = store.results;
+      replacePlan(store, revised);
+      const inspection = budget.snapshot();
+      const inputSummary = summarizeInput({
+        reason: data.reason,
+        stepCount: data.steps.length,
+      });
+      debug.log({
+        tool: 'replan',
+        status: 'success',
+        inputSummary,
+        count: revised.steps.length,
+        inspection,
+      });
+      return {
+        output: {
+          plan: revised,
+          previousResultCount: previousResults.length,
+          message: `Plan revised (${revised.steps.length} steps). Continue execution from the new first step.`,
           inspection,
         },
       };

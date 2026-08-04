@@ -270,3 +270,48 @@ function summarizeResult(tool: PlanTool, output: unknown): string {
   }
   return 'done';
 }
+
+// ---------------------------------------------------------------------------
+// Programmatic executor and replanning (stateless conveniences)
+// ---------------------------------------------------------------------------
+
+/**
+ * Programmatic executor: run each plan step against the matching tool.
+ *
+ * Steps with `tool: 'answer'` are terminal and produce no tool call. Steps
+ * without concrete `input` are marked `skipped` (the model fills in inputs
+ * during live execution; the programmatic executor can only run steps whose
+ * inputs are known at planning time). Stateless convenience over
+ * {@link createPlanRun}.
+ */
+export async function executePlan(
+  plan: Plan,
+  tools: ToolRegistry,
+  signal?: AbortSignal,
+): Promise<ExecutionResult[]> {
+  const run = createPlanRun();
+  run.setPlan(plan);
+  return run.execute(tools, signal);
+}
+
+/** True when any executed search or list step returned no evidence. */
+export function shouldReplan(results: ExecutionResult[]): boolean {
+  return results.some(
+    (r) =>
+      r.status === 'empty' &&
+      (r.tool === 'search_code' || r.tool === 'search_docs' || r.tool === 'list_files'),
+  );
+}
+
+/**
+ * Produce a revised plan when a step returns no results.
+ *
+ * Strategy: replace the failed search with a `list_files` to discover
+ * structure, then keep the remaining non-answer steps from the original plan.
+ * Stateless convenience over {@link createPlanRun}.replan.
+ */
+export function replan(originalPlan: Plan, results: ExecutionResult[]): Plan {
+  const run = createPlanRun();
+  run.setPlan(originalPlan);
+  return run.replan(results);
+}

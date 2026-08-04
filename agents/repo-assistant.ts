@@ -9,8 +9,7 @@ import {
   parseMaxSteps,
 } from '../tools/repository.ts';
 import { createPlanStore } from '../planner/plan-store.ts';
-import { createPlanTool } from '../planner/planner.ts';
-import { createReplanTool } from '../planner/executor.ts';
+import { createPlanTool, createReplanTool } from '../planner/planner.ts';
 import { createReflectPlanTool } from '../planner/reflection.ts';
 import { createReliabilityLogger } from '../reliability/observability.ts';
 import { createFailureInjector } from '../reliability/failure-injection.ts';
