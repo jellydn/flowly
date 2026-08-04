@@ -8,7 +8,10 @@ import type { DebugLogger, RepositoryReader, StepBudget } from './repository.ts'
 import type { FailureInjector } from '../reliability/failure-injection.ts';
 import type { ReliabilityLogger } from '../reliability/observability.ts';
 import type { RetryConfig, SleepFn } from '../reliability/retry.ts';
-import { createReliableInspectionTool } from '../reliability/resilient-tool.ts';
+import {
+  createReliableInspectionTool,
+  withInspectionBudget,
+} from '../reliability/resilient-tool.ts';
 
 export type InspectionToolName = 'list_files' | 'read_file' | 'search_code' | 'search_docs' | 'retrieve';
 
@@ -38,13 +41,37 @@ const TOOL_NAMES = [
   'retrieve',
 ] as const satisfies readonly InspectionToolName[];
 
-const rawToolFactories: Readonly<Record<InspectionToolName, RawToolFactory>> = {
+export type RawToolFactories = Readonly<Record<InspectionToolName, RawToolFactory>>;
+
+/**
+ * The single source of truth for the inspection tool set. Both the reliable
+ * registry below and the standalone budgeted builder share this map, so no
+ * other module re-lists the five tools.
+ */
+export const rawToolFactories: RawToolFactories = {
   list_files: (repository) => createListFilesTool(repository),
   read_file: (repository) => createReadFileTool(repository),
   search_code: (repository) => createSearchCodeTool(repository),
   search_docs: (repository) => createSearchDocsTool(repository),
   retrieve: (repository) => createRetrieveTool(repository),
 };
+
+/**
+ * Build every inspection tool with the standalone budget seam (no reliability
+ * retry/validation). Used by deterministic eval runners and demos that want
+ * the full tool set without the resilience wrapper.
+ */
+export function createBudgetedInspectionTools(
+  repository: RepositoryReader,
+  budget: StepBudget,
+  debug: DebugLogger,
+): Record<InspectionToolName, ToolDefinition> {
+  const tools = {} as Record<InspectionToolName, ToolDefinition>;
+  for (const name of TOOL_NAMES) {
+    tools[name] = withInspectionBudget(rawToolFactories[name](repository), budget, debug);
+  }
+  return tools;
+}
 
 /**
  * Build the four inspection tools once, applying the same reliability policy

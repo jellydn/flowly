@@ -4,11 +4,12 @@
 
 ## Tech Debt
 
-**Retrieve/indexer coupling:**
+**Retrieve/indexer coupling — PARTIALLY RESOLVED:**
 - Issue: `tools/retrieve.ts` depends on `index/repository-indexer.ts`, and `eval/bench/runner.ts` hardcodes `retrieve` as the first live-mode tool call — a model-driven tool strategy would be more flexible
 - Files: `tools/retrieve.ts`, `index/repository-indexer.ts`, `eval/bench/runner.ts`
 - Impact: live-mode scenarios with `requiresToolCall: false` must be handled specially; custom live suites can't choose their own first tool
 - Fix approach: make the live-mode tool strategy configurable per suite/scenario
+- Status: tool-set duplication RESOLVED — `eval/bench/runner.ts` (and `eval/capstone-eval.ts`) now build their tool maps from `createBudgetedInspectionTools` in `tools/inspection-registry.ts`, so the five-tool set is listed in exactly one place; the retrieve-first live-mode decider remains open
 
 **`eval/bench/providers.ts` pricing table is approximate — RESOLVED:**
 - ~~Issue: static per-1K pricing is a convenience table, not exhaustive or billed~~
