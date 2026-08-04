@@ -180,6 +180,33 @@ describe('retrieve tool', () => {
     assert.equal(result.results.length, 0);
   });
 
+  test('recovers after a transient index-build failure', async () => {
+    const repository = await createRepositoryReader(root);
+    // Simulate a transient failure during file discovery (e.g. a flaky
+    // readdir/stat mid-walk) on the first build only.
+    let failNext = true;
+    const flaky = Object.create(repository) as typeof repository;
+    flaky.sourceFiles = async () => {
+      if (failNext) {
+        failNext = false;
+        throw new Error('simulated transient walk failure');
+      }
+      return repository.sourceFiles('.');
+    };
+
+    const budget = createStepBudget(8);
+    const debug = createDebugLogger(false);
+    const tool = withInspectionBudget(createRetrieveTool(flaky), budget, debug);
+
+    // First call fails while building the lazy index.
+    await assert.rejects(() => runTool(tool, { query: 'auth' }), /simulated transient walk failure/);
+
+    // The failure must not be memoized: a later call rebuilds the index and
+    // succeeds, instead of returning the same rejected promise forever.
+    const result = await runTool<{ results: unknown[] }>(tool, { query: 'authentication' });
+    assert.ok(result.results.length > 0, 'second call should rebuild the index and return results');
+  });
+
   test('cached index is reused on second call', async () => {
     const repository = await createRepositoryReader(root);
     const budget = createStepBudget(8);
