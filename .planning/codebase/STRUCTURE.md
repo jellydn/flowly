@@ -19,7 +19,7 @@ flue-repo-assistant/
 ├── demo/              # Deterministic demos (bash + ts)
 ├── docs/              # Hand-maintained docs page + ADRs
 ├── skills/            # Flue skills (analyzing-repositories)
-├── tests/             # Node test-runner tests (24 files + helpers)
+├── tests/             # Node test-runner tests (27 files + helpers)
 ├── .planning/         # Codebase map + internal planning docs
 ├── .github/workflows/ # CI + review + example workflows
 ├── sandbox.ts         # Empty toolset replacing default FS/shell tools
@@ -37,7 +37,7 @@ flue-repo-assistant/
 
 **`tools/`:**
 - Purpose: Read-only inspection tools and the repository boundary
-- Contains: `list-files.ts`, `read-file.ts`, `search-code.ts`, `search-docs.ts`, `retrieve.ts`, `repository.ts`, `contracts.ts`, `inspection-registry.ts`, `repository-search.ts`, `search-utils.ts`
+- Contains: `list-files.ts`, `read-file.ts`, `search-code.ts`, `search-docs.ts`, `retrieve.ts`, `search.ts` (scope-parameterized search factory), `repository.ts`, `contracts.ts`, `inspection-registry.ts`, `repository-search.ts`, `search-utils.ts`, `result-stats.ts`
 - Key files: `repository.ts` (`RepositoryReader`, `StepBudget`), `contracts.ts` (`TOOL_LIMITS`)
 
 **`investigation/`:**
@@ -52,7 +52,7 @@ flue-repo-assistant/
 
 **`reliability/`:**
 - Purpose: Cross-cutting resilience and observability
-- Contains: `resilient-tool.ts`, `retry.ts`, `fallback.ts`, `errors.ts`, `validation.ts`, `observability.ts`, `failure-injection.ts`, `tool-invocation.ts`
+- Contains: `resilient-tool.ts`, `retry.ts`, `fallback.ts`, `fallback-tool.ts` (search→read fallback seam), `errors.ts`, `validation.ts`, `observability.ts`, `failure-injection.ts`, `tool-invocation.ts`
 - Key files: `resilient-tool.ts`, `errors.ts`
 
 **`review/`:**
@@ -77,7 +77,7 @@ flue-repo-assistant/
 
 **`eval/`:**
 - Purpose: Evaluation — capstone suite + benchmark framework + fixture
-- Contains: `capstone-eval.ts`, `bench/` (types, schema, config, metrics, store, runner, judge, providers, patch, index), `benchmarks/sample.json`, `fixtures/sample-repo/`, `run-eval.sh`, `run-capstone-eval.sh`, `README.md`
+- Contains: `capstone-eval.ts`, `bench/` (types, schema, config, metrics, store, runner, judge, providers, model-loop, patch, index), `benchmarks/sample.json`, `fixtures/sample-repo/`, `run-eval.sh`, `run-capstone-eval.sh`, `README.md`
 - Key files: `bench/runner.ts`, `bench/schema.ts`, `capstone-eval.ts`
 
 **`demo/`:**
@@ -87,12 +87,12 @@ flue-repo-assistant/
 
 **`docs/`:**
 - Purpose: Hand-maintained docs
-- Contains: `index.html`, `adr/` (0001, 0002, README, template)
-- Key files: `adr/0001-event-router.md`, `adr/0002-model-eval-benchmark.md`
+- Contains: `index.html`, `adr/` (0001–0004, README, template)
+- Key files: `adr/0001-event-router.md`, `adr/0002-model-eval-benchmark.md`, `adr/0003-tool-composition-seam.md`, `adr/0004-live-eval-provider-seam.md`
 
 **`tests/`:**
 - Purpose: All automated tests (single directory, not co-located)
-- Contains: 24 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
+- Contains: 27 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
 - Key files: `helpers.ts`, `event-router.test.ts`, `bench-runner.test.ts`
 
 ## Key File Locations

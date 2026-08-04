@@ -54,14 +54,14 @@ See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to 
 **Planner:**
 - Purpose: Plan → execute → reflect meta-tools (`create_plan`, `replan`, `reflect_plan`) that do not consume inspection budget
 - Location: `planner/`
-- Contains: `planner.ts`, `executor.ts`, `plan-store.ts`, `reflection.ts`, `types.ts`
+- Contains: `planner.ts`, `plan-run.ts`, `plan-store.ts`, `reflection.ts`, `types.ts`
 - Depends on: tools (for execution)
 - Used by: the repo assistant; deterministic functions used by tests
 
 **Reliability:**
 - Purpose: Cross-cutting resilience — retry (transient only), timeout via `AbortController`, output validation, failure injection
 - Location: `reliability/`
-- Contains: `resilient-tool.ts`, `retry.ts`, `timeout`/`fallback.ts`, `errors.ts`, `validation.ts`, `observability.ts`, `failure-injection.ts`, `tool-invocation.ts`
+- Contains: `resilient-tool.ts`, `retry.ts`, `timeout`/`fallback.ts`, `fallback-tool.ts` (search→read fallback seam), `errors.ts`, `validation.ts`, `observability.ts`, `failure-injection.ts`, `tool-invocation.ts`
 - Depends on: tools contracts
 - Used by: every inspection tool wrapper
 
@@ -81,7 +81,7 @@ See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to 
 **Evaluation:**
 - Purpose: Benchmark models on repo-assistant workloads
 - Location: `eval/`
-- Contains: `capstone-eval.ts` (Day-30 suite), `bench/` (framework: `types.ts`, `schema.ts`, `config.ts`, `metrics.ts`, `store.ts`, `runner.ts`, `judge.ts`, `providers.ts`, `patch.ts`, `index.ts`), `benchmarks/sample.json`, `fixtures/sample-repo/`
+- Contains: `capstone-eval.ts` (Day-30 suite), `bench/` (framework: `types.ts`, `schema.ts`, `config.ts`, `metrics.ts`, `store.ts`, `runner.ts`, `judge.ts`, `providers.ts`, `model-loop.ts`, `patch.ts`, `index.ts`), `benchmarks/sample.json`, `fixtures/sample-repo/`
 - Depends on: investigation, tools, index
 - Used by: `scripts/flue-eval.ts` (CLI), `eval/run-capstone-eval.sh`, CI example
 
