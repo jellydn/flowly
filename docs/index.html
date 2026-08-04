@@ -1203,7 +1203,8 @@ meta-tools (<span class="pre-accent">create_plan · replan · reflect_plan</span
               <h3>Model benchmark</h3>
               <p>
                 Seven capstone scenarios scored on tool success, citation accuracy, retrieval
-                relevance, and completeness — deterministic in CI, live with a provider key.
+                relevance, and completeness — deterministic in CI (keyword judge), or live with
+                per-model providers and an optional LLM judge (<code>--judge-model</code>).
               </p>
             </div>
             <div class="beyond-card reveal">
@@ -1365,7 +1366,7 @@ meta-tools (<span class="pre-accent">create_plan · replan · reflect_plan</span
             <a href="https://github.com/jellydn/flue-repo-assistant/blob/main/docs/adr/README.md" class="doc-card reveal">
               <div class="doc-card-type">docs/adr</div>
               <h3>ADR index</h3>
-              <p>Event router, model eval, and tool-seam decisions.</p>
+              <p>Event router, model eval, tool-seam, and live-eval decisions.</p>
             </a>
             <a href="https://github.com/jellydn/flue-repo-assistant/blob/main/docs/adr/0001-event-router.md" class="doc-card reveal" style="--d: 0.05s">
               <div class="doc-card-type">ADR 0001</div>
@@ -1377,7 +1378,17 @@ meta-tools (<span class="pre-accent">create_plan · replan · reflect_plan</span
               <h3>Model eval benchmark</h3>
               <p>Deterministic scoring without a provider key.</p>
             </a>
-            <a href="https://github.com/jellydn/flue-repo-assistant/blob/main/.planning/codebase/STACK.md" class="doc-card reveal" style="--d: 0.15s">
+            <a href="https://github.com/jellydn/flue-repo-assistant/blob/main/docs/adr/0003-tool-composition-seam.md" class="doc-card reveal" style="--d: 0.15s">
+              <div class="doc-card-type">ADR 0003</div>
+              <h3>Tool composition seam</h3>
+              <p>One seam for budgets, reliability, and search scope.</p>
+            </a>
+            <a href="https://github.com/jellydn/flue-repo-assistant/blob/main/docs/adr/0004-live-eval-provider-seam.md" class="doc-card reveal" style="--d: 0.2s">
+              <div class="doc-card-type">ADR 0004</div>
+              <h3>Live-eval provider seam</h3>
+              <p>Per-model providers, model-driven loop, LLM judge.</p>
+            </a>
+            <a href="https://github.com/jellydn/flue-repo-assistant/blob/main/.planning/codebase/STACK.md" class="doc-card reveal" style="--d: 0.25s">
               <div class="doc-card-type">codemap</div>
               <h3>Code map</h3>
               <p>Stack, architecture, conventions, concerns, and more.</p>
