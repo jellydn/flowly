@@ -413,8 +413,11 @@ Deterministic mode reuses the capstone decision functions, so it is fully
 reproducible without a provider key — safe for CI. `--live` calls a real model
 through an OpenAI-compatible client; each model in the config resolves its own
 provider, key env, and base URL (fields `provider`, `apiKeyEnv`, `baseUrl`)
-with per-provider defaults in `eval/bench/providers.ts`. Results persist as
-JSON under `eval/results/` (override with `FLUE_EVAL_RESULTS_DIR`).
+with per-provider defaults in `eval/bench/providers.ts`. In live mode the
+model drives the real investigation loop — each tool result is fed back to the
+provider, which replies with the next action until it decides to answer —
+rather than a single scripted retrieval. Results persist as JSON under
+`eval/results/` (override with `FLUE_EVAL_RESULTS_DIR`).
 
 The `review` subcommand records human accept/reject verdicts on a saved
 report (ORI-Eval-style human-in-the-loop scoring) and recomputes the
@@ -424,9 +427,12 @@ acceptance rate; use `report` to see each scenario's reviewed status.
 
 A suite is a JSON file with a `suite` (scenarios + expected sources/keywords)
 and `models` list. The bundled `eval/benchmarks/sample.json` runs the seven
-capstone scenarios. Custom suites define their own prompts and expectations;
-scenario ids must map to decision functions in deterministic mode (see
-`eval/bench/runner.ts` and the bundled capstone deciders).
+capstone scenarios. Each `models[]` entry names its own `provider` (and
+optionally `apiKeyEnv`/`baseUrl`), so one config can benchmark openrouter,
+anthropic, and deepseek models against their own endpoints and keys. Custom
+suites define their own prompts and expectations; scenario ids must map to
+decision functions in deterministic mode (see `eval/bench/runner.ts` and the
+bundled capstone deciders).
 
 ### Scoring
 
