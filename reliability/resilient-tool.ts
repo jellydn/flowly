@@ -11,7 +11,6 @@ import {
   validateListResult,
   validateReadResult,
   validateRetrieveResult,
-  validateSearchDocsResult,
   validateSearchResult,
   type ValidationResult,
 } from './validation.ts';
@@ -42,8 +41,10 @@ function markSealed<T extends object>(tool: T): T {
 const validators: Record<string, ToolValidator<unknown>> = {
   list_files: validateListResult,
   read_file: validateReadResult,
+  // search_code and search_docs share one validator: their results have an
+  // identical shape, differing only in the scope searched.
   search_code: validateSearchResult,
-  search_docs: validateSearchDocsResult,
+  search_docs: validateSearchResult,
   retrieve: validateRetrieveResult,
 };
 
