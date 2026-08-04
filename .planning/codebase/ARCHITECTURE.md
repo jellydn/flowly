@@ -13,6 +13,19 @@
 - Deterministic, key-free evaluation paths for CI alongside live provider-backed paths
 - Factory-function composition everywhere (`createXxx`) with Valibot schema validation at the edges
 
+## Decisions
+
+Significant architecture decisions are recorded as ADRs in [`docs/adr/`](../../docs/adr/README.md)
+and indexed there. When a decision changes the architecture described in this
+map, record an ADR and keep both documents in sync:
+
+| ADR | Decision | Status |
+| --- | -------- | ------ |
+| [0001 – Event router](../../docs/adr/0001-event-router.md) | Declarative Valibot route config, normalized event model, first-match routing with AND-ed filters, duplicate-delivery stores, decision-only dispatch (agent execution wired by workflows) | Accepted |
+| [0002 – Model evaluation benchmark](../../docs/adr/0002-model-eval-benchmark.md) | `eval/bench/` framework with deterministic + live runner modes, keyword judge with an LLM-as-a-judge seam, provider pricing, `npm run eval` CLI | Accepted |
+
+See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to add a new record.
+
 ## Layers
 
 **Agents:**
