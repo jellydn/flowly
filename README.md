@@ -1011,7 +1011,7 @@ flue-repo-assistant/
 │   ├── run-eval.sh
 │   └── fixtures/sample-repo/   # bundled evaluation fixture
 ├── docs/
-│   ├── adr/                    # architecture decision records (0001–0003)
+│   ├── adr/                    # architecture decision records (0001–0004)
 │   └── index.html              # landing page (hand-maintained)
 ├── .planning/
 │   └── codebase/               # codemap: STACK, ARCHITECTURE, CONCERNS, …
