@@ -14,7 +14,8 @@
 import type { InvestigationResult } from '../../investigation/types.ts';
 import { checkScenario, type ScenarioChecks } from './runner.ts';
 import { scoreScenario } from './metrics.ts';
-import type { BenchmarkScenario } from './types.ts';
+import type { BenchmarkScenario, ModelSpec } from './types.ts';
+import { createProviderClient, type ModelCallFn } from './providers.ts';
 
 export type JudgeInput = {
   scenario: BenchmarkScenario;
@@ -91,6 +92,29 @@ export function formatJudgePrompt(scenario: BenchmarkScenario, answer: string, e
  * neutral 0.5 score rather than failing the run.
  */
 export function createLlmJudge(modelCall: (prompt: string) => Promise<string>): Judge {
+  const judge = createLlmJudgeFromCall(modelCall);
+  return {
+    async score(input) {
+      return judge.score(input);
+    },
+  };
+}
+
+/**
+ * Build an LLM judge from a model spec through the provider registry, so the
+ * judge can use a different provider/key than the evaluated model. Throws an
+ * actionable error when the provider/key cannot be resolved.
+ */
+export function createLlmJudgeFromSpec(
+  model: ModelSpec,
+  env: Record<string, string | undefined> = process.env,
+): Judge {
+  const modelCall: ModelCallFn = createProviderClient(model, env);
+  return createLlmJudgeFromCall(async (prompt) => (await modelCall(prompt)).content);
+}
+
+/** Core LLM-judge implementation over a string-reply call function. */
+function createLlmJudgeFromCall(modelCall: (prompt: string) => Promise<string>): Judge {
   return {
     async score({ scenario, result }: JudgeInput): Promise<JudgeVerdict> {
       const evidenceText = result.evidence.map((e) => e.excerpt).join('\n');

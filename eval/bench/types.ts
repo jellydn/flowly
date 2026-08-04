@@ -135,6 +135,12 @@ export type BenchmarkReport = {
   failed: number;
   results: ScenarioResult[];
   summary: BenchmarkSummary;
+  /**
+   * Judge used for scoring: 'keyword' (default) or the model id of the
+   * LLM-as-a-judge. Absent on reports saved before this field existed;
+   * treat as 'keyword'.
+   */
+  judge?: 'keyword' | string;
 };
 
 /** One row in the cross-model leaderboard for a suite. */
