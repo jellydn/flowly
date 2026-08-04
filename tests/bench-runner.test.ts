@@ -198,20 +198,23 @@ test('runBenchmark throws a clear error when a decider is missing', async () => 
   );
 });
 
-test('runBenchmark live mode actually invokes the model call', async () => {
+test('runBenchmark live mode drives the loop then invokes the answer call', async () => {
   let calls = 0;
-  const replies = ['authentication is implemented in src/auth.ts'];
   const report = await runBenchmark(suite, model, {
     mode: 'live',
     modelCall: async (prompt) => {
       calls += 1;
-      assert.ok(prompt.includes(scenario.prompt)); // evidence is threaded into the prompt
-      return { content: replies.shift() ?? 'no reply' };
+      assert.ok(prompt.includes(scenario.prompt)); // question is threaded into the prompt
+      // First call is the loop decider: stop immediately with no tool calls.
+      if (calls === 1) return { content: '{"action":"stop","reason":"answer directly"}' };
+      // Second call is the final answer.
+      return { content: 'authentication is implemented in src/auth.ts' };
     },
   });
   assert.equal(report.mode, 'live');
   assert.equal(report.totalScenarios, 1);
-  assert.equal(calls, 1, 'modelCall must be invoked once per scenario');
+  // One decider call (stop) + one answer call.
+  assert.equal(calls, 2, 'modelCall drives the loop, then answers');
   assert.ok(report.results[0].answer.includes('src/auth.ts'));
   // No usage reported: metrics fall back to estimates.
   assert.equal(report.results[0].metrics.usageSource, 'estimated');

@@ -35,6 +35,7 @@ export { createPatchCheck, extractFencedBlocks } from './patch.ts';
 export type { PatchValidator } from './patch.ts';
 export { createKeywordJudge, createLlmJudge, formatJudgePrompt } from './judge.ts';
 export type { Judge, JudgeInput, JudgeVerdict } from './judge.ts';
+export { createModelDecider, formatDeciderPrompt, parseModelAction } from './model-loop.ts';
 export {
   PROVIDER_PRICING,
   PROVIDER_BASE_URLS,

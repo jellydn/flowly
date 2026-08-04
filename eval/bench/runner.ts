@@ -27,6 +27,7 @@ import { estimateCost, scoreScenario, buildReport } from './metrics.ts';
 import type { Judge } from './judge.ts';
 import { createKeywordJudge } from './judge.ts';
 import type { ModelCallFn, ModelUsage } from './providers.ts';
+import { createModelDecider } from './model-loop.ts';
 import type { BenchmarkReport, BenchmarkScenario, BenchmarkSuite, MetricPass, ModelSpec, ScenarioResult } from './types.ts';
 
 /** Approximate tokens from text length (4 chars/token heuristic). */
@@ -120,7 +121,7 @@ function buildTools(repository: RepositoryReader, maxSteps: number) {
   };
 }
 
-/** Live mode: gather evidence once (when tools are required), then call the model. */
+/** Live mode: the model drives the investigation loop, then answers. */
 async function runLive(
   scenario: BenchmarkScenario,
   repository: RepositoryReader,
@@ -128,21 +129,13 @@ async function runLive(
   maxSteps: number,
 ): Promise<{ result: InvestigationResult; usage?: ModelUsage }> {
   const { budget, tools } = buildTools(repository, maxSteps);
-  const gather: DecisionFn = async (state) => {
-    if (state.iteration === 0) {
-      return {
-        type: 'call',
-        tool: 'retrieve',
-        input: { query: scenario.prompt, topK: 5 },
-      };
-    }
-    return { type: 'stop', reason: 'evidence gathered' };
-  };
+  const toolNames = [...tools.keys()];
+  const decide: DecisionFn = createModelDecider({ modelCall, toolNames });
 
-  // Tool-requiring scenarios gather evidence through the loop; conceptual
-  // scenarios answer directly from the model with no tool calls.
+  // Tool-requiring scenarios gather evidence through the model-driven loop;
+  // conceptual scenarios answer directly from the model with no tool calls.
   const investigation = scenario.requiresToolCall
-    ? await runInvestigation(scenario.prompt, tools, budget, gather)
+    ? await runInvestigation(scenario.prompt, tools, budget, decide)
     : { answer: { answer: '', sources: [], confidence: 'Insufficient' as const, toolsUsed: [], insufficientEvidence: true, keyFindings: [] }, iterations: 0, evidence: [], errors: [], toolsUsed: [], stopReason: 'no tools required', callHistory: [] };
 
   const evidenceText = investigation.evidence.map((e) => e.excerpt).join('\n');
