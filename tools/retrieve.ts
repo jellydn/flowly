@@ -23,11 +23,20 @@ type IndexHolder = {
 async function ensureIndex(holder: IndexHolder, repository: RepositoryReader): Promise<RepositoryIndex> {
   if (holder.index) return holder.index;
   if (holder.building) return holder.building;
-  holder.building = buildRepositoryIndex(repository).then((index) => {
-    holder.index = index;
-    holder.building = undefined;
-    return index;
-  });
+  // On failure, clear the memoized promise so a later call retries the build
+  // instead of being stuck on the same rejected promise forever (which would
+  // defeat the reliability seam's retries and permanently brick retrieve).
+  holder.building = buildRepositoryIndex(repository).then(
+    (index) => {
+      holder.index = index;
+      holder.building = undefined;
+      return index;
+    },
+    (error: unknown) => {
+      holder.building = undefined;
+      throw error;
+    },
+  );
   return holder.building;
 }
 
