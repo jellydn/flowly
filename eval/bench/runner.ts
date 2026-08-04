@@ -259,6 +259,11 @@ export type RunBenchmarkOptions = {
   modelCall?: ModelCallFn;
   /** Judge override; defaults to the keyword judge. */
   judge?: Judge;
+  /**
+   * Label recorded in the report for the judge used (e.g. the judge model
+   * id). Ignored when `judge` is not set; the report defaults to 'keyword'.
+   */
+  judgeId?: string;
   /** Repository path; defaults to the suite's repositoryPath or the sample fixture. */
   repositoryPath?: string;
   /** Per-scenario inspection budget; defaults to the suite maxSteps or 8. */
@@ -306,6 +311,7 @@ export async function runBenchmark(
     model: { id: model.id, provider: model.provider, label: model.label ?? model.id },
     mode: options.mode,
     results,
+    judge: options.judgeId ?? 'keyword',
   });
 }
 

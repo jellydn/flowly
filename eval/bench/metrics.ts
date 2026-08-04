@@ -110,6 +110,7 @@ export function buildReport(input: {
   model: { id: string; provider: string; label: string };
   mode: 'deterministic' | 'live';
   results: ScenarioResult[];
+  judge?: 'keyword' | string;
 }): BenchmarkReport {
   const passed = input.results.filter((r) => r.passed).length;
   return {
@@ -124,5 +125,6 @@ export function buildReport(input: {
     failed: input.results.length - passed,
     results: input.results,
     summary: computeSummary(input.results),
+    judge: input.judge ?? 'keyword',
   };
 }

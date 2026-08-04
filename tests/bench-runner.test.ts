@@ -4,6 +4,7 @@ import {
   checkScenario,
   createKeywordJudge,
   createLlmJudge,
+  createLlmJudgeFromSpec,
   createOpenAiCompatibleClient,
   createPatchCheck,
   createStaticModelCall,
@@ -143,6 +144,39 @@ test('formatJudgePrompt includes scenario expectations', () => {
   assert.ok(prompt.includes('authentication'));
 });
 
+test('createLlmJudgeFromSpec builds a judge through the provider registry', async () => {
+  const model: ModelSpec = { id: 'openrouter/qwen/qwen3-coder', provider: 'openrouter' };
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => ({
+    ok: true,
+    async text() {
+      return '';
+    },
+    async json() {
+      return { choices: [{ message: { content: '{"score": 0.9, "rationale": "good"}' } }] };
+    },
+  })) as unknown as typeof fetch;
+  try {
+    const judge = createLlmJudgeFromSpec(model, { OPENROUTER_API_KEY: 'sk-test' });
+    const verdict = await judge.score({
+      scenario,
+      result: { answer: { answer: 'a', sources: [] }, evidence: [] } as unknown as InvestigationResult,
+    });
+    assert.equal(verdict.score, 0.9);
+    assert.equal(verdict.rationale, 'good');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('createLlmJudgeFromSpec throws without a key', () => {
+  const model: ModelSpec = { id: 'openai/gpt-4o', provider: 'openai' };
+  assert.throws(
+    () => createLlmJudgeFromSpec(model, {}),
+    /No API key for provider "openai"/,
+  );
+});
+
 test('pricingForProvider returns known pricing and undefined for unknown', () => {
   assert.equal(pricingForProvider('anthropic')?.inputPer1kUsd, 0.003);
   assert.equal(pricingForProvider('not-a-provider'), undefined);
@@ -235,6 +269,22 @@ test('runBenchmark live mode uses provider-reported tokens and billed cost', asy
   assert.equal(metrics.tokensOut, 40);
   // Billed cost wins over the pricing-table estimate.
   assert.equal(metrics.costUsd, 0.00042);
+});
+
+test('reports record the judge used', async () => {
+  const keyword = await runBenchmark(suite, model, {
+    mode: 'deterministic',
+    deciders: { 'cap-1': cap1Decider },
+  });
+  assert.equal(keyword.judge, 'keyword');
+
+  const llm = await runBenchmark(suite, model, {
+    mode: 'deterministic',
+    deciders: { 'cap-1': cap1Decider },
+    judge: createLlmJudge(async () => '{"score": 0.7, "rationale": "ok"}'),
+    judgeId: 'judge-model-x',
+  });
+  assert.equal(llm.judge, 'judge-model-x');
 });
 
 test('createOpenAiCompatibleClient parses usage and billed cost from the response', async () => {
