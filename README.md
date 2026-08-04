@@ -16,8 +16,8 @@ Rust-focused monorepo for privacy-preserving distributed systems.
 ## Features
 
 - One Flue agent
-- Four typed, read-only tools (`list_files`, `read_file`, `search_code`,
-  `search_docs`)
+- Five typed, read-only tools (`list_files`, `read_file`, `search_code`,
+  `search_docs`, `retrieve` — semantic TF-IDF retrieval)
 - A PR review agent (`agents/pr-reviewer.ts`) with review-specific tools and a
   trusted GitHub adapter — never auto-approves
 - A GitHub event router (`github/events/`) that maps repository events to
@@ -39,6 +39,7 @@ Question
 ┌──────────────┐       ┌────────────────────────────┐
 │ Flue harness │──────▶│ list_files / read_file /  │
 │ + LLM        │◀──────│ search_code / search_docs │
+│              │       │ retrieve (semantic)       │
 │              │       │ (read-only)               │
 └──────┬───────┘       └─────────────┬──────────────┘
        │                             │
@@ -150,9 +151,10 @@ never auto-approves.
 
 ## How the bound works
 
-Every `list_files`, `read_file`, `search_code`, or `search_docs` call consumes
-one shared inspection step. Tool results include `used` and `remaining`; after
-that limit, all four inspection tools reject further calls and the instructions
+Every `list_files`, `read_file`, `search_code`, `search_docs`, or `retrieve`
+call consumes one shared inspection step. Tool results include `used` and
+`remaining`; after that limit, all five inspection tools reject further calls
+and the instructions
 require the agent to answer from collected evidence. Each tool result carries an
 `inspection` object of the shape `{ used, remaining, limit }` so the model can see whether
 it may continue; errors are wrapped with the same snapshot. The agent also
@@ -168,14 +170,14 @@ nonexistent setting.
 
 ## Read-only guarantees
 
-The agent's only application-data capabilities are four custom inspection
+The agent's only application-data capabilities are five custom inspection
 tools. They use Node's read-only filesystem APIs and expose no shell, write,
 Git, or network operation. A restricted in-memory sandbox removes Flue's default
 model-facing filesystem and shell tools.
 
 Flue still appends its framework-owned `activate_skill` and `task` tools. This
 project has no declared subagent profiles and explicitly instructs the agent not
-to delegate. An implicit task would inherit the same four inspection tool
+to delegate. An implicit task would inherit the same five inspection tool
 instances and shared budget; it cannot reset the inspection limit or access the
 host checkout through the sandbox.
 
@@ -449,6 +451,7 @@ the agent loop.**
 | `search_docs` | You are looking for documented architecture, configuration, or design context.                |
 | `search_code` | You are looking for a symbol, phrase, configuration, or implementation whose path is unknown. |
 | `read_file`   | An exact file path is already known and surrounding context is needed.                        |
+| `retrieve`    | You need conceptual retrieval over indexed source and docs, not a literal match.              |
 
 Selection rules baked into the agent instructions and the
 `analyzing-repositories` skill:
@@ -568,8 +571,9 @@ continuing—the stretch-goal dynamic replanning loop.
 | `replan`       | No               | Revise the plan when a step returns no results    |
 | `reflect_plan` | No               | State whether steps could be simplified or merged |
 
-The four inspection tools (`list_files`, `read_file`, `search_code`,
-`search_docs`) still consume the shared budget as before. Planning tools are
+The five inspection tools (`list_files`, `read_file`, `search_code`,
+`search_docs`, `retrieve`) still consume the shared budget as before. Planning
+tools are
 meta-tools that structure the agent's reasoning without inspecting the
 repository.
 
@@ -798,6 +802,7 @@ Grounded answer with citations + confidence
 | `search_code`  | Yes              | Search source files for a literal string        |
 | `read_file`    | Yes              | Read a bounded line range from a known file     |
 | `list_files`   | Yes              | List files and directories under a path         |
+| `retrieve`     | Yes              | Semantic retrieval over the repository index     |
 | `create_plan`  | No               | Declare a 3–5 step plan before executing        |
 | `replan`       | No               | Revise the plan when a step returns no results  |
 | `reflect_plan` | No               | Reflect on whether steps could be simplified    |
@@ -905,44 +910,56 @@ The Day 21 test suite covers:
 ```text
 flue-repo-assistant/
 ├── agents/
-│   ├── repo-assistant.ts
-│   └── pr-reviewer.ts
+│   ├── repo-assistant.ts       # general inspection agent
+│   └── pr-reviewer.ts          # PR review agent (never auto-approves)
 ├── github/
-│   ├── adapter.ts          # trusted review publisher
-│   └── client.ts           # thin GitHub REST client
+│   ├── adapter.ts              # trusted review publisher
+│   ├── client.ts               # thin GitHub REST client
+│   └── events/                 # event router: config, router, dedupe, logger
 ├── review/
-│   ├── diff.ts             # unified-diff parser
-│   ├── filters.ts          # skip lockfiles / generated / vendored
-│   ├── limits.ts           # file-aware review limits
-│   ├── pr-data.ts          # git + GitHub PR data source
-│   ├── review-tools.ts     # review-specific tool factories
-│   └── schema.ts           # ReviewResult Valibot schema
+│   ├── diff.ts                 # unified-diff parser
+│   ├── filters.ts              # skip lockfiles / generated / vendored
+│   ├── limits.ts               # file-aware review limits
+│   ├── pr-data.ts              # git + GitHub PR data source
+│   ├── review-state.ts         # persistent review state
+│   ├── review-state-store.ts   # state via filtered PR comment
+│   ├── review-tools.ts         # review-specific tool factories
+│   └── schema.ts               # ReviewResult Valibot schema
 ├── scripts/
-│   └── review-pr.ts        # CI entrypoint (npm run review-pr)
+│   ├── flue-eval.ts            # eval benchmark CLI (npm run eval)
+│   ├── review-pr.ts            # CI entrypoint (npm run review-pr)
+│   └── route-event.ts          # event router CLI (npm run route-event)
 ├── investigation/
 │   ├── answer.ts
 │   ├── call-tracker.ts
 │   ├── evidence.ts
 │   ├── loop.ts
 │   └── types.ts
+├── index/
+│   └── repository-indexer.ts   # lazy TF-IDF index backing `retrieve`
 ├── planner/
-│   ├── executor.ts
+│   ├── executor.ts             # programmatic plan executor + replan tool
+│   ├── plan-run.ts
 │   ├── plan-store.ts
-│   ├── planner.ts
-│   ├── reflection.ts
+│   ├── planner.ts              # create_plan tool
+│   ├── reflection.ts           # reflect_plan tool
 │   └── types.ts
 ├── reliability/
 │   ├── errors.ts
 │   ├── failure-injection.ts
 │   ├── fallback.ts
 │   ├── observability.ts
-│   ├── resilient-tool.ts
+│   ├── resilient-tool.ts       # retry + timeout + validation wrapper
 │   ├── retry.ts
 │   └── validation.ts
 ├── tools/
+│   ├── contracts.ts            # tool names + shared limits
+│   ├── inspection-registry.ts  # ordered composition of the five tools
 │   ├── list-files.ts
 │   ├── read-file.ts
-│   ├── repository.ts
+│   ├── repository-search.ts    # bounded literal search
+│   ├── repository.ts           # RepositoryReader + StepBudget
+│   ├── retrieve.ts             # semantic retrieval over the index
 │   ├── search-code.ts
 │   ├── search-docs.ts
 │   └── search-utils.ts
@@ -958,19 +975,28 @@ flue-repo-assistant/
 │   ├── repository.test.ts
 │   └── tools.test.ts
 ├── demo/
+│   ├── capstone-demo.sh
+│   ├── capstone-demo.ts        # index → retrieve → cite → evaluate
 │   ├── doc-aware-demo.sh
 │   ├── doc-aware-demo.ts
 │   └── reliability-demo.sh
 ├── eval/
 │   ├── README.md
+│   ├── bench/                  # ORI-Eval-inspired benchmark framework
+│   ├── benchmarks/sample.json  # bundled 7-scenario suite
+│   ├── capstone-eval.ts        # Day 30 capstone evaluation
+│   ├── run-capstone-eval.sh
 │   ├── run-eval.sh
 │   └── fixtures/sample-repo/   # bundled evaluation fixture
 ├── docs/
-│   └── adr/                   # architecture decision records
+│   ├── adr/                    # architecture decision records (0001, 0002)
+│   └── index.html              # landing page (hand-maintained)
+├── .planning/
+│   └── codebase/               # codemap: STACK, ARCHITECTURE, CONCERNS, …
 ├── sandbox.ts
-├── app.ts                    # Flue 2 route map
+├── app.ts                      # Flue 2 route map
 ├── flue.config.ts
-├── vite.config.ts            # Flue 2 Vite build integration
+├── vite.config.ts              # Flue 2 Vite build integration
 └── README.md
 ```
 
