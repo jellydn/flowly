@@ -25,9 +25,10 @@ import {
   createRepositoryReader,
   createStepBudget,
 } from '../tools/repository.ts';
-import { createReadFileTool } from '../tools/read-file.ts';
-import { createRetrieveTool } from '../tools/retrieve.ts';
-import { withInspectionBudget } from '../reliability/resilient-tool.ts';
+import { createInspectionRegistry } from '../tools/inspection-registry.ts';
+import { createReliabilityLogger } from '../reliability/observability.ts';
+import { noFailureInjection } from '../reliability/failure-injection.ts';
+import { DEFAULT_RETRY_CONFIG } from '../reliability/retry.ts';
 import { buildToolMap, runInvestigation } from '../investigation/loop.ts';
 import type { DecisionFn } from '../investigation/types.ts';
 import { buildRepositoryIndex } from '../index/repository-indexer.ts';
@@ -124,10 +125,18 @@ async function main() {
 
   const budget = createStepBudget(8);
   const debug = createDebugLogger(false);
-  const tools = buildToolMap({
-    read_file: withInspectionBudget(createReadFileTool(repository), budget, debug),
-    retrieve: withInspectionBudget(createRetrieveTool(repository), budget, debug),
+  // The registry is the single composition point: it wraps every raw tool
+  // with the same reliability policy and budget, so the demo exercises the
+  // same tool set the live agent and eval runners use.
+  const registry = createInspectionRegistry({
+    repository,
+    budget,
+    debug,
+    retryConfig: DEFAULT_RETRY_CONFIG,
+    reliabilityLog: createReliabilityLogger(false),
+    injector: noFailureInjection,
   });
+  const tools = buildToolMap(registry.tools);
 
   const investigationStart = Date.now();
   const result = await runInvestigation(question, tools, budget, capstoneDecision);

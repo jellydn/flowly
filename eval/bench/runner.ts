@@ -22,12 +22,7 @@ import type { RepositoryReader } from '../../tools/repository.ts';
 import type { InvestigationResult, DecisionFn } from '../../investigation/types.ts';
 import { runInvestigation, buildToolMap } from '../../investigation/loop.ts';
 import { createDebugLogger, createRepositoryReader, createStepBudget } from '../../tools/repository.ts';
-import { createListFilesTool } from '../../tools/list-files.ts';
-import { createReadFileTool } from '../../tools/read-file.ts';
-import { createSearchCodeTool } from '../../tools/search-code.ts';
-import { createSearchDocsTool } from '../../tools/search-docs.ts';
-import { createRetrieveTool } from '../../tools/retrieve.ts';
-import { withInspectionBudget } from '../../reliability/resilient-tool.ts';
+import { createBudgetedInspectionTools } from '../../tools/inspection-registry.ts';
 import { estimateCost, scoreScenario, buildReport } from './metrics.ts';
 import type { Judge } from './judge.ts';
 import { createKeywordJudge } from './judge.ts';
@@ -119,13 +114,9 @@ function buildTools(repository: RepositoryReader, maxSteps: number) {
   const budget = createStepBudget(maxSteps);
   return {
     budget,
-    tools: buildToolMap({
-      list_files: withInspectionBudget(createListFilesTool(repository), budget, debug),
-      read_file: withInspectionBudget(createReadFileTool(repository), budget, debug),
-      search_code: withInspectionBudget(createSearchCodeTool(repository), budget, debug),
-      search_docs: withInspectionBudget(createSearchDocsTool(repository), budget, debug),
-      retrieve: withInspectionBudget(createRetrieveTool(repository), budget, debug),
-    }),
+    // The tool set comes from the inspection registry's single source of
+    // truth rather than being re-listed here.
+    tools: buildToolMap(createBudgetedInspectionTools(repository, budget, debug)),
   };
 }
 

@@ -29,12 +29,7 @@ import {
   createRepositoryReader,
   createStepBudget,
 } from '../tools/repository.ts';
-import { createListFilesTool } from '../tools/list-files.ts';
-import { createReadFileTool } from '../tools/read-file.ts';
-import { createSearchCodeTool } from '../tools/search-code.ts';
-import { createSearchDocsTool } from '../tools/search-docs.ts';
-import { createRetrieveTool } from '../tools/retrieve.ts';
-import { withInspectionBudget } from '../reliability/resilient-tool.ts';
+import { createBudgetedInspectionTools } from '../tools/inspection-registry.ts';
 import { buildToolMap, runInvestigation } from '../investigation/loop.ts';
 import type { DecisionFn, InvestigationResult } from '../investigation/types.ts';
 import { buildRepositoryIndex } from '../index/repository-indexer.ts';
@@ -415,13 +410,7 @@ async function runScenario(
   debug: ReturnType<typeof createDebugLogger>,
 ): Promise<ScenarioResult> {
   const budget = createStepBudget(8);
-  const tools = buildToolMap({
-    list_files: withInspectionBudget(createListFilesTool(repository), budget, debug),
-    read_file: withInspectionBudget(createReadFileTool(repository), budget, debug),
-    search_code: withInspectionBudget(createSearchCodeTool(repository), budget, debug),
-    search_docs: withInspectionBudget(createSearchDocsTool(repository), budget, debug),
-    retrieve: withInspectionBudget(createRetrieveTool(repository), budget, debug),
-  });
+  const tools = buildToolMap(createBudgetedInspectionTools(repository, budget, debug));
 
   const start = Date.now();
   const result = await runInvestigation(scenario.question, tools, budget, scenario.decide);
