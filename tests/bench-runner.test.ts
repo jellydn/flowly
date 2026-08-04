@@ -235,39 +235,41 @@ test('runBenchmark live mode uses provider-reported tokens and billed cost', asy
 });
 
 test('createOpenAiCompatibleClient parses usage and billed cost from the response', async () => {
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = (async () =>
-    ({
-      ok: true,
-      async text() {
-        return '';
-      },
-      async json() {
-        return {
-          choices: [{ message: { content: 'the answer' } }],
-          usage: { prompt_tokens: 77, completion_tokens: 23, total_cost: 0.00111 },
-        };
-      },
-    })) as unknown as typeof fetch;
-  try {
-    const client = createOpenAiCompatibleClient({
-      apiKey: 'sk-test',
-      baseUrl: 'https://example.test/api/v1',
-      model: 'm',
-    });
-    const result = await client('prompt');
-    assert.equal(result.content, 'the answer');
-    assert.deepEqual(result.usage, {
-      inputTokens: 77,
-      outputTokens: 23,
-      billedCostUsd: 0.00111,
-    });
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
+  const client = createOpenAiCompatibleClient({
+    apiKey: 'sk-test',
+    baseUrl: 'https://example.test/api/v1',
+    model: 'm',
+  });
+  const result = await withMockFetch(
+    {
+      choices: [{ message: { content: 'the answer' } }],
+      usage: { prompt_tokens: 77, completion_tokens: 23, total_cost: 0.00111 },
+    },
+    () => client('prompt'),
+  );
+  assert.equal(result.content, 'the answer');
+  assert.deepEqual(result.usage, {
+    inputTokens: 77,
+    outputTokens: 23,
+    billedCostUsd: 0.00111,
+  });
 });
 
 test('createOpenAiCompatibleClient omits usage when the provider reports none', async () => {
+  const client = createOpenAiCompatibleClient({
+    apiKey: 'sk-test',
+    baseUrl: 'https://example.test/api/v1',
+    model: 'm',
+  });
+  const result = await withMockFetch(
+    { choices: [{ message: { content: 'the answer' } }] },
+    () => client('prompt'),
+  );
+  assert.equal(result.usage, undefined);
+});
+
+/** Run `fn` with global fetch stubbed to return `body`, restoring it after. */
+async function withMockFetch<T>(body: unknown, fn: () => Promise<T>): Promise<T> {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async () =>
     ({
@@ -276,21 +278,15 @@ test('createOpenAiCompatibleClient omits usage when the provider reports none', 
         return '';
       },
       async json() {
-        return { choices: [{ message: { content: 'the answer' } }] };
+        return body;
       },
     })) as unknown as typeof fetch;
   try {
-    const client = createOpenAiCompatibleClient({
-      apiKey: 'sk-test',
-      baseUrl: 'https://example.test/api/v1',
-      model: 'm',
-    });
-    const result = await client('prompt');
-    assert.equal(result.usage, undefined);
+    return await fn();
   } finally {
     globalThis.fetch = originalFetch;
   }
-});
+}
 
 test('recordHumanAcceptance recomputes the acceptance rate without mutating input', () => {
   const original = reportNoHuman();

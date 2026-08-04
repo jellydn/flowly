@@ -44,7 +44,6 @@ export function computeSummary(results: ScenarioResult[]): BenchmarkSummary {
       humanAcceptanceRate: Number.NaN,
     };
   }
-  const humanReviewed = results.filter((r) => r.metrics.humanAccepted !== undefined);
   return {
     qualityScore:
       results.reduce((sum, r) => sum + r.metrics.qualityScore, 0) / results.length,
@@ -59,11 +58,11 @@ export function computeSummary(results: ScenarioResult[]): BenchmarkSummary {
     toolSuccessRate: passRate(results, (r) => r.metrics.toolSuccess),
     patchApplicabilityRate: passRate(results, (r) => r.metrics.patchApplicability),
     // Only reviewed scenarios count; unreviewed runs report NaN.
-    humanAcceptanceRate:
-      humanReviewed.length === 0
-        ? Number.NaN
-        : humanReviewed.filter((r) => r.metrics.humanAccepted).length /
-          humanReviewed.length,
+    humanAcceptanceRate: passRate(results, (r) =>
+      r.metrics.humanAccepted === undefined
+        ? null
+        : { passed: r.metrics.humanAccepted, detail: '' },
+    ),
   };
 }
 

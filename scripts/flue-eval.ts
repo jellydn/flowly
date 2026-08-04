@@ -39,6 +39,7 @@ import { runBenchmark } from '../eval/bench/runner.ts';
 import { withDefaultPricing, createOpenAiCompatibleClient } from '../eval/bench/providers.ts';
 import { recordHumanAcceptance } from '../eval/bench/metrics.ts';
 import type { BenchmarkReport, ModelComparison, ModelSpec } from '../eval/bench/types.ts';
+import type { BenchmarkStore } from '../eval/bench/store.ts';
 import { capstoneScenarios } from '../eval/capstone-eval.ts';
 import type { DecisionFn } from '../investigation/types.ts';
 
@@ -55,14 +56,31 @@ function positional(rest: string[]): string | undefined {
   return rest.find((arg) => !arg.startsWith('--'));
 }
 
+/** Value following a `--flag` (undefined when the flag or its value is absent). */
+function flagValue(rest: string[], flag: string): string | undefined {
+  const index = rest.indexOf(flag);
+  return index === -1 ? undefined : rest[index + 1];
+}
+
 /** Value of a `--flag <csv>` flag as a trimmed, non-empty id list. */
 function csvFlag(rest: string[], flag: string): string[] {
-  const index = rest.indexOf(flag);
-  if (index === -1 || rest[index + 1] === undefined) return [];
-  return rest[index + 1]
+  const value = flagValue(rest, flag);
+  if (value === undefined) return [];
+  return value
     .split(',')
     .map((id) => id.trim())
     .filter((id) => id.length > 0);
+}
+
+/** Load a saved report by runId, exiting with a usage/not-found error otherwise. */
+async function loadReportOrExit(
+  store: BenchmarkStore,
+  runId: string | undefined,
+): Promise<BenchmarkReport> {
+  if (!runId) usage();
+  const report = await store.load(runId);
+  if (!report) fail(`No saved report with runId "${runId}".`);
+  return report;
 }
 
 function usage(): never {
@@ -85,6 +103,12 @@ function buildDeciders(): Record<string, DecisionFn> {
     deciders[scenario.id] = scenario.decide;
   }
   return deciders;
+}
+
+/** Short label for a scenario's human-verdict state. */
+function verdictLabel(accepted: boolean | undefined): string {
+  if (accepted === undefined) return 'unreviewed';
+  return accepted ? 'accepted' : 'rejected';
 }
 
 function printReport(report: BenchmarkReport, json: boolean): void {
@@ -110,8 +134,7 @@ function printReport(report: BenchmarkReport, json: boolean): void {
   );
   for (const result of report.results) {
     const usageMark = result.metrics.usageSource === 'provider' ? 'billed' : 'est.';
-    const humanMark = result.metrics.humanAccepted === undefined ? 'unreviewed' : result.metrics.humanAccepted ? 'accepted' : 'rejected';
-    lines.push(`  [${result.id}] ${result.passed ? '✅' : '❌'} quality=${(result.metrics.qualityScore * 100).toFixed(0)}% latency=${result.metrics.latencyMs}ms tokens=${result.metrics.tokensIn + result.metrics.tokensOut}(${usageMark}) ${humanMark}`);
+    lines.push(`  [${result.id}] ${result.passed ? '✅' : '❌'} quality=${(result.metrics.qualityScore * 100).toFixed(0)}% latency=${result.metrics.latencyMs}ms tokens=${result.metrics.tokensIn + result.metrics.tokensOut}(${usageMark}) ${verdictLabel(result.metrics.humanAccepted)}`);
   }
   process.stdout.write(`${lines.join('\n')}\n`);
 }
@@ -209,8 +232,8 @@ async function main(): Promise<number> {
       return 0;
     }
     case 'leaderboard': {
-      const suiteId = rest.includes('--suite') ? rest[rest.indexOf('--suite') + 1] : undefined;
-      if (rest.includes('--suite') && !suiteId) usage();
+      const suiteId = flagValue(rest, '--suite');
+      if (rest.includes('--suite') && suiteId === undefined) usage();
       const rows = await store.leaderboard(suiteId);
       if (rows.length === 0) {
         console.error('[flue-eval] No saved reports yet. Run `npm run eval -- run` first.');
@@ -229,13 +252,7 @@ async function main(): Promise<number> {
       return 0;
     }
     case 'report': {
-      const runId = positional(rest);
-      if (!runId) usage();
-      const report = await store.load(runId);
-      if (!report) {
-        console.error(`[flue-eval] No saved report with runId "${runId}".`);
-        return 1;
-      }
+      const report = await loadReportOrExit(store, positional(rest));
       printReport(report, rest.includes('--json'));
       return 0;
     }
@@ -248,11 +265,7 @@ async function main(): Promise<number> {
         console.error('[flue-eval] review requires --accept and/or --reject with comma-separated scenario ids.');
         return 2;
       }
-      const report = await store.load(runId);
-      if (!report) {
-        console.error(`[flue-eval] No saved report with runId "${runId}".`);
-        return 1;
-      }
+      const report = await loadReportOrExit(store, runId);
       const verdicts: Record<string, boolean> = {};
       for (const id of accept) verdicts[id] = true;
       for (const id of reject) verdicts[id] = false;
