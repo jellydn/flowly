@@ -68,6 +68,40 @@ export function parseModel(value: unknown): { ok: true; model: ModelSpec } | { o
   return { ok: false, issues: result.issues.map(formatIssue) };
 }
 
+/**
+ * Parse a model spec given on the CLI: either a JSON object (validated like
+ * the config's `models[]` entries) or a provider-qualified id string such as
+ * `openrouter/qwen/qwen3-coder`, whose first path segment is the provider.
+ * Returns field-path issues on failure, mirroring parseModel.
+ */
+export function parseModelSpecString(
+  spec: string,
+): { ok: true; model: ModelSpec } | { ok: false; issues: string[] } {
+  const trimmed = spec.trim();
+  if (trimmed.startsWith('{')) {
+    let value: unknown;
+    try {
+      value = JSON.parse(trimmed) as unknown;
+    } catch {
+      return {
+        ok: false,
+        issues: [
+          '--judge-model must be a JSON model spec or a provider-qualified model id (e.g. openrouter/qwen/qwen3-coder).',
+        ],
+      };
+    }
+    return parseModel(value);
+  }
+  const provider = trimmed.slice(0, trimmed.indexOf('/'));
+  if (!provider || trimmed.indexOf('/') === -1) {
+    return {
+      ok: false,
+      issues: ['--judge-model must include a provider segment (e.g. openrouter/qwen/qwen3-coder).'],
+    };
+  }
+  return { ok: true, model: { id: trimmed, provider } };
+}
+
 /** Parse a full benchmark config (suite + models), returning issues on failure. */
 export function parseBenchmarkConfig(
   value: unknown,

@@ -18,14 +18,19 @@
  *
  * Deterministic mode uses the bundled capstone decision functions — no LLM
  * key required, so CI runs are reproducible. `--live` uses a provider model
- * call (see `createOpenAiCompatibleClient` in eval/bench/providers.ts).
+ * call, resolved per model from the config's `models[]` entries (each model
+ * names its own provider, key env, and base URL via the provider registry in
+ * eval/bench/providers.ts). `--judge-model <spec>` swaps the keyword judge
+ * for an LLM-as-a-judge through the same provider seam.
  *
  * Environment:
  *   FLUE_EVAL_RESULTS_DIR – results directory (default eval/results)
- *   OPENROUTER_API_KEY / FLUE_EVAL_API_KEY – key for --live OpenAI-compatible
- *                                            calls (default openrouter)
- *   FLUE_EVAL_MODEL       – model spec for --live (default
- *                           openrouter/qwen/qwen3-coder)
+ *   FLUE_EVAL_API_KEY     – legacy fallback key for --live OpenAI-compatible
+ *                           calls (per-model apiKeyEnv wins; then OPENROUTER_API_KEY)
+ *   FLUE_EVAL_BASE_URL    – legacy fallback base URL (per-model baseUrl wins)
+ *
+ * Legacy: FLUE_EVAL_MODEL was removed when per-model provider resolution
+ * landed — model ids and providers now come from the config's models list.
  *
  * Exit codes: 0 success, 1 config/run errors, 2 usage errors.
  */
@@ -38,6 +43,9 @@ import { createFileBenchmarkStore } from '../eval/bench/store.ts';
 import { runBenchmark } from '../eval/bench/runner.ts';
 import { createProviderClient, withDefaultPricing } from '../eval/bench/providers.ts';
 import type { ModelCallFn } from '../eval/bench/providers.ts';
+import { createLlmJudgeFromSpec } from '../eval/bench/judge.ts';
+import type { Judge } from '../eval/bench/judge.ts';
+import { parseModelSpecString } from '../eval/bench/schema.ts';
 import { recordHumanAcceptance } from '../eval/bench/metrics.ts';
 import type { BenchmarkReport, ModelComparison, ModelSpec } from '../eval/bench/types.ts';
 import type { BenchmarkStore } from '../eval/bench/store.ts';
@@ -86,14 +94,17 @@ async function loadReportOrExit(
 
 function usage(): never {
   console.error(`Usage:
-  npm run eval -- run <config.json> [--live] [--json]
-  npm run eval -- compare <config.json> [--live]
+  npm run eval -- run <config.json> [--live] [--json] [--judge-model <spec>]
+  npm run eval -- compare <config.json> [--live] [--judge-model <spec>]
   npm run eval -- leaderboard [--suite <id>]
   npm run eval -- report <runId>
   npm run eval -- review <runId> --accept <id,...> [--reject <id,...>]
 
 Deterministic mode (default) uses the bundled capstone deciders and needs no
-LLM key. Pass --live to run provider-backed model calls.`);
+LLM key. Pass --live to run provider-backed model calls. Pass
+--judge-model <spec> to score with an LLM judge instead of the keyword judge
+(spec: a provider-qualified id like openrouter/qwen/qwen3-coder, or a JSON
+model spec).`);
   process.exit(2);
 }
 
@@ -104,6 +115,21 @@ function buildDeciders(): Record<string, DecisionFn> {
     deciders[scenario.id] = scenario.decide;
   }
   return deciders;
+}
+
+/**
+ * Build the LLM judge for a `--judge-model <spec>` flag value. Exits with the
+ * actionable message on an invalid spec; undefined means the keyword judge.
+ */
+function buildJudge(spec: string | undefined): { judge?: Judge; judgeId?: string } {
+  if (spec === undefined) return {};
+  const parsed = parseModelSpecString(spec);
+  if (!parsed.ok) {
+    for (const issue of parsed.issues) console.error(`  - ${issue}`);
+    fail(`Invalid --judge-model spec: "${spec}"`, 2);
+  }
+  const model = withDefaultPricing(parsed.model);
+  return { judge: createLlmJudgeFromSpec(model, process.env), judgeId: model.id };
 }
 
 /** Short label for a scenario's human-verdict state. */
@@ -121,6 +147,7 @@ function printReport(report: BenchmarkReport, json: boolean): void {
   lines.push(`Benchmark: ${report.suiteName} (${report.suiteId})`);
   lines.push(`Model:     ${report.model.label ?? report.model.id} (${report.model.provider})`);
   lines.push(`Mode:      ${report.mode}`);
+  lines.push(`Judge:     ${report.judge ?? 'keyword'}`);
   lines.push(`Result:    ${report.passed}/${report.totalScenarios} passed`);
   lines.push(`Quality:   ${(report.summary.qualityScore * 100).toFixed(0)}%`);
   lines.push(`Latency:   ${report.summary.avgLatencyMs}ms avg`);
@@ -143,6 +170,7 @@ function printReport(report: BenchmarkReport, json: boolean): void {
 async function runAll(
   configPath: string,
   live: boolean,
+  judgeModelSpec?: string,
 ): Promise<{ suiteName: string; suiteId: string; reports: BenchmarkReport[] }> {
   const loaded = await loadBenchmarkConfigFromFile(configPath);
   if (!loaded.ok) {
@@ -174,6 +202,7 @@ async function runAll(
 
   const reports: BenchmarkReport[] = [];
   const store = createFileBenchmarkStore(resultsDir);
+  const { judge, judgeId } = buildJudge(judgeModelSpec);
 
   for (const rawModel of models) {
     const model: ModelSpec = withDefaultPricing(rawModel);
@@ -181,6 +210,8 @@ async function runAll(
       mode: live ? 'live' : 'deterministic',
       deciders: live ? undefined : buildDeciders(),
       modelCall: modelCalls.get(model.id),
+      judge,
+      judgeId,
       repositoryPath: suite.repositoryPath,
     });
     await store.save(report);
@@ -192,6 +223,7 @@ async function runAll(
 function printComparison(comparison: ModelComparison): void {
   const lines: string[] = [];
   lines.push(`Comparison: ${comparison.suiteName} (${comparison.suiteId})`);
+  lines.push(`Judge:      ${comparison.judgeLabel ?? 'keyword'}`);
   lines.push(
     `${'Model'.padEnd(32)} ${'Passed'.padEnd(10)} ${'Quality'.padEnd(8)} ${'Latency'.padEnd(10)} ${'Tokens'.padEnd(8)} ${'Cost'}`,
   );
@@ -214,7 +246,9 @@ async function main(): Promise<number> {
       const configPath = positional(rest) ?? DEFAULT_CONFIG;
       const live = rest.includes('--live');
       const json = rest.includes('--json');
-      const { reports } = await runAll(configPath, live);
+      const judgeModel = flagValue(rest, '--judge-model');
+      if (rest.includes('--judge-model') && judgeModel === undefined) usage();
+      const { reports } = await runAll(configPath, live, judgeModel);
       if (json) {
         // Emit a single JSON document: an array when multiple models ran.
         const payload = reports.length === 1 ? reports[0] : reports;
@@ -227,10 +261,13 @@ async function main(): Promise<number> {
     case 'compare': {
       const configPath = positional(rest) ?? DEFAULT_CONFIG;
       const live = rest.includes('--live');
-      const { suiteName, suiteId, reports } = await runAll(configPath, live);
+      const judgeModel = flagValue(rest, '--judge-model');
+      if (rest.includes('--judge-model') && judgeModel === undefined) usage();
+      const { suiteName, suiteId, reports } = await runAll(configPath, live, judgeModel);
       const comparison: ModelComparison = {
         suiteId,
         suiteName,
+        judgeLabel: reports[0]?.judge ?? 'keyword',
         models: reports.map((report) => ({
           model: report.model,
           runId: report.runId,
