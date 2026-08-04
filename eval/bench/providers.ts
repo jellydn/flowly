@@ -5,9 +5,29 @@
  * Pricing is used to estimate cost from token usage (input + output per 1K
  * tokens, USD). Providers not listed here simply report $0 cost; the registry
  * is a convenience table, not an exhaustive catalog.
+ *
+ * Live mode prefers real usage reported by the provider (see ModelCallResult
+ * and createOpenAiCompatibleClient); the pricing table remains the fallback
+ * when a provider does not report usage.
  */
 
 import type { ModelPricing, ModelSpec } from './types.ts';
+
+/** Real token usage and cost reported by a provider on a single model call. */
+export type ModelUsage = {
+  /** Prompt (input) tokens consumed by the call. */
+  inputTokens?: number;
+  /** Completion (output) tokens produced by the call. */
+  outputTokens?: number;
+  /** Billed cost in USD as reported by the provider (OpenRouter total_cost). */
+  billedCostUsd?: number;
+};
+
+/** The result of a model call: the assistant text plus optional real usage. */
+export type ModelCallResult = {
+  content: string;
+  usage?: ModelUsage;
+};
 
 /** Known provider pricing (per 1K tokens, USD). Approximate list prices. */
 export const PROVIDER_PRICING: Record<string, ModelPricing> = {
@@ -39,14 +59,15 @@ export function withDefaultPricing(model: ModelSpec): ModelSpec {
 
 /**
  * Model call function: the seam between the benchmark runner and a live LLM
- * provider. Implementations should return the assistant text for a prompt.
- * The benchmark framework never calls providers directly — the CLI wires this.
+ * provider. Implementations return the assistant text plus any real usage the
+ * provider reported (tokens, billed cost). The benchmark framework never calls
+ * providers directly — the CLI wires this.
  */
-export type ModelCallFn = (prompt: string) => Promise<string>;
+export type ModelCallFn = (prompt: string) => Promise<ModelCallResult>;
 
 /** A model call function that always returns a fixed reply (for tests/live smoke). */
 export function createStaticModelCall(reply: string): ModelCallFn {
-  return async () => reply;
+  return async () => ({ content: reply });
 }
 
 /** Simple OpenAI-compatible chat completions client via fetch (no SDK deps). */
@@ -56,7 +77,7 @@ export function createOpenAiCompatibleClient(input: {
   model: string;
 }): ModelCallFn {
   const { apiKey, baseUrl, model } = input;
-  return async (prompt: string): Promise<string> => {
+  return async (prompt: string): Promise<ModelCallResult> => {
     const response = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -74,9 +95,22 @@ export function createOpenAiCompatibleClient(input: {
     }
     const body = (await response.json()) as {
       choices?: Array<{ message?: { content?: string } }>;
+      usage?: {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        total_cost?: number;
+      };
     };
     const content = body.choices?.[0]?.message?.content;
     if (!content) throw new Error('Provider returned an empty completion');
-    return content;
+    // Wire real usage from the provider response so reports reflect billed
+    // tokens and cost instead of heuristics (see CONCERNS.md).
+    const usage: ModelUsage = {
+      inputTokens: body.usage?.prompt_tokens,
+      outputTokens: body.usage?.completion_tokens,
+      billedCostUsd: body.usage?.total_cost,
+    };
+    const hasUsage = Object.values(usage).some((v) => v !== undefined);
+    return { content, usage: hasUsage ? usage : undefined };
   };
 }

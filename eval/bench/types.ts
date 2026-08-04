@@ -72,14 +72,22 @@ export type ScenarioResult = {
     latencyMs: number;
     tokensIn: number;
     tokensOut: number;
-    /** Estimated USD cost from token usage and model pricing. */
+    /** USD cost; billed when the provider reported it, estimated otherwise. */
     costUsd: number;
+    /**
+     * Whether tokens/cost came from the provider ('provider') or a heuristic
+     * ('estimated'). Reports saved before this field existed omit it; treat
+     * undefined as 'estimated'.
+     */
+    usageSource?: 'provider' | 'estimated';
     toolSuccess: MetricPass;
     citationAccuracy: MetricPass;
     retrievalRelevance: MetricPass;
     answerCompleteness: MetricPass;
     /** Null when patch applicability was not measured for this scenario. */
     patchApplicability: MetricPass | null;
+    /** Human accept/reject verdict; undefined until reviewed (see recordHumanAcceptance). */
+    humanAccepted?: boolean;
   };
   toolsUsed: string[];
   citedSources: string[];
@@ -99,7 +107,7 @@ export type BenchmarkSummary = {
   toolSuccessRate: number;
   /** NaN when patch applicability was not measured. */
   patchApplicabilityRate: number;
-  /** NaN when human acceptance was not measured. */
+  /** NaN when no scenario has been human-reviewed yet. */
   humanAcceptanceRate: number;
 };
 

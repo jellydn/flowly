@@ -402,6 +402,7 @@ npm run eval -- run --live --json  # provider-backed run
 npm run eval -- compare <config.json>
 npm run eval -- leaderboard
 npm run eval -- report <runId>
+npm run eval -- review <runId> --accept cap-1,cap-2 --reject cap-3
 ```
 
 Deterministic mode reuses the capstone decision functions, so it is fully
@@ -409,6 +410,10 @@ reproducible without a provider key — safe for CI. `--live` calls a real model
 through an OpenAI-compatible client (`FLUE_EVAL_API_KEY`, default
 OpenRouter). Results persist as JSON under `eval/results/` (override with
 `FLUE_EVAL_RESULTS_DIR`).
+
+The `review` subcommand records human accept/reject verdicts on a saved
+report (ORI-Eval-style human-in-the-loop scoring) and recomputes the
+acceptance rate; use `report` to see each scenario's reviewed status.
 
 ### Benchmark suites
 
@@ -423,9 +428,12 @@ scenario ids must map to decision functions in deterministic mode (see
 Each scenario is scored on four dimensions: tool success, citation accuracy,
 retrieval relevance, and answer completeness. A judge (keyword-based by
 default, or an LLM judge via `eval/bench/judge.ts`) turns the dimensions into
-a 0..1 quality score. Cost is estimated from token usage × provider pricing
-(`eval/bench/providers.ts`). See `.github/workflows/eval.example` for a CI
-integration example.
+a 0..1 quality score. Token usage and cost prefer values reported by the
+provider in `--live` mode (reported `prompt_tokens`/`completion_tokens` and
+billed `total_cost`); they fall back to estimates from the pricing table in
+`eval/bench/providers.ts` when a provider reports no usage. Each report
+records `usageSource: provider | estimated` so you can tell which applied.
+See `.github/workflows/eval.example` for a CI integration example.
 
 ## Day 16: Tools for agents
 
