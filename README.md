@@ -113,6 +113,7 @@ exists.
 | `REPO_ASSISTANT_MODEL`        | `openrouter/qwen/qwen3-coder` | Flue model specifier                  |
 | `REPO_ASSISTANT_MAX_STEPS`    | `8`                           | Shared inspection-call budget (1–20)  |
 | `REPO_ASSISTANT_DEBUG`        | `false`                       | Log one safe line per tool call       |
+| `REPO_ASSISTANT_SEARCH_FALLBACK` | `false`                    | Search tools fall back to `read_file` on transient failure |
 | `GITHUB_TOKEN`                | _unset_                       | GitHub token for PR review automation |
 | `GITHUB_REPOSITORY`           | _unset_                       | `owner/repo` for PR review automation |
 | `PR_NUMBER`                   | _unset_                       | Pull request number to review         |
@@ -685,6 +686,14 @@ Every tool result is validated before returning to the agent:
 4. Permanent errors (auth, permission, not-found) do **not** trigger fallback.
 5. The agent never fabricates repository information.
 
+The fallback seam lives in `reliability/fallback-tool.ts` (composition) and
+`reliability/fallback.ts` (execution). The live agent enables it with
+`REPO_ASSISTANT_SEARCH_FALLBACK=true`; the registry (`tools/inspection-
+registry.ts`) composes `search_code`/`search_docs` with a `read_file` fallback
+when the flag is set. Results carry `fallbackUsed: true` when the fallback
+read supplied the content, and a `partialMessage` when it never ran or also
+failed.
+
 ### User-facing errors
 
 Errors returned to the model (and ultimately the user) are safe:
@@ -948,6 +957,7 @@ flue-repo-assistant/
 │   ├── errors.ts
 │   ├── failure-injection.ts
 │   ├── fallback.ts
+│   ├── fallback-tool.ts           # search→read fallback composition seam
 │   ├── observability.ts
 │   ├── resilient-tool.ts       # retry + timeout + validation wrapper
 │   ├── retry.ts
@@ -969,6 +979,7 @@ flue-repo-assistant/
 ├── tests/
 │   ├── doc-aware.test.ts
 │   ├── eval-scenarios.test.ts
+│   ├── fallback-tool.test.ts
 │   ├── helpers.ts
 │   ├── planner.test.ts
 │   ├── reliability.test.ts
