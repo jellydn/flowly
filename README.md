@@ -938,8 +938,7 @@ flue-repo-assistant/
 ├── index/
 │   └── repository-indexer.ts   # lazy TF-IDF index backing `retrieve`
 ├── planner/
-│   ├── executor.ts             # programmatic plan executor + replan tool
-│   ├── plan-run.ts
+│   ├── plan-run.ts             # plan lifecycle + programmatic executor + replan
 │   ├── plan-store.ts
 │   ├── planner.ts              # create_plan tool
 │   ├── reflection.ts           # reflect_plan tool
@@ -959,10 +958,12 @@ flue-repo-assistant/
 │   ├── read-file.ts
 │   ├── repository-search.ts    # bounded literal search
 │   ├── repository.ts           # RepositoryReader + StepBudget
+│   ├── result-stats.ts         # shared tool-result counting helper
 │   ├── retrieve.ts             # semantic retrieval over the index
 │   ├── search-code.ts
 │   ├── search-docs.ts
-│   └── search-utils.ts
+│   ├── search-utils.ts
+│   └── search.ts               # scope-parameterized search seam
 ├── skills/
 │   └── analyzing-repositories/
 │       └── SKILL.md
@@ -989,7 +990,7 @@ flue-repo-assistant/
 │   ├── run-eval.sh
 │   └── fixtures/sample-repo/   # bundled evaluation fixture
 ├── docs/
-│   ├── adr/                    # architecture decision records (0001, 0002)
+│   ├── adr/                    # architecture decision records (0001–0003)
 │   └── index.html              # landing page (hand-maintained)
 ├── .planning/
 │   └── codebase/               # codemap: STACK, ARCHITECTURE, CONCERNS, …
