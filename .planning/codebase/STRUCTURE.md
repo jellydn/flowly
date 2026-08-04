@@ -72,7 +72,7 @@ flue-repo-assistant/
 
 **`scripts/`:**
 - Purpose: CI entrypoints
-- Contains: `review-pr.ts`, `route-event.ts`, `flue-eval.ts`
+- Contains: `review-pr.ts`, `route-event.ts`, `flue-eval.ts`, `check-doc-tree.ts`
 - Key files: all three
 
 **`eval/`:**
