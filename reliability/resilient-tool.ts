@@ -34,7 +34,8 @@ export function isSealedTool(tool: object): boolean {
   return sealedTools.has(tool);
 }
 
-function markSealed<T extends object>(tool: T): T {
+/** Mark a composed tool as sealed so it cannot be wrapped a second time. */
+export function markSealed<T extends object>(tool: T): T {
   sealedTools.add(tool);
   return tool;
 }
