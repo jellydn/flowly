@@ -12,6 +12,7 @@ import {
   createReliableInspectionTool,
   withInspectionBudget,
 } from '../reliability/resilient-tool.ts';
+import { withSearchReadFallback } from '../reliability/fallback-tool.ts';
 
 export type InspectionToolName = 'list_files' | 'read_file' | 'search_code' | 'search_docs' | 'retrieve';
 
@@ -23,6 +24,13 @@ export type InspectionRegistryOptions = {
   reliabilityLog: ReliabilityLogger;
   injector?: FailureInjector;
   sleep?: SleepFn;
+  /**
+   * When true, search tools (search_code, search_docs) are composed with the
+   * search→read fallback seam: a transient search failure reads the known
+   * path directly. Off by default; the registry keeps plain reliable search
+   * tools otherwise.
+   */
+  searchFallback?: boolean;
 };
 
 export type InspectionRegistry = {
@@ -75,14 +83,35 @@ export function createBudgetedInspectionTools(
 
 /**
  * Build the five inspection tools once, applying the same reliability policy
- * to every raw tool. The returned list is the single registration source for
- * live agent composition; the named map remains convenient for deterministic
- * callers and tests.
+ * to every raw tool. When `searchFallback` is set, the two search tools are
+ * composed with the search→read fallback seam instead of plain reliability.
+ * The returned list is the single registration source for live agent
+ * composition; the named map remains convenient for deterministic callers
+ * and tests.
  */
 export function createInspectionRegistry(options: InspectionRegistryOptions): InspectionRegistry {
   const tools = {} as Record<InspectionToolName, ToolDefinition>;
+  const readFileRaw = options.searchFallback
+    ? rawToolFactories.read_file(options.repository)
+    : undefined;
   for (const name of TOOL_NAMES) {
     const factory = rawToolFactories[name];
+    if (
+      options.searchFallback &&
+      readFileRaw &&
+      (name === 'search_code' || name === 'search_docs')
+    ) {
+      tools[name] = withSearchReadFallback(
+        factory(options.repository),
+        readFileRaw,
+        options.budget,
+        options.debug,
+        options.retryConfig,
+        options.reliabilityLog,
+        { injector: options.injector, sleep: options.sleep },
+      );
+      continue;
+    }
     tools[name] = createReliableInspectionTool(
       () => factory(options.repository),
       options.budget,
