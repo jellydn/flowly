@@ -7,6 +7,7 @@ import { runWithRetry, type RetryConfig, type SleepFn, defaultSleep } from './re
 import type { ReliabilityLogger } from './observability.ts';
 import type { FailureInjector } from './failure-injection.ts';
 import { noFailureInjection } from './failure-injection.ts';
+import { countToolResult } from '../tools/result-stats.ts';
 import {
   validateListResult,
   validateReadResult,
@@ -118,7 +119,7 @@ export function withInspectionBudget(
             tool: rawTool.name,
             status: 'success',
             inputSummary,
-            count: countResult(rawTool.name, result),
+            count: countToolResult(rawTool.name, result),
             inspection,
           });
           return { output: result };
@@ -221,7 +222,7 @@ export async function runReliableAttempt(
       tool: rawTool.name,
       status: 'success',
       inputSummary: summarizeInput(data),
-      count: countResult(rawTool.name, normalizedResult),
+      count: countToolResult(rawTool.name, normalizedResult),
       inspection: options.inspection,
     });
   }
@@ -309,22 +310,3 @@ function attachInspection(result: unknown, inspection: InspectionMetadata): unkn
   return result;
 }
 
-function countResult(toolName: string, result: unknown): number | undefined {
-  if (toolName === 'search_code' || toolName === 'search_docs') {
-    const matches = (result as { matches?: unknown[] })?.matches;
-    return Array.isArray(matches) ? matches.length : undefined;
-  }
-  if (toolName === 'list_files') {
-    const entries = (result as { entries?: unknown[] })?.entries;
-    return Array.isArray(entries) ? entries.length : undefined;
-  }
-  if (toolName === 'read_file') {
-    const total = (result as { totalLines?: number })?.totalLines;
-    return total;
-  }
-  if (toolName === 'retrieve') {
-    const results = (result as { results?: unknown[] })?.results;
-    return Array.isArray(results) ? results.length : undefined;
-  }
-  return undefined;
-}

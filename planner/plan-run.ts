@@ -3,6 +3,7 @@ import {
   type ExecutionLoopAdapter,
   type ToolRegistry,
 } from '../investigation/tool-call.ts';
+import { countToolResult } from '../tools/result-stats.ts';
 import type {
   ExecutionResult,
   ExecutionStatus,
@@ -236,38 +237,21 @@ export function createPlanReflection(
 }
 
 export function isEmptyResult(tool: PlanTool, output: unknown): boolean {
-  if (tool === 'search_code' || tool === 'search_docs') {
-    const matches = (output as { matches?: unknown[] })?.matches;
-    return Array.isArray(matches) && matches.length === 0;
-  }
-  if (tool === 'list_files') {
-    const entries = (output as { entries?: unknown[] })?.entries;
-    return Array.isArray(entries) && entries.length === 0;
-  }
-  if (tool === 'retrieve') {
-    const results = (output as { results?: unknown[] })?.results;
-    return Array.isArray(results) && results.length === 0;
-  }
-  return false;
+  // A result is empty only when its countable field is present and zero.
+  // read_file counts lines (never 0) and other tools return undefined, so
+  // they all resolve to false here — matching the previous per-tool checks.
+  return countToolResult(tool, output) === 0;
 }
 
 function summarizeResult(tool: PlanTool, output: unknown): string {
-  if (tool === 'search_code' || tool === 'search_docs') {
-    const matches = (output as { matches?: unknown[] })?.matches;
-    return `${Array.isArray(matches) ? matches.length : 0} matches`;
-  }
-  if (tool === 'list_files') {
-    const entries = (output as { entries?: unknown[] })?.entries;
-    return `${Array.isArray(entries) ? entries.length : 0} entries`;
-  }
   if (tool === 'read_file') {
-    const total = (output as { totalLines?: number })?.totalLines;
+    const total = countToolResult(tool, output);
     return total !== undefined ? `${total} lines read` : 'file read';
   }
-  if (tool === 'retrieve') {
-    const results = (output as { results?: unknown[] })?.results;
-    return `${Array.isArray(results) ? results.length : 0} chunks retrieved`;
-  }
+  const count = countToolResult(tool, output) ?? 0;
+  if (tool === 'search_code' || tool === 'search_docs') return `${count} matches`;
+  if (tool === 'list_files') return `${count} entries`;
+  if (tool === 'retrieve') return `${count} chunks retrieved`;
   return 'done';
 }
 

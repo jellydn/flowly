@@ -234,12 +234,3 @@ export async function executeWithFallback(
     };
   }
 }
-
-/** User-facing messages for common failure scenarios. */
-export const FALLBACK_MESSAGES = {
-  searchFailed: 'Repository search is temporarily unavailable. I could not verify the answer.',
-  fallbackSucceeded: 'I found partial context using a fallback, but the primary search failed.',
-  bothFailed:
-    'Repository search and the fallback file read both failed. I could not retrieve the information. You can retry the request.',
-  partial: 'I found partial context, but one supporting file could not be loaded.',
-} as const;
