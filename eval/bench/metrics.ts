@@ -57,8 +57,31 @@ export function computeSummary(results: ScenarioResult[]): BenchmarkSummary {
     costUsd: results.reduce((sum, r) => sum + r.metrics.costUsd, 0),
     toolSuccessRate: passRate(results, (r) => r.metrics.toolSuccess),
     patchApplicabilityRate: passRate(results, (r) => r.metrics.patchApplicability),
-    humanAcceptanceRate: Number.NaN,
+    // Only reviewed scenarios count; unreviewed runs report NaN.
+    humanAcceptanceRate: passRate(results, (r) =>
+      r.metrics.humanAccepted === undefined
+        ? null
+        : { passed: r.metrics.humanAccepted, detail: '' },
+    ),
   };
+}
+
+/**
+ * Record a human accept/reject verdict per scenario and return a new report
+ * with the updated acceptance rate. Unknown scenario ids are ignored; existing
+ * verdicts are overwritten. The input report is not mutated.
+ */
+export function recordHumanAcceptance(
+  report: BenchmarkReport,
+  verdicts: Record<string, boolean>,
+): BenchmarkReport {
+  const results = report.results.map((r) => {
+    const verdict = verdicts[r.id];
+    return verdict === undefined
+      ? r
+      : { ...r, metrics: { ...r.metrics, humanAccepted: verdict } };
+  });
+  return { ...report, results, summary: computeSummary(results) };
 }
 
 /**

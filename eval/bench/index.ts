@@ -20,7 +20,7 @@ export { parseSuite, parseModel, parseBenchmarkConfig } from './schema.ts';
 export type { SuiteInput, ModelInput, BenchmarkConfig } from './schema.ts';
 export { loadSuiteFromFile, loadModelFromFile, loadBenchmarkConfigFromFile } from './config.ts';
 export type { LoadResult } from './config.ts';
-export { estimateCost, computeSummary, scoreScenario, buildReport } from './metrics.ts';
+export { estimateCost, computeSummary, scoreScenario, buildReport, recordHumanAcceptance } from './metrics.ts';
 export { createMemoryBenchmarkStore, createFileBenchmarkStore } from './store.ts';
 export type { BenchmarkStore } from './store.ts';
 export {
@@ -42,4 +42,4 @@ export {
   createStaticModelCall,
   createOpenAiCompatibleClient,
 } from './providers.ts';
-export type { ModelCallFn } from './providers.ts';
+export type { ModelCallFn, ModelCallResult, ModelUsage } from './providers.ts';

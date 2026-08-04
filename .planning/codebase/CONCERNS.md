@@ -10,11 +10,10 @@
 - Impact: live-mode scenarios with `requiresToolCall: false` must be handled specially; custom live suites can't choose their own first tool
 - Fix approach: make the live-mode tool strategy configurable per suite/scenario
 
-**`eval/bench/providers.ts` pricing table is approximate:**
-- Issue: static per-1K pricing is a convenience table, not exhaustive or billed
-- Files: `eval/bench/providers.ts`
-- Impact: cost estimates drift from real provider billing for unlisted models
-- Fix approach: wire real token usage from provider responses in live mode
+**`eval/bench/providers.ts` pricing table is approximate — RESOLVED:**
+- ~~Issue: static per-1K pricing is a convenience table, not exhaustive or billed~~
+- ~~Impact: cost estimates drift from real provider billing for unlisted models~~
+- Status: fixed — live mode now consumes real usage reported by the provider (`usage` on `ModelCallResult`; `prompt_tokens`/`completion_tokens`/`total_cost` parsed from OpenAI-compatible responses in `createOpenAiCompatibleClient`). Reports record `metrics.usageSource: 'provider' | 'estimated'` and use provider `billedCostUsd` when present; the pricing table remains only the fallback for providers that report no usage (deterministic mode, unlisted models). Covered by `tests/bench-runner.test.ts` (provider-usage parsing + billed-cost precedence).
 
 **Manually maintained docs duplication:**
 - Issue: README, AGENTS.md, `.planning/codebase/`, and `docs/index.html` overlap and must be kept in sync by hand
@@ -100,10 +99,9 @@
 
 ## Missing Critical Features
 
-**Human acceptance rate:**
-- Problem: `humanAcceptanceRate` is stored as NaN — no manual-approval flow exists yet
-- Blocks: full ORI-Eval-style human-in-the-loop scoring
-- Files: `eval/bench/types.ts`, `eval/bench/metrics.ts`
+**Human acceptance rate — RESOLVED:**
+- ~~Problem: `humanAcceptanceRate` is stored as NaN — no manual-approval flow exists yet~~
+- Status: fixed — `recordHumanAcceptance(report, verdicts)` (in `eval/bench/metrics.ts`) records per-scenario accept/reject verdicts and recomputes `humanAcceptanceRate`; the `flue eval review <runId> --accept <id,...> [--reject <id,...>]` subcommand wires it to saved reports. Unreviewed runs still report NaN; `printReport` shows per-scenario reviewed status and the rate. Covered by `tests/bench-runner.test.ts` and smoke-tested via the CLI.
 
 **Live dispatch of agents:**
 - Problem: the event router decides (`agent=<id>`) but nothing executes the agent yet
@@ -113,10 +111,11 @@
 ## Test Coverage Gaps
 
 **Live provider paths:**
-- What's not tested: real model calls via `createOpenAiCompatibleClient` (CI has no key); real `git apply` patch applicability
+- What's not tested: real network calls to `createOpenAiCompatibleClient` (CI has no key); real `git apply` patch applicability
 - Files: `eval/bench/providers.ts`, `eval/bench/patch.ts`
 - Risk: provider-response parsing changes could break `--live` without CI notice
-- Priority: Low (covered by static-mock unit tests; live runs are opt-in)
+- Status: partially closed — response parsing (content + usage + billed cost) is now covered by mocked-`fetch` unit tests in `tests/bench-runner.test.ts`; a real keyed call and `git apply` remain opt-in manual checks
+- Priority: Low (live runs are opt-in)
 
 **Flue framework integration:**
 - What's not tested: the actual `flue run` agent loop with a real model (requires a key)

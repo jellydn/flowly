@@ -4,6 +4,7 @@ import {
   checkScenario,
   createKeywordJudge,
   createLlmJudge,
+  createOpenAiCompatibleClient,
   createPatchCheck,
   createStaticModelCall,
   estimateCost,
@@ -12,10 +13,11 @@ import {
   extractFencedBlocks,
   formatJudgePrompt,
   pricingForProvider,
+  recordHumanAcceptance,
   runBenchmark,
   withDefaultPricing,
 } from '../eval/bench/index.ts';
-import type { BenchmarkScenario, BenchmarkSuite, ModelSpec } from '../eval/bench/types.ts';
+import type { BenchmarkReport, BenchmarkScenario, BenchmarkSuite, ModelSpec } from '../eval/bench/types.ts';
 import type { DecisionFn, InvestigationResult } from '../investigation/types.ts';
 
 const scenario: BenchmarkScenario = {
@@ -162,7 +164,9 @@ test('estimateCost uses model pricing', () => {
 
 test('createStaticModelCall returns the fixed reply', async () => {
   const call = createStaticModelCall('hello');
-  assert.equal(await call('anything'), 'hello');
+  const result = await call('anything');
+  assert.equal(result.content, 'hello');
+  assert.equal(result.usage, undefined);
 });
 
 test('runBenchmark runs deterministically and produces a report', async () => {
@@ -177,6 +181,7 @@ test('runBenchmark runs deterministically and produces a report', async () => {
   assert.ok(report.results[0].metrics.latencyMs >= 0);
   assert.ok(report.results[0].metrics.tokensIn > 0);
   assert.ok(report.results[0].metrics.costUsd > 0);
+  assert.equal(report.results[0].metrics.usageSource, 'estimated');
   assert.ok(report.summary.qualityScore > 0);
   assert.ok(report.summary.toolSuccessRate >= 0);
   assert.equal(report.model.id, 'openrouter/qwen/qwen3-coder');
@@ -201,14 +206,153 @@ test('runBenchmark live mode actually invokes the model call', async () => {
     modelCall: async (prompt) => {
       calls += 1;
       assert.ok(prompt.includes(scenario.prompt)); // evidence is threaded into the prompt
-      return replies.shift() ?? 'no reply';
+      return { content: replies.shift() ?? 'no reply' };
     },
   });
   assert.equal(report.mode, 'live');
   assert.equal(report.totalScenarios, 1);
   assert.equal(calls, 1, 'modelCall must be invoked once per scenario');
   assert.ok(report.results[0].answer.includes('src/auth.ts'));
+  // No usage reported: metrics fall back to estimates.
+  assert.equal(report.results[0].metrics.usageSource, 'estimated');
+  assert.ok(report.results[0].metrics.tokensIn > 0);
 });
+
+test('runBenchmark live mode uses provider-reported tokens and billed cost', async () => {
+  const report = await runBenchmark(suite, model, {
+    mode: 'live',
+    modelCall: async () => ({
+      content: 'authentication is implemented in src/auth.ts',
+      usage: { inputTokens: 120, outputTokens: 40, billedCostUsd: 0.00042 },
+    }),
+  });
+  const metrics = report.results[0].metrics;
+  assert.equal(metrics.usageSource, 'provider');
+  assert.equal(metrics.tokensIn, 120);
+  assert.equal(metrics.tokensOut, 40);
+  // Billed cost wins over the pricing-table estimate.
+  assert.equal(metrics.costUsd, 0.00042);
+});
+
+test('createOpenAiCompatibleClient parses usage and billed cost from the response', async () => {
+  const client = createOpenAiCompatibleClient({
+    apiKey: 'sk-test',
+    baseUrl: 'https://example.test/api/v1',
+    model: 'm',
+  });
+  const result = await withMockFetch(
+    {
+      choices: [{ message: { content: 'the answer' } }],
+      usage: { prompt_tokens: 77, completion_tokens: 23, total_cost: 0.00111 },
+    },
+    () => client('prompt'),
+  );
+  assert.equal(result.content, 'the answer');
+  assert.deepEqual(result.usage, {
+    inputTokens: 77,
+    outputTokens: 23,
+    billedCostUsd: 0.00111,
+  });
+});
+
+test('createOpenAiCompatibleClient omits usage when the provider reports none', async () => {
+  const client = createOpenAiCompatibleClient({
+    apiKey: 'sk-test',
+    baseUrl: 'https://example.test/api/v1',
+    model: 'm',
+  });
+  const result = await withMockFetch(
+    { choices: [{ message: { content: 'the answer' } }] },
+    () => client('prompt'),
+  );
+  assert.equal(result.usage, undefined);
+});
+
+/** Run `fn` with global fetch stubbed to return `body`, restoring it after. */
+async function withMockFetch<T>(body: unknown, fn: () => Promise<T>): Promise<T> {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    ({
+      ok: true,
+      async text() {
+        return '';
+      },
+      async json() {
+        return body;
+      },
+    })) as unknown as typeof fetch;
+  try {
+    return await fn();
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+test('recordHumanAcceptance recomputes the acceptance rate without mutating input', () => {
+  const original = reportNoHuman();
+  const updated = recordHumanAcceptance(original, { 'cap-1': true });
+  // Input report untouched.
+  assert.equal(original.results[0].metrics.humanAccepted, undefined);
+  assert.equal(updated.results[0].metrics.humanAccepted, true);
+  assert.equal(updated.summary.humanAcceptanceRate, 1);
+  // Unreviewed runs still report NaN.
+  assert.ok(Number.isNaN(original.summary.humanAcceptanceRate));
+});
+
+test('recordHumanAcceptance ignores unknown ids and counts reviewed scenarios only', () => {
+  const report = reportNoHuman();
+  const updated = recordHumanAcceptance(report, { 'cap-1': false, nope: true });
+  assert.equal(updated.results[0].metrics.humanAccepted, false);
+  assert.equal(updated.summary.humanAcceptanceRate, 0);
+});
+
+function reportNoHuman(): BenchmarkReport {
+  return {
+    runId: 'run-1',
+    suiteId: 'sample',
+    suiteName: 'Sample benchmark',
+    model: { id: 'm', provider: 'openrouter', label: 'M' },
+    ranAt: new Date().toISOString(),
+    mode: 'deterministic',
+    totalScenarios: 1,
+    passed: 1,
+    failed: 0,
+    results: [
+      {
+        id: 'cap-1',
+        prompt: 'p',
+        passed: true,
+        metrics: {
+          qualityScore: 1,
+          latencyMs: 10,
+          tokensIn: 100,
+          tokensOut: 50,
+          costUsd: 0.01,
+          usageSource: 'estimated',
+          toolSuccess: { passed: true, detail: 'ok' },
+          citationAccuracy: { passed: true, detail: 'ok' },
+          retrievalRelevance: { passed: true, detail: 'ok' },
+          answerCompleteness: { passed: true, detail: 'ok' },
+          patchApplicability: null,
+        },
+        toolsUsed: [],
+        citedSources: [],
+        errors: [],
+        answer: 'a',
+        confidence: 'High',
+      },
+    ],
+    summary: {
+      qualityScore: 1,
+      avgLatencyMs: 10,
+      totalTokens: 150,
+      costUsd: 0.01,
+      toolSuccessRate: 1,
+      patchApplicabilityRate: Number.NaN,
+      humanAcceptanceRate: Number.NaN,
+    },
+  };
+}
 
 test('extractFencedBlocks pulls code blocks from an answer', () => {
   const blocks = extractFencedBlocks('Here is a patch:\n```ts\nconst x = 1;\n```\nand more');

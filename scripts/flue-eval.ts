@@ -12,6 +12,9 @@
  *   compare <config.json>     run + print a side-by-side model comparison
  *   leaderboard [--suite id]  list best saved reports, ranked by quality
  *   report <runId>            print one saved report
+ *   review <runId> --accept <id,...> [--reject <id,...>]
+ *                             record human accept/reject verdicts on a saved
+ *                             report and recompute the acceptance rate
  *
  * Deterministic mode uses the bundled capstone decision functions — no LLM
  * key required, so CI runs are reproducible. `--live` uses a provider model
@@ -34,7 +37,9 @@ import { loadBenchmarkConfigFromFile } from '../eval/bench/config.ts';
 import { createFileBenchmarkStore } from '../eval/bench/store.ts';
 import { runBenchmark } from '../eval/bench/runner.ts';
 import { withDefaultPricing, createOpenAiCompatibleClient } from '../eval/bench/providers.ts';
+import { recordHumanAcceptance } from '../eval/bench/metrics.ts';
 import type { BenchmarkReport, ModelComparison, ModelSpec } from '../eval/bench/types.ts';
+import type { BenchmarkStore } from '../eval/bench/store.ts';
 import { capstoneScenarios } from '../eval/capstone-eval.ts';
 import type { DecisionFn } from '../investigation/types.ts';
 
@@ -51,12 +56,40 @@ function positional(rest: string[]): string | undefined {
   return rest.find((arg) => !arg.startsWith('--'));
 }
 
+/** Value following a `--flag` (undefined when the flag or its value is absent). */
+function flagValue(rest: string[], flag: string): string | undefined {
+  const index = rest.indexOf(flag);
+  return index === -1 ? undefined : rest[index + 1];
+}
+
+/** Value of a `--flag <csv>` flag as a trimmed, non-empty id list. */
+function csvFlag(rest: string[], flag: string): string[] {
+  const value = flagValue(rest, flag);
+  if (value === undefined) return [];
+  return value
+    .split(',')
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0);
+}
+
+/** Load a saved report by runId, exiting with a usage/not-found error otherwise. */
+async function loadReportOrExit(
+  store: BenchmarkStore,
+  runId: string | undefined,
+): Promise<BenchmarkReport> {
+  if (!runId) usage();
+  const report = await store.load(runId);
+  if (!report) fail(`No saved report with runId "${runId}".`);
+  return report;
+}
+
 function usage(): never {
   console.error(`Usage:
   npm run eval -- run <config.json> [--live] [--json]
   npm run eval -- compare <config.json> [--live]
   npm run eval -- leaderboard [--suite <id>]
   npm run eval -- report <runId>
+  npm run eval -- review <runId> --accept <id,...> [--reject <id,...>]
 
 Deterministic mode (default) uses the bundled capstone deciders and needs no
 LLM key. Pass --live to run provider-backed model calls.`);
@@ -70,6 +103,12 @@ function buildDeciders(): Record<string, DecisionFn> {
     deciders[scenario.id] = scenario.decide;
   }
   return deciders;
+}
+
+/** Short label for a scenario's human-verdict state. */
+function verdictLabel(accepted: boolean | undefined): string {
+  if (accepted === undefined) return 'unreviewed';
+  return accepted ? 'accepted' : 'rejected';
 }
 
 function printReport(report: BenchmarkReport, json: boolean): void {
@@ -87,8 +126,15 @@ function printReport(report: BenchmarkReport, json: boolean): void {
   lines.push(`Tokens:    ${report.summary.totalTokens}`);
   lines.push(`Cost:      $${report.summary.costUsd.toFixed(4)}`);
   lines.push(`Tool OK:   ${(report.summary.toolSuccessRate * 100).toFixed(0)}%`);
+  const human = report.summary.humanAcceptanceRate;
+  lines.push(
+    Number.isNaN(human)
+      ? 'Human:     not reviewed yet (use `review`)'
+      : `Human:     ${(human * 100).toFixed(0)}% accepted`,
+  );
   for (const result of report.results) {
-    lines.push(`  [${result.id}] ${result.passed ? '✅' : '❌'} quality=${(result.metrics.qualityScore * 100).toFixed(0)}% latency=${result.metrics.latencyMs}ms tokens=${result.metrics.tokensIn + result.metrics.tokensOut}`);
+    const usageMark = result.metrics.usageSource === 'provider' ? 'billed' : 'est.';
+    lines.push(`  [${result.id}] ${result.passed ? '✅' : '❌'} quality=${(result.metrics.qualityScore * 100).toFixed(0)}% latency=${result.metrics.latencyMs}ms tokens=${result.metrics.tokensIn + result.metrics.tokensOut}(${usageMark}) ${verdictLabel(result.metrics.humanAccepted)}`);
   }
   process.stdout.write(`${lines.join('\n')}\n`);
 }
@@ -186,8 +232,8 @@ async function main(): Promise<number> {
       return 0;
     }
     case 'leaderboard': {
-      const suiteId = rest.includes('--suite') ? rest[rest.indexOf('--suite') + 1] : undefined;
-      if (rest.includes('--suite') && !suiteId) usage();
+      const suiteId = flagValue(rest, '--suite');
+      if (rest.includes('--suite') && suiteId === undefined) usage();
       const rows = await store.leaderboard(suiteId);
       if (rows.length === 0) {
         console.error('[flue-eval] No saved reports yet. Run `npm run eval -- run` first.');
@@ -206,14 +252,38 @@ async function main(): Promise<number> {
       return 0;
     }
     case 'report': {
+      const report = await loadReportOrExit(store, positional(rest));
+      printReport(report, rest.includes('--json'));
+      return 0;
+    }
+    case 'review': {
       const runId = positional(rest);
       if (!runId) usage();
-      const report = await store.load(runId);
-      if (!report) {
-        console.error(`[flue-eval] No saved report with runId "${runId}".`);
-        return 1;
+      const accept = csvFlag(rest, '--accept');
+      const reject = csvFlag(rest, '--reject');
+      if (accept.length === 0 && reject.length === 0) {
+        console.error('[flue-eval] review requires --accept and/or --reject with comma-separated scenario ids.');
+        return 2;
       }
-      printReport(report, rest.includes('--json'));
+      const report = await loadReportOrExit(store, runId);
+      const verdicts: Record<string, boolean> = {};
+      for (const id of accept) verdicts[id] = true;
+      for (const id of reject) verdicts[id] = false;
+      const known = new Set(report.results.map((r) => r.id));
+      const unknown = Object.keys(verdicts).filter((id) => !known.has(id));
+      if (unknown.length > 0) {
+        console.error(
+          `[flue-eval] Warning: unknown scenario id(s) ignored: ${unknown.join(', ')}`,
+        );
+      }
+      const updated = recordHumanAcceptance(report, verdicts);
+      await store.save(updated);
+      const rate = updated.summary.humanAcceptanceRate;
+      console.error(
+        `[flue-eval] Recorded ${accept.length} accept(s), ${reject.length} reject(s) on ${runId}.`,
+      );
+      printReport(updated, false);
+      console.error(`[flue-eval] Human acceptance rate: ${Number.isNaN(rate) ? 'n/a' : `${(rate * 100).toFixed(0)}%`}`);
       return 0;
     }
     default:

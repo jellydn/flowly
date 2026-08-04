@@ -13,8 +13,9 @@
  * accuracy, retrieval relevance, answer completeness). The judge (keyword-
  * based by default, or an LLM judge) turns the dimensions into a 0..1
  * quality score. Patch applicability is an optional measured dimension via
- * the `measurePatch` hook; human acceptance is reported as NaN (not yet
- * measured — see issue #38 for the planned manual-approval flow).
+ * the `measurePatch` hook. Token usage and cost prefer provider-reported
+ * values in live mode (see ModelCallResult); human acceptance is recorded
+ * separately via recordHumanAcceptance (see `flue eval review`).
  */
 
 import type { RepositoryReader } from '../../tools/repository.ts';
@@ -29,7 +30,7 @@ import { createRetrieveTool } from '../../tools/retrieve.ts';
 import { estimateCost, scoreScenario, buildReport } from './metrics.ts';
 import type { Judge } from './judge.ts';
 import { createKeywordJudge } from './judge.ts';
-import type { ModelCallFn } from './providers.ts';
+import type { ModelCallFn, ModelUsage } from './providers.ts';
 import type { BenchmarkReport, BenchmarkScenario, BenchmarkSuite, MetricPass, ModelSpec, ScenarioResult } from './types.ts';
 
 /** Approximate tokens from text length (4 chars/token heuristic). */
@@ -133,7 +134,7 @@ async function runLive(
   repository: RepositoryReader,
   modelCall: ModelCallFn,
   maxSteps: number,
-): Promise<InvestigationResult> {
+): Promise<{ result: InvestigationResult; usage?: ModelUsage }> {
   const { budget, tools } = buildTools(repository, maxSteps);
   const gather: DecisionFn = async (state) => {
     if (state.iteration === 0) {
@@ -165,24 +166,27 @@ async function runLive(
 
   // Ground citations in what the model cited plus what was actually retrieved.
   const retrievedFiles = investigation.evidence.map((e) => e.filePath);
-  const citedInReply = retrievedFiles.filter((file) => reply.includes(file));
+  const citedInReply = retrievedFiles.filter((file) => reply.content.includes(file));
   const sources = citedInReply.length > 0 ? citedInReply : retrievedFiles;
 
   return {
-    answer: {
-      answer: reply,
-      keyFindings: [],
-      sources,
-      confidence: sources.length >= 2 ? 'High' : sources.length === 1 ? 'Medium' : 'Low',
+    result: {
+      answer: {
+        answer: reply.content,
+        keyFindings: [],
+        sources,
+        confidence: sources.length >= 2 ? 'High' : sources.length === 1 ? 'Medium' : 'Low',
+        toolsUsed: investigation.toolsUsed,
+        insufficientEvidence: sources.length === 0,
+      },
+      iterations: investigation.iterations,
+      evidence: investigation.evidence,
+      errors: investigation.errors,
       toolsUsed: investigation.toolsUsed,
-      insufficientEvidence: sources.length === 0,
+      stopReason: 'live model answer',
+      callHistory: investigation.callHistory,
     },
-    iterations: investigation.iterations,
-    evidence: investigation.evidence,
-    errors: investigation.errors,
-    toolsUsed: investigation.toolsUsed,
-    stopReason: 'live model answer',
-    callHistory: investigation.callHistory,
+    usage: reply.usage,
   };
 }
 
@@ -203,16 +207,19 @@ export async function runScenario(input: {
   const { scenario, repository, judge, model, decide, modelCall } = input;
 
   const startedAt = Date.now();
-  const result = modelCall
-    ? await runLive(scenario, repository, modelCall, input.maxSteps)
-    : await runScenarioWithDecider(scenario, repository, decide!, input.maxSteps);
+  const live = modelCall ? await runLive(scenario, repository, modelCall, input.maxSteps) : undefined;
+  const result = live?.result ?? (await runScenarioWithDecider(scenario, repository, decide!, input.maxSteps));
   const latencyMs = Date.now() - startedAt;
 
   const checks = checkScenario(scenario, result);
   const verdict = await judge.score({ scenario, result });
   const qualityScore = verdict.score;
-  const usage = estimateTokensFromResult(result);
-  const costUsd = estimateCost(usage.tokensIn, usage.tokensOut, model.pricing);
+  // Prefer real provider-reported usage in live mode; fall back to estimates.
+  const estimated = estimateTokensFromResult(result);
+  const tokensIn = live?.usage?.inputTokens ?? estimated.tokensIn;
+  const tokensOut = live?.usage?.outputTokens ?? estimated.tokensOut;
+  const costUsd =
+    live?.usage?.billedCostUsd ?? estimateCost(tokensIn, tokensOut, model.pricing);
   const patchApplicability = input.measurePatch
     ? await input.measurePatch(scenario, result.answer.answer)
     : null;
@@ -230,9 +237,10 @@ export async function runScenario(input: {
     metrics: {
       qualityScore,
       latencyMs,
-      tokensIn: usage.tokensIn,
-      tokensOut: usage.tokensOut,
+      tokensIn,
+      tokensOut,
       costUsd,
+      usageSource: live?.usage ? 'provider' : 'estimated',
       toolSuccess: checks.toolSuccess,
       citationAccuracy: checks.citationAccuracy,
       retrievalRelevance: checks.retrievalRelevance,
