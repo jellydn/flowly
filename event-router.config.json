@@ -1,0 +1,8 @@
+{
+  "routes": {
+    "pull_request.opened": "review",
+    "pull_request.reopened": "review",
+    "pull_request.synchronize": "review",
+    "pull_request.ready_for_review": "review"
+  }
+}
