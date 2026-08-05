@@ -19,7 +19,7 @@ flue-repo-assistant/
 ├── demo/              # Deterministic demos (bash + ts)
 ├── docs/              # Hand-maintained docs page + ADRs
 ├── skills/            # Flue skills (analyzing-repositories)
-├── tests/             # Node test-runner tests (27 files + helpers)
+├── tests/             # Node test-runner tests (28 files + helpers)
 ├── .planning/         # Codebase map + internal planning docs
 ├── .github/workflows/ # CI + review + example workflows
 ├── sandbox.ts         # Empty toolset replacing default FS/shell tools
@@ -92,7 +92,7 @@ flue-repo-assistant/
 
 **`tests/`:**
 - Purpose: All automated tests (single directory, not co-located)
-- Contains: 27 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
+- Contains: 28 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
 - Key files: `helpers.ts`, `event-router.test.ts`, `bench-runner.test.ts`
 
 ## Key File Locations
