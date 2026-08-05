@@ -63,7 +63,7 @@ flowly/
 **`review/`:**
 
 - Purpose: PR review domain (tools, schema, state, filters, limits)
-- Contains: `review-tools.ts`, `schema.ts`, `pr-data.ts`, `diff.ts`, `filters.ts`, `limits.ts`, `review-state.ts`, `review-state-store.ts`
+- Contains: `review-tools.ts`, `schema.ts`, `pr-data.ts`, `diff.ts`, `filters.ts`, `limits.ts`, `review-state.ts`, `review-state-store.ts`, `specialists.ts`
 - Key files: `schema.ts` (ReviewResult), `review-tools.ts`
 
 **`github/`:**
