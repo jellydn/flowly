@@ -18,6 +18,14 @@ async function workspace() {
   return Workspace.open('shared', new MemoryWorkspaceStore());
 }
 
+// The runtime's SandboxFactory shape changed across minor versions
+// (createSessionEnv in 2.0.1, createSandbox in 2.0.2), so callers narrow
+// through whichever entry point the installed runtime provides.
+async function createBaseSession(baseFactory: SandboxFactory, options: { id: string }) {
+  const create = baseFactory.createSandbox ?? baseFactory.createSessionEnv;
+  return create(options);
+}
+
 describe('persistent workspace', () => {
   test('persists files and reopens them from a shared store', async () => {
     const store = new MemoryWorkspaceStore();
@@ -97,15 +105,19 @@ describe('persistent workspace', () => {
     const baseFactory = createRestrictedSandboxFactory();
     const current = await workspace();
     const factory = createWorkspaceSandboxFactory(current, () => ({
+      createSandbox: async (options) => {
+        created += 1;
+        return createBaseSession(baseFactory, options);
+      },
       createSessionEnv: async (options) => {
         created += 1;
-        return baseFactory.createSessionEnv(options);
+        return createBaseSession(baseFactory, options);
       },
       tools: () => [],
     }));
     assert.equal(created, 0);
-    await factory.createSessionEnv({ id: 'agent-1' });
-    await factory.createSessionEnv({ id: 'agent-2' });
+    await factory.createSessionEnv!({ id: 'agent-1' });
+    await factory.createSessionEnv!({ id: 'agent-2' });
     assert.equal(created, 1);
   });
 
@@ -113,7 +125,7 @@ describe('persistent workspace', () => {
     const current = await workspace();
     await current.writeFile('src/index.ts', 'export const before = true;');
     const factory = createWorkspaceSandboxFactory(current);
-    const session = await factory.createSessionEnv({ id: 'agent-1' });
+    const session = await factory.createSessionEnv!({ id: 'agent-1' });
     assert.equal(await session.readFile('src/index.ts'), 'export const before = true;');
     await session.writeFile('src/index.ts', 'export const after = true;');
     assert.equal(await current.readFile('src/index.ts'), 'export const after = true;');
@@ -135,20 +147,22 @@ describe('persistent workspace', () => {
       },
     };
     const failingWorkspace = await Workspace.open('shared', failingStore);
+    const wrap = async (options: { id: string }) => {
+      const session = await createBaseSession(baseFactory, options);
+      return {
+        ...session,
+        writeFile: async (filePath: string, content: string) => {
+          underlyingWrites += 1;
+          await session.writeFile(filePath, content);
+        },
+      };
+    };
     const factory = createWorkspaceSandboxFactory(failingWorkspace, () => ({
-      createSessionEnv: async (options) => {
-        const session = await baseFactory.createSessionEnv(options);
-        return {
-          ...session,
-          writeFile: async (filePath, content) => {
-            underlyingWrites += 1;
-            await session.writeFile(filePath, content);
-          },
-        };
-      },
+      createSandbox: wrap,
+      createSessionEnv: wrap,
       tools: () => [],
     }));
-    const session = await factory.createSessionEnv({ id: 'agent-1' });
+    const session = await factory.createSessionEnv!({ id: 'agent-1' });
     await assert.rejects(
       () => session.exec('printf changed > changed.txt'),
       /persistence unavailable/,
