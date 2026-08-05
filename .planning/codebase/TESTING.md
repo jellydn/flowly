@@ -30,7 +30,7 @@ npx tsx --test tests/<file>.test.ts   # single file
 ```
 tests/
 ├── helpers.ts                  # fixture builder + tool invocation
-├── *.test.ts                   # 27 test files
+├── *.test.ts                   # 28 test files
 ```
 
 ## Test Structure
