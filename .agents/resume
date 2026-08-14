@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+node_version="24.19.0"
+node_bin="$HOME/.local/node-v${node_version}/bin"
+export PATH="$node_bin:$PATH"
+
+if [[ ! -x "$node_bin/node" ]]; then
+  printf 'Flowly Node.js runtime is missing; run .agents/setup.\n' >&2
+  exit 1
+fi
+
+printf 'Flowly orb resumed with Node.js '
+node --version

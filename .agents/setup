@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+node_version="24.19.0"
+node_dir="$HOME/.local/node-v${node_version}"
+node_bin="$node_dir/bin"
+node_archive="node-v${node_version}-linux-x64.tar.xz"
+node_url="https://nodejs.org/dist/v${node_version}/${node_archive}"
+profile_marker='# flowly Amp Node.js'
+
+step() {
+  printf '\n==> %s\n' "$1"
+}
+
+install_node() {
+  if [[ -x "$node_bin/node" ]]; then
+    return
+  fi
+
+  step "Installing Node.js v${node_version}"
+  local temp_dir
+  temp_dir="$(mktemp -d)"
+  trap 'rm -rf "$temp_dir"' RETURN
+
+  curl --fail --location --silent --show-error --output "$temp_dir/$node_archive" "$node_url"
+  curl --fail --location --silent --show-error --output "$temp_dir/SHASUMS256.txt" \
+    "https://nodejs.org/dist/v${node_version}/SHASUMS256.txt"
+  (
+    cd "$temp_dir"
+    grep " ${node_archive}$" SHASUMS256.txt | sha256sum --check --status
+  )
+
+  mkdir -p "$(dirname "$node_dir")"
+  rm -rf "$node_dir"
+  mkdir -p "$node_dir"
+  tar --extract --xz --file "$temp_dir/$node_archive" --strip-components=1 --directory "$node_dir"
+}
+
+install_node
+export PATH="$node_bin:$PATH"
+
+step "Persisting Node.js path for Amp login shells"
+if ! grep --fixed-strings --quiet "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then
+  cat >> "$HOME/.bash_profile" <<EOF
+
+$profile_marker
+case ":\$PATH:" in
+  *":$node_bin:"*) ;;
+  *) export PATH="$node_bin:\$PATH" ;;
+esac
+EOF
+fi
+
+step "Installing npm dependencies"
+cd "$repo_root"
+dependency_stamp="$HOME/.cache/amp/flowly-dependencies.sha256"
+dependency_hash="$(sha256sum package.json package-lock.json)"
+if [[ -d node_modules ]] && [[ -f "$dependency_stamp" ]] && \
+  [[ "$(cat "$dependency_stamp")" == "$dependency_hash" ]]; then
+  printf 'Dependencies already match package.json and package-lock.json.\n'
+else
+  npm ci
+  mkdir -p "$(dirname "$dependency_stamp")"
+  printf '%s' "$dependency_hash" > "$dependency_stamp"
+fi
+
+step "Creating local environment file"
+if [[ ! -f .env ]]; then
+  cp -- .env.example .env
+fi
+
+step "Setup complete"
+node --version
+npm --version
