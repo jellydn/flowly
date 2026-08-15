@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, open, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 export type WorkspaceFiles = Record<string, string>;
@@ -75,21 +75,21 @@ export class FileWorkspaceStore implements WorkspaceStore {
     await mkdir(this.directory, { recursive: true });
     const filePath = this.filePath(snapshot.workspaceId);
     const lockPath = `${filePath}.lock`;
-    let locked = false;
+    let lockToken: string | undefined;
     let temporaryPath: string | undefined;
     try {
-      await acquireLock(lockPath);
-      locked = true;
+      lockToken = await acquireLock(lockPath);
       const current = await this.load(snapshot.workspaceId);
       const actualVersion = current?.version ?? 0;
       assertStoreVersion(snapshot, expectedVersion, actualVersion);
       temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
-      await writeFile(temporaryPath, JSON.stringify(snapshot), 'utf8');
+      await writeDurableFile(temporaryPath, JSON.stringify(snapshot));
       await rename(temporaryPath, filePath);
       temporaryPath = undefined;
+      await syncDirectory(this.directory);
     } finally {
       if (temporaryPath) await rm(temporaryPath, { force: true });
-      if (locked) await rm(lockPath, { force: true });
+      if (lockToken) await releaseLock(lockPath, lockToken);
     }
   }
 
@@ -225,7 +225,7 @@ function normalizeWorkspacePath(filePath: string): string {
   ) {
     throw new Error('Workspace path escapes the workspace.');
   }
-  return normalized.replace(/^\.\//, '');
+  return normalized.replace(/^\.\//, '').replace(/\/+$/, '');
 }
 
 function normalizeFiles(files: WorkspaceFiles): WorkspaceFiles {
@@ -288,35 +288,75 @@ function assertStoreVersion(
   }
 }
 
-async function acquireLock(lockPath: string): Promise<void> {
+async function acquireLock(lockPath: string): Promise<string> {
+  const token = randomUUID();
   for (let attempt = 0; attempt < 100; attempt += 1) {
     try {
-      await writeFile(lockPath, JSON.stringify({ pid: process.pid }), {
+      await writeFile(lockPath, JSON.stringify({ pid: process.pid, token }), {
         encoding: 'utf8',
         flag: 'wx',
       });
-      return;
+      return token;
     } catch (error) {
       if (!isAlreadyExists(error)) throw error;
       try {
-        const owner = JSON.parse(await readFile(lockPath, 'utf8')) as { pid?: unknown };
-        if (typeof owner.pid === 'number' && !isProcessAlive(owner.pid)) {
+        const owner = parseLockOwner(await readFile(lockPath, 'utf8'), lockPath);
+        if (!isProcessAlive(owner.pid) && (await hasLockToken(lockPath, owner.token))) {
           await rm(lockPath, { force: true });
           continue;
         }
       } catch (lockError) {
         if (isNotFound(lockError)) continue;
-        if (lockError instanceof SyntaxError) {
-          throw new Error(
-            `Workspace lock \"${lockPath}\" is malformed and must be removed safely.`,
-          );
-        }
         throw lockError;
       }
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
   }
   throw new Error(`Timed out acquiring workspace lock \"${lockPath}\".`);
+}
+
+async function releaseLock(lockPath: string, token: string): Promise<void> {
+  if (await hasLockToken(lockPath, token)) await rm(lockPath, { force: true });
+}
+
+async function hasLockToken(lockPath: string, token: string): Promise<boolean> {
+  try {
+    return parseLockOwner(await readFile(lockPath, 'utf8'), lockPath).token === token;
+  } catch (error) {
+    if (isNotFound(error)) return false;
+    throw error;
+  }
+}
+
+function parseLockOwner(raw: string, lockPath: string): { pid: number; token: string } {
+  try {
+    const owner = JSON.parse(raw) as { pid?: unknown; token?: unknown };
+    if (typeof owner.pid === 'number' && typeof owner.token === 'string' && owner.token) {
+      return owner as { pid: number; token: string };
+    }
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error;
+  }
+  throw new Error(`Workspace lock \"${lockPath}\" is malformed and must be removed safely.`);
+}
+
+async function writeDurableFile(filePath: string, content: string): Promise<void> {
+  const handle = await open(filePath, 'w');
+  try {
+    await handle.writeFile(content, 'utf8');
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+}
+
+async function syncDirectory(directory: string): Promise<void> {
+  const handle = await open(directory, 'r');
+  try {
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
 }
 
 function sameFiles(left: WorkspaceFiles, right: WorkspaceFiles): boolean {

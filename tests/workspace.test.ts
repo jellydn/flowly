@@ -100,6 +100,13 @@ describe('persistent workspace', () => {
     await assert.rejects(() => current.writeFile('/absolute.txt', 'bad'), /relative/);
   });
 
+  test('normalizes trailing slashes to the same workspace path', async () => {
+    const current = await workspace();
+    await current.writeFile('src/', 'contents');
+    assert.deepEqual(current.listFiles(), ['src']);
+    assert.equal(await current.readFile('src/'), 'contents');
+  });
+
   test('initializes the execution sandbox lazily and only once', async () => {
     let created = 0;
     const baseFactory = createRestrictedSandboxFactory();
