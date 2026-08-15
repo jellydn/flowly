@@ -120,7 +120,8 @@ exists.
 | `PR_REVIEW_MAX_DIFF_LINES`       | `4000`                        | Max unified-diff lines returned                                    |
 | `PR_REVIEW_MAX_CONTEXT_READS`    | `20`                          | Max `read_file`/`search_code` calls                                |
 | `PR_REVIEW_MAX_FINDINGS`         | `10`                          | Max findings submitted in review                                   |
-| `PR_REVIEW_SPECIALISTS`          | all four roles                | Comma-separated correctness, security, testing, architecture roles |     | `PR_REVIEW_SPECIALIST_TIMEOUT_MS` | `30000` | Per-specialist timeout in milliseconds |
+| `PR_REVIEW_SPECIALISTS`          | all four roles                | Comma-separated correctness, security, testing, architecture roles |
+| `PR_REVIEW_SPECIALIST_TIMEOUT_MS` | `30000`                       | Per-specialist timeout in milliseconds                             |
 | `PR_REVIEW_ADVISOR_ENABLED`      | `false`                       | Enable advisor validation before publication                       |
 | `PR_REVIEW_ADVISOR_MODEL`        | free review model             | Model identifier supplied to an advisor runner                     |
 | `PR_REVIEW_ADVISOR_TIMEOUT_MS`   | `30000`                       | Per-finding advisor timeout in milliseconds                        |
