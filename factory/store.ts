@@ -25,6 +25,9 @@ export class MemoryFactoryRunStore implements FactoryRunStore {
         `Factory run ${run.id} changed concurrently (expected version ${expectedVersion}, found ${actualVersion}).`,
       );
     }
+    if (run.version !== expectedVersion + 1) {
+      throw new Error(`Factory run ${run.id} must advance to version ${expectedVersion + 1}.`);
+    }
     this.runs.set(run.id, structuredClone(run));
   }
 

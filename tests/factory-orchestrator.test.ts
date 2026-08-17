@@ -60,4 +60,10 @@ describe('FactoryOrchestrator', () => {
     assert.equal(needsInput.state, 'needs-input');
     await assert.rejects(() => orchestrator.plan(run.id, plan), /needs-input; expected classified/);
   });
+
+  test('rejects writes that do not advance the optimistic version', async () => {
+    const store = new MemoryFactoryRunStore();
+    const { run } = await new FactoryOrchestrator(store).start(task);
+    await assert.rejects(() => store.save(run, run.version), /must advance to version/);
+  });
 });
