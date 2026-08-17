@@ -20,6 +20,7 @@
     "index/**/*.ts",
     "review/**/*.ts",
     "github/**/*.ts",
+    "factory/**/*.ts",
     "scripts/**/*.ts",
     "eval/**/*.ts",
     "demo/**/*.ts",
