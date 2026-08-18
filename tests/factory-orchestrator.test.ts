@@ -22,6 +22,18 @@ const plan = {
   acceptanceCriteria: [{ description: 'A run is persisted.' }],
   verificationCommands: ['npm test'],
 };
+const implementation = {
+  workspaceId: 'factory-run-94',
+  commitSha: 'abc123',
+  changedFiles: ['factory/orchestrator.ts'],
+  commands: [{ command: 'npm test', exitCode: 0 }],
+};
+const review = {
+  readyForHumanReview: true,
+  acceptanceCriteria: [{ description: 'A run is persisted.', satisfied: true, evidence: 'FactoryRun exists.' }],
+  summary: 'Ready for human review.',
+  unresolvedFindings: [],
+};
 
 describe('FactoryOrchestrator', () => {
   test('deduplicates issue deliveries and assigns only a factory-owned branch', async () => {
@@ -65,5 +77,46 @@ describe('FactoryOrchestrator', () => {
     const store = new MemoryFactoryRunStore();
     const { run } = await new FactoryOrchestrator(store).start(task);
     await assert.rejects(() => store.save(run, run.version), /must advance to version/);
+  });
+
+  test('records isolated implementation, verification, review, and one draft PR without auto-merging', async () => {
+    const orchestrator = new FactoryOrchestrator(new MemoryFactoryRunStore());
+    const { run } = await orchestrator.start(task);
+    await orchestrator.classify(run.id, classification);
+    await orchestrator.plan(run.id, plan);
+    await orchestrator.beginImplementation(run.id);
+
+    const verifying = await orchestrator.recordImplementation(run.id, implementation);
+    assert.equal(verifying.state, 'verifying');
+    assert.equal(verifying.implementation?.workspaceId, 'factory-run-94');
+
+    const reviewing = await orchestrator.recordVerification(run.id, true);
+    assert.equal(reviewing.state, 'reviewing');
+    await assert.rejects(() => orchestrator.recordDraftPr(run.id, 96), /independently reviewed first/);
+
+    const reviewed = await orchestrator.recordReview(run.id, review);
+    assert.equal(reviewed.review?.readyForHumanReview, true);
+    assert.equal((await orchestrator.recordReview(run.id, review)).version, reviewed.version);
+    const prCreated = await orchestrator.recordDraftPr(run.id, 96);
+    assert.equal(prCreated.state, 'pr-created');
+    assert.equal(prCreated.prNumber, 96);
+    assert.equal((await orchestrator.recordDraftPr(run.id, 96)).version, prCreated.version);
+
+    const completed = await orchestrator.complete(run.id);
+    assert.equal(completed.state, 'completed');
+  });
+
+  test('records failed verification without entering independent review', async () => {
+    const orchestrator = new FactoryOrchestrator(new MemoryFactoryRunStore());
+    const { run } = await orchestrator.start(task);
+    await orchestrator.classify(run.id, classification);
+    await orchestrator.plan(run.id, plan);
+    await orchestrator.beginImplementation(run.id);
+    await orchestrator.recordImplementation(run.id, implementation);
+
+    const failed = await orchestrator.recordVerification(run.id, false, 'npm test failed');
+    assert.equal(failed.state, 'failed');
+    assert.equal(failed.failure, 'npm test failed');
+    await assert.rejects(() => orchestrator.recordReview(run.id, review), /failed; expected reviewing/);
   });
 });

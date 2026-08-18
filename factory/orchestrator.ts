@@ -4,7 +4,9 @@ import {
   factoryBranch,
   type FactoryRun,
   type FactoryTask,
+  type ImplementationResult,
   type ImplementationPlan,
+  type ReviewVerdict,
   type TaskClassification,
 } from './types.ts';
 
@@ -49,6 +51,56 @@ export class FactoryOrchestrator {
       state: 'implementing',
       branch: factoryBranch(run.task.issueNumber, run.task.title),
     });
+  }
+
+  async recordImplementation(id: string, implementation: ImplementationResult): Promise<FactoryRun> {
+    const run = await this.requireState(id, ['implementing'], ['verifying']);
+    if (run.state === 'verifying') return run;
+    if (!run.branch) throw new Error(`Factory run ${id} has no factory-owned branch.`);
+    return this.save({ ...run, implementation, state: 'verifying' });
+  }
+
+  async recordVerification(id: string, passed: boolean, failure?: string): Promise<FactoryRun> {
+    const run = await this.requireState(id, ['verifying'], ['reviewing', 'failed']);
+    if (run.state !== 'verifying') return run;
+    return this.save({
+      ...run,
+      state: passed ? 'reviewing' : 'failed',
+      ...(passed ? {} : { failure: failure ?? 'Repository verification failed.' }),
+    });
+  }
+
+  async recordReview(id: string, review: ReviewVerdict): Promise<FactoryRun> {
+    const run = await this.requireState(id, ['reviewing'], ['pr-created']);
+    if (run.state === 'pr-created') return run;
+    if (run.review) {
+      if (JSON.stringify(run.review) !== JSON.stringify(review)) {
+        throw new Error(`Factory run ${id} already has an independent review verdict.`);
+      }
+      return run;
+    }
+    return this.save({ ...run, review });
+  }
+
+  async recordDraftPr(id: string, prNumber: number): Promise<FactoryRun> {
+    if (!Number.isInteger(prNumber) || prNumber <= 0) {
+      throw new Error('Draft PR number must be a positive integer.');
+    }
+    const run = await this.requireState(id, ['reviewing'], ['pr-created']);
+    if (run.state === 'pr-created') {
+      if (run.prNumber !== prNumber) {
+        throw new Error(`Factory run ${id} already owns draft PR #${run.prNumber}.`);
+      }
+      return run;
+    }
+    if (!run.review) throw new Error(`Factory run ${id} must be independently reviewed first.`);
+    return this.save({ ...run, prNumber, state: 'pr-created' });
+  }
+
+  async complete(id: string): Promise<FactoryRun> {
+    const run = await this.requireState(id, ['pr-created'], ['completed']);
+    if (run.state === 'completed') return run;
+    return this.save({ ...run, state: 'completed' });
   }
 
   private async requireState(

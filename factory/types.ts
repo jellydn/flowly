@@ -38,6 +38,22 @@ export type ImplementationPlan = {
   verificationCommands: string[];
 };
 
+/** Output supplied by the isolated, writable implementation stage. */
+export type ImplementationResult = {
+  workspaceId: string;
+  commitSha: string;
+  changedFiles: string[];
+  commands: Array<{ command: string; exitCode: number }>;
+};
+
+/** The independent review outcome. It contains evidence, not agent scratch context. */
+export type ReviewVerdict = {
+  readyForHumanReview: boolean;
+  acceptanceCriteria: Array<{ description: string; satisfied: boolean; evidence: string }>;
+  summary: string;
+  unresolvedFindings: string[];
+};
+
 export type FactoryRun = {
   id: string;
   task: FactoryTask;
@@ -46,6 +62,8 @@ export type FactoryRun = {
   classification?: TaskClassification;
   plan?: ImplementationPlan;
   branch?: string;
+  implementation?: ImplementationResult;
+  review?: ReviewVerdict;
   prNumber?: number;
   failure?: string;
   updatedAt: number;
