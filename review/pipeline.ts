@@ -1,4 +1,4 @@
-import { adviseFindings, type AdvisorRunner } from './advisor.ts';
+import { runAdvisor, type AdvisorConfig, type AdvisorRunner } from './advisor.ts';
 import {
   runSpecialistReview,
   type SpecialistConfig,
@@ -20,20 +20,22 @@ export type ReviewPipelineReport = {
  */
 export async function runReviewPipeline(options: {
   specialist: { config: SpecialistConfig; context: SpecialistContext; runner: SpecialistRunner };
-  advisor: { runner: AdvisorRunner; timeoutMs: number };
+  advisor: { config: AdvisorConfig; runner: AdvisorRunner; repositoryContext?: string };
 }): Promise<ReviewPipelineReport> {
   const specialist = await runSpecialistReview(options.specialist);
   const reviewerSources = Object.fromEntries(
     specialist.findings.map((finding) => [`${finding.path}:${finding.title}`, finding.sources]),
   );
-  const advised = await adviseFindings({
-    findings: specialist.findings,
+  const advised = await runAdvisor({
+    config: options.advisor.config,
+    candidates: specialist.findings,
+    diff: options.specialist.context.diff,
+    repositoryContext: options.advisor.repositoryContext,
     runner: options.advisor.runner,
-    timeoutMs: options.advisor.timeoutMs,
   });
   return {
     findings: advised.findings.map((finding) => {
-      const { sources: _sources, ...published } = finding as Finding & { sources?: string[] };
+      const { advisor: _advisor, sources: _sources, ...published } = finding;
       return published;
     }),
     specialistErrors: specialist.errors,

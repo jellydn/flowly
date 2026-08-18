@@ -13,8 +13,8 @@ describe('review pipeline', () => {
         runner: async (role) => [role === 'security' ? { ...finding, title: 'Security concern' } : finding],
       },
       advisor: {
-        timeoutMs: 100,
-        runner: async (candidate) => candidate.title === 'Security concern'
+        config: { enabled: true, model: 'advisor', timeoutMs: 100 },
+        runner: async (input) => input.finding.title === 'Security concern'
           ? { decision: 'reject', reason: 'Unsupported.' }
           : { decision: 'accept', reason: 'Supported.' },
       },
