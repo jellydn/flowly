@@ -1,16 +1,15 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import { parseAdvisorConfig, runAdvisor, type AdvisorInput } from '../review/advisor.ts';
-import type { AttributedFinding } from '../review/specialists.ts';
+import type { Finding } from '../review/schema.ts';
 
-const candidate: AttributedFinding = {
+const candidate: Finding = {
   severity: 'P1',
   path: 'src/auth.ts',
   line: 10,
   title: 'Handle auth error',
   explanation: 'The error is swallowed.',
   confidence: 0.7,
-  sources: ['correctness'],
 };
 
 const input = {
@@ -48,7 +47,7 @@ describe('advisor validation', () => {
       diff: 'diff',
     });
     assert.equal(report.findings.length, 1);
-    assert.equal(report.findings[0].advisor.decision, 'accept');
+    assert.equal(report.decisions[0].decision, 'accept');
     assert.equal(report.errors.length, 0);
   });
 
@@ -63,7 +62,7 @@ describe('advisor validation', () => {
       },
     });
     assert.equal(report.findings.length, 1);
-    assert.equal(report.findings[0].advisor.reason, 'Evidence and severity are supported.');
+    assert.equal(report.decisions[0].reason, 'Evidence and severity are supported.');
     assert.equal(report.decisions[0].decision, 'accept');
   });
 
@@ -81,7 +80,7 @@ describe('advisor validation', () => {
     assert.equal(report.findings.length, 1);
     assert.equal(report.findings[0].severity, 'P2');
     assert.equal(report.findings[0].confidence, 0.6);
-    assert.equal(report.findings[0].advisor.decision, 'revise');
+    assert.equal(report.decisions[0].decision, 'revise');
   });
 
   test('retains the original finding when a revision is invalid', async () => {

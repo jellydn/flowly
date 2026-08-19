@@ -5,7 +5,7 @@ import {
   adjudicateFindings,
   parseSpecialistConfig,
   runSpecialistReview,
-  type AttributedFinding,
+  type FindingProvenance,
   type SpecialistContext,
 } from '../review/specialists.ts';
 
@@ -127,31 +127,37 @@ describe('specialist review orchestration', () => {
       runner: async () => [finding(), { severity: 'invalid' }],
     });
     assert.equal(report.findings.length, 1);
-    assert.equal(report.findings[0].sources[0], 'testing');
+    assert.equal(report.provenance[0].sources[0], 'testing');
     assert.equal(report.validationIssues.length, 1);
   });
 
   test('deduplicates overlapping findings and retains source roles', () => {
-    const findings: AttributedFinding[] = [
+    const findings: FindingProvenance[] = [
       {
-        ...finding({ severity: 'P2' as const, line: 10, confidence: 0.7 }),
+        finding: finding({ severity: 'P2' as const, line: 10, confidence: 0.7 }),
         sources: ['correctness'],
       },
-      { ...finding({ severity: 'P1' as const, line: 12, confidence: 0.8 }), sources: ['security'] },
-      { ...finding({ severity: 'P3' as const, line: 40, confidence: 0.9 }), sources: ['testing'] },
+      {
+        finding: finding({ severity: 'P1' as const, line: 12, confidence: 0.8 }),
+        sources: ['security'],
+      },
+      {
+        finding: finding({ severity: 'P3' as const, line: 40, confidence: 0.9 }),
+        sources: ['testing'],
+      },
     ];
     const result = adjudicateFindings(findings);
     assert.equal(result.length, 2);
-    assert.equal(result[0].severity, 'P1');
+    assert.equal(result[0].finding.severity, 'P1');
     assert.deepEqual(result[0].sources, ['correctness', 'security']);
-    assert.ok(Math.abs(result[0].confidence - 0.85) < Number.EPSILON);
+    assert.ok(Math.abs(result[0].finding.confidence - 0.85) < Number.EPSILON);
   });
 
   test('merges transitive overlaps into one finding group', () => {
     const result = adjudicateFindings([
-      { ...finding({ line: 10, title: 'Auth error handling' }), sources: ['correctness'] },
-      { ...finding({ line: 12, title: 'Auth error handling' }), sources: ['security'] },
-      { ...finding({ line: 14, title: 'Auth error handling' }), sources: ['testing'] },
+      { finding: finding({ line: 10, title: 'Auth error handling' }), sources: ['correctness'] },
+      { finding: finding({ line: 12, title: 'Auth error handling' }), sources: ['security'] },
+      { finding: finding({ line: 14, title: 'Auth error handling' }), sources: ['testing'] },
     ]);
     assert.equal(result.length, 1);
     assert.deepEqual(result[0].sources, ['correctness', 'security', 'testing']);
@@ -159,9 +165,9 @@ describe('specialist review orchestration', () => {
 
   test('does not deduplicate different paths or unrelated titles', () => {
     const result = adjudicateFindings([
-      { ...finding(), sources: ['correctness'] },
-      { ...finding({ path: 'src/other.ts' }), sources: ['security'] },
-      { ...finding({ title: 'Add a missing test' }), sources: ['testing'] },
+      { finding: finding(), sources: ['correctness'] },
+      { finding: finding({ path: 'src/other.ts' }), sources: ['security'] },
+      { finding: finding({ title: 'Add a missing test' }), sources: ['testing'] },
     ]);
     assert.equal(result.length, 3);
   });

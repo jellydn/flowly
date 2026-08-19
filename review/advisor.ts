@@ -1,4 +1,3 @@
-import type { AttributedFinding } from './specialists.ts';
 import { findingSchema, type Finding } from './schema.ts';
 import * as v from 'valibot';
 
@@ -6,7 +5,7 @@ export const ADVISOR_DECISIONS = ['accept', 'revise', 'reject'] as const;
 export type AdvisorDecision = (typeof ADVISOR_DECISIONS)[number];
 
 export type AdvisorInput = {
-  finding: AttributedFinding;
+  finding: Finding;
   diff: string;
   repositoryContext?: string;
 };
@@ -25,21 +24,20 @@ export type AdvisorConfig = {
   timeoutMs: number;
 };
 
-export type AdvisedFinding = AttributedFinding & {
-  advisor: {
-    decision: AdvisorDecision;
-    reason: string;
-  };
+export type FindingReference = {
+  path: string;
+  line?: number;
+  title: string;
+};
+
+export type AdvisorDecisionRecord = FindingReference & {
+  decision: AdvisorDecision;
+  reason: string;
 };
 
 export type AdvisorReport = {
-  findings: AdvisedFinding[];
-  decisions: Array<{
-    title: string;
-    path: string;
-    decision: AdvisorDecision;
-    reason: string;
-  }>;
+  findings: Finding[];
+  decisions: AdvisorDecisionRecord[];
   errors: string[];
 };
 
@@ -81,7 +79,7 @@ export function parseAdvisorConfig(env: Record<string, string | undefined>): Adv
  */
 export async function runAdvisor(options: {
   config: AdvisorConfig;
-  candidates: AttributedFinding[];
+  candidates: Finding[];
   diff: string;
   repositoryContext?: string;
   runner?: AdvisorRunner;
@@ -89,10 +87,7 @@ export async function runAdvisor(options: {
 }): Promise<AdvisorReport> {
   if (!options.config.enabled) {
     return {
-      findings: options.candidates.map((finding) => ({
-        ...finding,
-        advisor: { decision: 'accept', reason: 'Advisor disabled; candidate retained.' },
-      })),
+      findings: options.candidates,
       decisions: options.candidates.map((finding) =>
         decisionFor(finding, 'accept', 'Advisor disabled; candidate retained.'),
       ),
@@ -103,13 +98,7 @@ export async function runAdvisor(options: {
   const runner = options.runner;
   if (!runner) {
     return {
-      findings: options.candidates.map((finding) => ({
-        ...finding,
-        advisor: {
-          decision: 'accept',
-          reason: 'Advisor runner unavailable; candidate retained safely.',
-        },
-      })),
+      findings: options.candidates,
       decisions: options.candidates.map((finding) =>
         decisionFor(finding, 'accept', 'Advisor runner unavailable; candidate retained safely.'),
       ),
@@ -119,7 +108,7 @@ export async function runAdvisor(options: {
   const results = await Promise.all(
     options.candidates.map((finding) => adviseOne(finding, { ...options, runner })),
   );
-  const findings: AdvisedFinding[] = [];
+  const findings: Finding[] = [];
   const decisions = results.map((result) =>
     decisionFor(result.finding, result.decision.decision, result.decision.reason),
   );
@@ -127,19 +116,13 @@ export async function runAdvisor(options: {
 
   for (const result of results) {
     if (result.decision.decision === 'reject') continue;
-    findings.push({
-      ...result.finding,
-      advisor: {
-        decision: result.decision.decision,
-        reason: result.decision.reason,
-      },
-    });
+    findings.push(result.finding);
   }
   return { findings, decisions, errors };
 }
 
 async function adviseOne(
-  finding: AttributedFinding,
+  finding: Finding,
   options: {
     config: AdvisorConfig;
     diff: string;
@@ -148,7 +131,7 @@ async function adviseOne(
     signal?: AbortSignal;
   },
 ): Promise<{
-  finding: AttributedFinding;
+  finding: Finding;
   decision: { decision: AdvisorDecision; reason: string };
   error?: string;
 }> {
@@ -212,7 +195,7 @@ async function adviseOne(
 }
 
 function validateRevision(
-  original: AttributedFinding,
+  original: Finding,
   revision: unknown,
 ): { ok: true; finding: Partial<Finding> } | { ok: false; reason: string } {
   if (revision === null || typeof revision !== 'object')
@@ -234,11 +217,11 @@ function validateRevision(
 }
 
 function decisionFor(
-  finding: AttributedFinding,
+  finding: Finding,
   decision: AdvisorDecision,
   reason: string,
-): { title: string; path: string; decision: AdvisorDecision; reason: string } {
-  return { title: finding.title, path: finding.path, decision, reason };
+): AdvisorDecisionRecord {
+  return { title: finding.title, path: finding.path, line: finding.line, decision, reason };
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, onTimeout: () => void): Promise<T> {
