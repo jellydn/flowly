@@ -2,9 +2,13 @@
 import { useModel, useSandbox, useTool } from '@flue/runtime';
 import { createReviewPublisher } from '../github/adapter.ts';
 import { GitHubClient } from '../github/client.ts';
+import { parseAdvisorConfig } from '../review/advisor.ts';
 import { parseReviewLimits, type ReviewLimits } from '../review/limits.ts';
+import { createAdvisorRunner, createSpecialistRunner } from '../review/model-runners.ts';
+import { createReviewPipelinePublisher } from '../review/pipeline.ts';
 import { createGitDataSource } from '../review/pr-data.ts';
 import { createGitHubReviewStateStore } from '../review/review-state-store.ts';
+import { parseSpecialistConfig } from '../review/specialists.ts';
 import {
   createGetDiffHunksTool,
   createGetIncrementalDiffTool,
@@ -74,7 +78,7 @@ export function PrReviewer() {
     stateStore,
   });
 
-  const publisher = createReviewPublisher({
+  const githubPublisher = createReviewPublisher({
     client: github,
     prNumber,
     headSha,
@@ -83,7 +87,23 @@ export function PrReviewer() {
     stateStore,
   });
 
-  useModel(env.REPO_ASSISTANT_MODEL ?? 'openrouter/cohere/north-mini-code:free');
+  const reviewerModel = env.REPO_ASSISTANT_MODEL ?? 'openrouter/cohere/north-mini-code:free';
+  const advisorConfig = parseAdvisorConfig(env);
+  const publisher = createReviewPipelinePublisher({
+    publisher: githubPublisher,
+    dataSource,
+    maxDiffLines: limits.maxDiffLines,
+    specialist: {
+      config: parseSpecialistConfig(env),
+      runner: createSpecialistRunner(reviewerModel, env),
+    },
+    advisor: {
+      config: advisorConfig,
+      runner: advisorConfig.enabled ? createAdvisorRunner(advisorConfig.model, env) : undefined,
+    },
+  });
+
+  useModel(reviewerModel);
 
   // PR-data tools (trusted; do not consume the context-read budget)
   useTool(createGetPrMetadataTool(dataSource));
@@ -99,7 +119,7 @@ export function PrReviewer() {
   useTool(withInspectionBudget(createReadFileTool(repository), contextBudget, debug));
   useTool(withInspectionBudget(createSearchCodeTool(repository), contextBudget, debug));
 
-  // Trusted review publisher — validates and posts; terminates the turn.
+  // Trusted review pipeline — specialists and advisor run before the narrow GitHub publisher.
   useTool(createSubmitReviewTool(publisher));
 
   useSandbox(restrictedSandbox);

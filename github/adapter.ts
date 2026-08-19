@@ -2,15 +2,14 @@
  * Trusted review publisher — the narrow boundary between the agent's
  * structured output and the GitHub mutation API.
  *
- * The agent never holds the GitHub token or a generic shell. It calls
- * `submit_review` with a {@link ReviewResult}; this adapter:
- *   1. Re-validates the result against the Valibot schema.
- *   2. Confirms every finding's `path` is among the PR's changed files.
- *   3. Clamps each finding's `line` to a valid diff hunk for that file so
+ * The agent never holds the GitHub token or a generic shell. The review
+ * pipeline passes this adapter an already validated {@link ReviewResult}; it:
+ *   1. Confirms every finding's `path` is among the PR's changed files.
+ *   2. Clamps each finding's `line` to a valid diff hunk for that file so
  *      GitHub accepts the inline comment. Findings on files with no usable
  *      right-side hunk (deleted or binary) are dropped from inline comments.
- *   4. Caps the number of findings to the configured limit.
- *   5. Posts exactly one review (COMMENT or REQUEST_CHANGES, never APPROVE)
+ *   3. Caps the number of findings to the configured limit.
+ *   4. Posts exactly one review (COMMENT or REQUEST_CHANGES, never APPROVE)
  *      with inline comments via {@link GitHubClient}.
  *
  * Findings whose path is not in the diff, or whose file has no postable hunk,
@@ -23,12 +22,12 @@
 
 import { type FileDiff, findFileDiff, hunkForLine, parseUnifiedDiff } from '../review/diff.ts';
 import type { ReviewLimits } from '../review/limits.ts';
+import type { ReviewPipelineMetadata } from '../review/pipeline.ts';
 import {
   type Finding,
   type FindingClassification,
   type ProposedLearning,
   type ReviewResult,
-  safeParseReviewResult,
 } from '../review/schema.ts';
 import type { ReviewStateStore } from '../review/review-state-store.ts';
 import {
@@ -62,7 +61,7 @@ export type ReviewPublisherOptions = {
 };
 
 export type ReviewPublisher = {
-  publish(result: unknown): Promise<ReviewPublishResult>;
+  publish(result: ReviewResult, metadata?: ReviewPipelineMetadata): Promise<ReviewPublishResult>;
 };
 
 export function createReviewPublisher(options: ReviewPublisherOptions): ReviewPublisher {
@@ -86,17 +85,13 @@ export function createReviewPublisher(options: ReviewPublisherOptions): ReviewPu
   }
 
   return {
-    async publish(result: unknown): Promise<ReviewPublishResult> {
-      const parsed = safeParseReviewResult(result);
-      if (!parsed.ok) {
-        throw new Error(
-          `submit_review received an invalid review result:\n- ${parsed.issues.join('\n- ')}`,
-        );
-      }
-
+    async publish(
+      result: ReviewResult,
+      metadata?: ReviewPipelineMetadata,
+    ): Promise<ReviewPublishResult> {
       const { fileDiffs, changedPaths } = await resolveDiff();
       return publishValidatedReview(
-        parsed.value,
+        result,
         options.client,
         options.prNumber,
         options.headSha,
@@ -104,6 +99,10 @@ export function createReviewPublisher(options: ReviewPublisherOptions): ReviewPu
         changedPaths,
         options.limits,
         options.stateStore,
+        metadata?.advisorDecisions.map(
+          (decision) =>
+            `${decision.decision}: ${decision.path}/${decision.title} — ${decision.reason}`,
+        ),
       );
     },
   };
@@ -118,6 +117,7 @@ async function publishValidatedReview(
   changedPaths: Set<string>,
   limits: ReviewLimits,
   stateStore?: ReviewStateStore,
+  advisorNotes: string[] = [],
 ): Promise<ReviewPublishResult> {
   const capped = result.findings.slice(0, limits.maxFindings);
   const skippedFindings = result.findings.length - capped.length;
@@ -185,6 +185,7 @@ async function publishValidatedReview(
       skippedFindings,
       result.previousFindingClassifications,
       result.proposedLearnings,
+      advisorNotes,
     ),
     comments: inlineComments,
   };
@@ -272,6 +273,7 @@ function formatReviewBody(
   skippedFindings: number,
   classifications?: FindingClassification[],
   proposedLearnings?: ProposedLearning[],
+  advisorNotes: string[] = [],
 ): string {
   const lines = ['## Flue PR Review', '', summary, ''];
   const inlineFindings = findings.filter(
@@ -286,6 +288,10 @@ function formatReviewBody(
       const location = f.line === undefined ? f.path : `${f.path}:${f.line}`;
       lines.push(`- **[${f.severity}]** ${f.title} — \`${location}\``);
     }
+  }
+
+  if (advisorNotes.length > 0) {
+    lines.push('', '### Advisor decisions', '', ...advisorNotes.map((note) => `- ${note}`));
   }
 
   if (classifications && classifications.length > 0) {
