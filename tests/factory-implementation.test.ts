@@ -28,7 +28,7 @@ const plan = {
 };
 
 describe('runControlledImplementation', () => {
-  test('implements, pushes, verifies, and persists only structured outcomes', async () => {
+  test('implements, verifies, pushes, and persists only structured outcomes', async () => {
     const { orchestrator, run } = await plannedRun();
     const calls: string[] = [];
     const git = fakeGit(calls);
@@ -64,15 +64,17 @@ describe('runControlledImplementation', () => {
       `workspace:${run.id}:factory/94-controlled-implementation`,
       '/workspace',
       'implement:/workspace',
-      'push:Implement issue #94',
+      'commit:Implement issue #94',
       'verify:/workspace',
       'clean',
+      'push',
     ]);
   });
 
   test('records failed verification and does not enter review', async () => {
     const { orchestrator, run } = await plannedRun();
-    const git = fakeGit([]);
+    const calls: string[] = [];
+    const git = fakeGit(calls);
 
     const result = await runControlledImplementation(run, {
       orchestrator,
@@ -88,11 +90,13 @@ describe('runControlledImplementation', () => {
     assert.equal(result.state, 'failed');
     assert.equal(result.failure, 'Verification command failed with exit code 2: npm test');
     assert.deepEqual(result.implementation?.commands, [{ command: 'npm test', exitCode: 2 }]);
+    assert.equal(calls.includes('push'), false);
   });
 
   test('fails verification when checks leave uncommitted changes', async () => {
     const { orchestrator, run } = await plannedRun();
-    const git = fakeGit([]);
+    const calls: string[] = [];
+    const git = fakeGit(calls);
     git.isClean = async () => false;
 
     const result = await runControlledImplementation(run, {
@@ -108,6 +112,7 @@ describe('runControlledImplementation', () => {
 
     assert.equal(result.state, 'failed');
     assert.match(result.failure ?? '', /modified the implementation after it was committed/);
+    assert.equal(calls.includes('push'), false);
   });
 });
 
@@ -125,9 +130,12 @@ function fakeGit(calls: string[]): FactoryGitMutator {
       calls.push(`workspace:${id}:${branch}`, baseRef ?? '/workspace');
       return { id, branch, baseRef: baseRef ?? 'origin/main', path: '/workspace' };
     },
-    async commitAndPush(_workspace, message) {
-      calls.push(`push:${message}`);
+    async commit(_workspace, message) {
+      calls.push(`commit:${message}`);
       return { commitSha: 'abc123', changedFiles: ['factory/implementation.ts'] };
+    },
+    async push() {
+      calls.push('push');
     },
     async isClean() {
       calls.push('clean');

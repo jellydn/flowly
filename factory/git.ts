@@ -91,7 +91,7 @@ export class FactoryGitAdapter {
     return workspace;
   }
 
-  async commitAndPush(workspace: FactoryGitWorkspace, message: string): Promise<FactoryCommit> {
+  async commit(workspace: FactoryGitWorkspace, message: string): Promise<FactoryCommit> {
     if (!message.trim()) throw new Error('Factory commit message must not be empty.');
     const sourceRepository = await realpath(this.options.sourceRepository);
     const sourceRemoteUrl = (
@@ -124,11 +124,6 @@ export class FactoryGitAdapter {
       throw new Error('Factory implementation has no commits to push.');
     }
 
-    await this.assertWorkspace(workspace, sourceRemoteUrl);
-    await this.execGit(
-      ['push', '--set-upstream', this.remote, `HEAD:refs/heads/${workspace.branch}`],
-      workspace.path,
-    );
     const commitSha = (await this.execGit(['rev-parse', 'HEAD'], workspace.path)).stdout.trim();
     const changedFiles = (
       await this.execGit(
@@ -140,6 +135,24 @@ export class FactoryGitAdapter {
       .filter(Boolean)
       .sort();
     return { commitSha, changedFiles };
+  }
+
+  async push(workspace: FactoryGitWorkspace): Promise<void> {
+    const sourceRepository = await realpath(this.options.sourceRepository);
+    const sourceRemoteUrl = (
+      await this.execGit(['remote', 'get-url', this.remote], sourceRepository)
+    ).stdout.trim();
+    await this.assertWorkspace(workspace, sourceRemoteUrl);
+    await this.execGit(
+      ['push', '--set-upstream', this.remote, `HEAD:refs/heads/${workspace.branch}`],
+      workspace.path,
+    );
+  }
+
+  async commitAndPush(workspace: FactoryGitWorkspace, message: string): Promise<FactoryCommit> {
+    const commit = await this.commit(workspace, message);
+    await this.push(workspace);
+    return commit;
   }
 
   async isClean(workspace: FactoryGitWorkspace): Promise<boolean> {

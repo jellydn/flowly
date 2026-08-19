@@ -15,10 +15,11 @@ export type FactoryImplementer = {
 
 export type FactoryGitMutator = {
   createWorkspace(id: string, branch: string, baseRef?: string): Promise<FactoryGitWorkspace>;
-  commitAndPush(
+  commit(
     workspace: FactoryGitWorkspace,
     message: string,
   ): Promise<{ commitSha: string; changedFiles: string[] }>;
+  push(workspace: FactoryGitWorkspace): Promise<void>;
   isClean(workspace: FactoryGitWorkspace): Promise<boolean>;
 };
 
@@ -58,7 +59,7 @@ export async function runControlledImplementation(
     plan: implementing.plan,
     workspace,
   });
-  const commit = await dependencies.git.commitAndPush(
+  const commit = await dependencies.git.commit(
     workspace,
     dependencies.commitMessage ?? `Implement issue #${implementing.task.issueNumber}`,
   );
@@ -80,6 +81,9 @@ export async function runControlledImplementation(
     : clean
       ? undefined
       : 'Verification commands modified the implementation after it was committed.';
+  if (failure === undefined) {
+    await dependencies.git.push(workspace);
+  }
   return dependencies.orchestrator.recordVerification(
     implementing.id,
     failure === undefined,
