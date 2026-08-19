@@ -58,13 +58,13 @@ export class FactoryGitAdapter {
   ): Promise<FactoryGitWorkspace> {
     assertWorkspaceId(id);
     assertFactoryBranch(branch);
-    await mkdir(this.options.workspaceRoot, { recursive: true });
-
     const sourceRepository = await realpath(this.options.sourceRepository);
+    const intendedWorkspaceRoot = path.resolve(this.options.workspaceRoot);
+    assertSeparatePaths(sourceRepository, intendedWorkspaceRoot);
+
+    await mkdir(intendedWorkspaceRoot, { recursive: true });
     const workspaceRoot = await realpath(this.options.workspaceRoot);
-    if (workspaceRoot === sourceRepository || isWithin(sourceRepository, workspaceRoot)) {
-      throw new Error('Factory workspace root must be outside the source checkout.');
-    }
+    assertSeparatePaths(sourceRepository, workspaceRoot);
 
     const workspace: FactoryGitWorkspace = {
       id,
@@ -197,6 +197,16 @@ function assertWorkspaceId(id: string): void {
 function isWithin(parent: string, child: string): boolean {
   const relative = path.relative(parent, child);
   return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
+}
+
+function assertSeparatePaths(sourceRepository: string, workspaceRoot: string): void {
+  if (
+    workspaceRoot === sourceRepository ||
+    isWithin(sourceRepository, workspaceRoot) ||
+    isWithin(workspaceRoot, sourceRepository)
+  ) {
+    throw new Error('Factory workspace root must be outside the source checkout.');
+  }
 }
 
 async function exists(filePath: string): Promise<boolean> {

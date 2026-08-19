@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, test } from 'node:test';
@@ -83,15 +83,31 @@ describe('FactoryGitAdapter', () => {
     assert.throws(() => assertFactoryBranch('main'), /outside a factory-owned branch/);
     assert.throws(() => assertFactoryBranch('factory/../main'), /outside a factory-owned branch/);
     const fixture = await createGitFixture();
+    const workspaceRoot = path.join(fixture.source, '.factory-workspaces');
     const adapter = new FactoryGitAdapter({
       sourceRepository: fixture.source,
-      workspaceRoot: path.join(fixture.source, '.factory-workspaces'),
+      workspaceRoot,
     });
 
     await assert.rejects(
       () => adapter.createWorkspace('run-94', 'factory/94-contained'),
       /must be outside the source checkout/,
     );
+    await assert.rejects(() => access(workspaceRoot), /ENOENT/);
+  });
+
+  test('rejects a workspace root that contains the source checkout without creating a clone', async () => {
+    const fixture = await createGitFixture();
+    const adapter = new FactoryGitAdapter({
+      sourceRepository: fixture.source,
+      workspaceRoot: fixture.root,
+    });
+
+    await assert.rejects(
+      () => adapter.createWorkspace('run-94', 'factory/94-containing'),
+      /must be outside the source checkout/,
+    );
+    await assert.rejects(() => access(path.join(fixture.root, 'run-94')), /ENOENT/);
   });
 });
 
