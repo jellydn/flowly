@@ -142,6 +142,16 @@ export class FactoryGitAdapter {
     return { commitSha, changedFiles };
   }
 
+  async isClean(workspace: FactoryGitWorkspace): Promise<boolean> {
+    const sourceRepository = await realpath(this.options.sourceRepository);
+    const sourceRemoteUrl = (
+      await this.execGit(['remote', 'get-url', this.remote], sourceRepository)
+    ).stdout.trim();
+    await this.assertWorkspace(workspace, sourceRemoteUrl);
+    const status = await this.execGit(['status', '--porcelain=v1', '-z'], workspace.path);
+    return status.stdout === '';
+  }
+
   private async assertWorkspace(
     workspace: FactoryGitWorkspace,
     expectedRemoteUrl: string,
