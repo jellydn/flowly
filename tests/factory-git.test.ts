@@ -79,6 +79,32 @@ describe('FactoryGitAdapter', () => {
     );
   });
 
+  test('rechecks the remote after committing and before pushing', async () => {
+    const fixture = await createGitFixture();
+    const adapter = new FactoryGitAdapter({
+      sourceRepository: fixture.source,
+      workspaceRoot: fixture.workspaces,
+      execGit: async (args, cwd) => {
+        const result = await execFileAsync('git', args, { cwd, encoding: 'utf8' });
+        if (args.includes('commit')) {
+          await git(['remote', 'set-url', 'origin', '../unexpected.git'], cwd);
+        }
+        return result;
+      },
+    });
+    const workspace = await adapter.createWorkspace('run-94', 'factory/94-remote-guard');
+    await writeFile(path.join(workspace.path, 'unsafe.txt'), 'do not push\n');
+
+    await assert.rejects(
+      () => adapter.commitAndPush(workspace, 'feat: unsafe remote mutation'),
+      /unexpected origin remote/,
+    );
+    await assert.rejects(
+      () => git(['show-ref', '--verify', 'refs/heads/factory/94-remote-guard'], fixture.remote),
+      /Command failed/,
+    );
+  });
+
   test('rejects non-factory refs and workspace roots inside the source checkout', async () => {
     assert.throws(() => assertFactoryBranch('main'), /outside a factory-owned branch/);
     assert.throws(() => assertFactoryBranch('factory/../main'), /outside a factory-owned branch/);

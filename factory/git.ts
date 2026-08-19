@@ -124,7 +124,7 @@ export class FactoryGitAdapter {
       throw new Error('Factory implementation has no commits to push.');
     }
 
-    await this.assertOwnedBranch(workspace);
+    await this.assertWorkspace(workspace, sourceRemoteUrl);
     await this.execGit(
       ['push', '--set-upstream', this.remote, `HEAD:refs/heads/${workspace.branch}`],
       workspace.path,
