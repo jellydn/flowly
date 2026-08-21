@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, test } from 'node:test';
@@ -134,6 +134,23 @@ describe('FactoryGitAdapter', () => {
       /must be outside the source checkout/,
     );
     await assert.rejects(() => access(path.join(fixture.root, 'run-94')), /ENOENT/);
+  });
+
+  test('rejects a workspace root inside a symlink alias without creating it', async () => {
+    const fixture = await createGitFixture();
+    const sourceAlias = path.join(fixture.root, 'source-alias');
+    await symlink(fixture.source, sourceAlias, 'dir');
+    const workspaceRoot = path.join(sourceAlias, '.factory-workspaces');
+    const adapter = new FactoryGitAdapter({
+      sourceRepository: fixture.source,
+      workspaceRoot,
+    });
+
+    await assert.rejects(
+      () => adapter.createWorkspace('run-94', 'factory/94-symlink-contained'),
+      /must be outside the source checkout/,
+    );
+    await assert.rejects(() => access(workspaceRoot), /ENOENT/);
   });
 });
 

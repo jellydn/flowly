@@ -59,11 +59,11 @@ export class FactoryGitAdapter {
     assertWorkspaceId(id);
     assertFactoryBranch(branch);
     const sourceRepository = await realpath(this.options.sourceRepository);
-    const intendedWorkspaceRoot = path.resolve(this.options.workspaceRoot);
+    const intendedWorkspaceRoot = await resolveProspectivePath(this.options.workspaceRoot);
     assertSeparatePaths(sourceRepository, intendedWorkspaceRoot);
 
     await mkdir(intendedWorkspaceRoot, { recursive: true });
-    const workspaceRoot = await realpath(this.options.workspaceRoot);
+    const workspaceRoot = await realpath(intendedWorkspaceRoot);
     assertSeparatePaths(sourceRepository, workspaceRoot);
 
     const workspace: FactoryGitWorkspace = {
@@ -206,6 +206,20 @@ function assertSeparatePaths(sourceRepository: string, workspaceRoot: string): v
     isWithin(workspaceRoot, sourceRepository)
   ) {
     throw new Error('Factory workspace root must be outside the source checkout.');
+  }
+}
+
+async function resolveProspectivePath(filePath: string): Promise<string> {
+  const resolved = path.resolve(filePath);
+  try {
+    return await realpath(resolved);
+  } catch (error) {
+    if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') {
+      throw error;
+    }
+    const parent = path.dirname(resolved);
+    if (parent === resolved) throw error;
+    return path.join(await resolveProspectivePath(parent), path.basename(resolved));
   }
 }
 
