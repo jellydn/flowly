@@ -20,7 +20,7 @@ flowly/
 ├── demo/              # Deterministic demos (bash + ts)
 ├── docs/              # Hand-maintained docs page + ADRs
 ├── skills/            # Flue skills (analyzing-repositories)
-├── tests/             # Node test-runner tests (39 files + helpers)
+├── tests/             # Node test-runner tests (40 files + helpers)
 ├── .planning/         # Codebase map + internal planning docs
 ├── .github/workflows/ # CI + review + example workflows
 ├── sandbox.ts         # Empty toolset replacing default FS/shell tools
@@ -70,7 +70,7 @@ flowly/
 **`factory/`:**
 
 - Purpose: Typed issue-to-PR run state and trusted controlled-implementation boundaries
-- Contains: `types.ts`, `store.ts`, `orchestrator.ts`, `intake.ts`, `git.ts`, `implementation.ts`, `verification.ts`, `review.ts`
+- Contains: `types.ts`, `store.ts`, `orchestrator.ts`, `intake.ts`, `git.ts`, `implementation.ts`, `verification.ts`, `review.ts`, `publisher.ts`
 - Key files: `orchestrator.ts` (monotonic run transitions), `git.ts` (isolated factory-only Git mutation), `implementation.ts` (implementation/verification coordinator)
 
 **`github/`:**
@@ -112,7 +112,7 @@ flowly/
 **`tests/`:**
 
 - Purpose: All automated tests (single directory, not co-located)
-- Contains: 39 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
+- Contains: 40 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
 - Key files: `helpers.ts`, `event-router.test.ts`, `bench-runner.test.ts`
 
 ## Key File Locations

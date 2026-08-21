@@ -1,10 +1,8 @@
 /**
  * Thin GitHub REST API client using the global `fetch`. No heavyweight
- * dependency (@octokit) is introduced — only the three endpoints the
- * reviewer needs: GET a pull request, list reviews, and submit a review.
- *
- * The token is held only by this client and the trusted adapter; it is never
- * passed into the agent's sandbox or registered tools' input schemas.
+ * dependency (@octokit) is introduced — the reviewer and factory publisher
+ * share this client. The token is held only here and in trusted adapters; it
+ * is never passed into the agent's sandbox or registered tools' input schemas.
  */
 
 export type PrApiData = {
@@ -32,6 +30,15 @@ export type GitHubReviewPayload = {
 };
 
 export type SubmitReviewResult = { id: number; html_url: string };
+
+/** A GitHub pull request as returned by the REST API. */
+export type GitHubPullRequest = {
+  number: number;
+  html_url: string;
+  draft: boolean;
+  head: { ref: string };
+  base: { ref: string };
+};
 
 /** A GitHub issue (PR) comment as returned by the REST API. */
 export type IssueComment = {
@@ -154,6 +161,41 @@ export class GitHubClient {
       'PATCH',
       `/repos/${this.owner}/${this.repo}/issues/comments/${commentId}`,
       { body },
+    );
+  }
+
+  /**
+   * POST /repos/{owner}/{repo}/pulls — always creates a draft. The factory
+   * publisher is the only caller; it never auto-merges.
+   */
+  async createDraftPullRequest(input: {
+    title: string;
+    body: string;
+    head: string;
+    base: string;
+  }): Promise<GitHubPullRequest> {
+    return this.requestJson<GitHubPullRequest>('POST', `/repos/${this.owner}/${this.repo}/pulls`, {
+      title: input.title,
+      body: input.body,
+      head: input.head,
+      base: input.base,
+      draft: true,
+    });
+  }
+
+  /**
+   * GET /repos/{owner}/{repo}/pulls?head={owner}:{ref} — used to reuse an
+   * existing factory PR instead of opening a duplicate.
+   */
+  async findPullRequestsByHead(head: string): Promise<GitHubPullRequest[]> {
+    const query = new URLSearchParams({
+      head: `${this.owner}:${head}`,
+      state: 'all',
+      per_page: '100',
+    });
+    return this.requestJson<GitHubPullRequest[]>(
+      'GET',
+      `/repos/${this.owner}/${this.repo}/pulls?${query.toString()}`,
     );
   }
 
