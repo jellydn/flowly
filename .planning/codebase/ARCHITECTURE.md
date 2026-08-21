@@ -72,6 +72,13 @@ See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to 
 - Depends on: tools (read/search), `just-bash`, GitHub REST
 - Used by: `scripts/review-pr.ts` (CI entrypoint)
 
+**Factory pipeline:**
+- Purpose: Take an actionable GitHub issue through isolated implementation, independent review, and a reviewed draft PR
+- Location: `factory/`
+- Contains: run/state types, orchestrator, intake, isolated git mutation, verification, independent review evidence, draft-PR publisher, review-and-publish coordinator
+- Depends on: `github/client.ts` for draft PRs; never auto-merges or auto-approves
+- Used by: tests today; `issues.labeled.factory` is the event-router entrypoint
+
 **Event router:**
 - Purpose: Map GitHub events to agent IDs; decision-only, agent execution out of scope
 - Location: `github/events/`
