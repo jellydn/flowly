@@ -168,6 +168,20 @@ export class FactoryGitAdapter {
     return head === commitSha && status.stdout === '';
   }
 
+  /** Unified diff of the factory branch against its base, for independent review. */
+  async readDiff(workspace: FactoryGitWorkspace): Promise<string> {
+    const sourceRepository = await realpath(this.options.sourceRepository);
+    const sourceRemoteUrl = (
+      await this.execGit(['remote', 'get-url', this.remote], sourceRepository)
+    ).stdout.trim();
+    await this.assertWorkspace(workspace, sourceRemoteUrl);
+    const diff = (
+      await this.execGit(['diff', '--no-ext-diff', `${workspace.baseRef}...HEAD`], workspace.path)
+    ).stdout;
+    if (!diff.trim()) throw new Error('Factory review requires a non-empty git diff.');
+    return diff;
+  }
+
   private async assertWorkspace(
     workspace: FactoryGitWorkspace,
     expectedRemoteUrl: string,
