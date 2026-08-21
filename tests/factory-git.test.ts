@@ -105,6 +105,36 @@ describe('FactoryGitAdapter', () => {
     );
   });
 
+  test('rejects an alternate push destination before pushing', async () => {
+    const fixture = await createGitFixture();
+    const alternateRemote = path.join(fixture.root, 'alternate.git');
+    await git(['init', '--bare', alternateRemote], fixture.root);
+    const adapter = new FactoryGitAdapter({
+      sourceRepository: fixture.source,
+      workspaceRoot: fixture.workspaces,
+      execGit: async (args, cwd) => {
+        const result = await execFileAsync('git', args, { cwd, encoding: 'utf8' });
+        if (args.includes('commit')) {
+          await git(['remote', 'set-url', '--push', 'origin', alternateRemote], cwd);
+        }
+        return result;
+      },
+    });
+    const workspace = await adapter.createWorkspace('run-94', 'factory/94-push-guard');
+    await writeFile(path.join(workspace.path, 'unsafe.txt'), 'do not push\n');
+
+    await assert.rejects(
+      () => adapter.commitAndPush(workspace, 'feat: unsafe push destination'),
+      /unexpected origin push destination/,
+    );
+    for (const remote of [fixture.remote, alternateRemote]) {
+      await assert.rejects(
+        () => git(['show-ref', '--verify', 'refs/heads/factory/94-push-guard'], remote),
+        /Command failed/,
+      );
+    }
+  });
+
   test('rejects non-factory refs and workspace roots inside the source checkout', async () => {
     assert.throws(() => assertFactoryBranch('main'), /outside a factory-owned branch/);
     assert.throws(() => assertFactoryBranch('factory/../main'), /outside a factory-owned branch/);

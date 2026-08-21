@@ -160,6 +160,17 @@ export class FactoryGitAdapter {
     if (actualRemoteUrl !== expectedRemoteUrl) {
       throw new Error(`Factory workspace ${workspace.id} has an unexpected ${this.remote} remote.`);
     }
+    const pushUrls = (
+      await this.execGit(['remote', 'get-url', '--push', '--all', this.remote], actualPath)
+    ).stdout
+      .trim()
+      .split(/\r?\n/)
+      .filter(Boolean);
+    if (pushUrls.length !== 1 || pushUrls[0] !== expectedRemoteUrl) {
+      throw new Error(
+        `Factory workspace ${workspace.id} has an unexpected ${this.remote} push destination.`,
+      );
+    }
     await this.assertOwnedBranch(workspace);
   }
 
