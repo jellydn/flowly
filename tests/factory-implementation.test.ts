@@ -66,8 +66,8 @@ describe('runControlledImplementation', () => {
       'implement:/workspace',
       'commit:Implement issue #94',
       'verify:/workspace',
-      'clean',
-      'push',
+      'pristine:abc123',
+      'push:abc123',
     ]);
   });
 
@@ -93,11 +93,11 @@ describe('runControlledImplementation', () => {
     assert.equal(calls.includes('push'), false);
   });
 
-  test('fails verification when checks leave uncommitted changes', async () => {
+  test('fails verification when checks change the committed implementation', async () => {
     const { orchestrator, run } = await plannedRun();
     const calls: string[] = [];
     const git = fakeGit(calls);
-    git.isClean = async () => false;
+    git.isPristine = async () => false;
 
     const result = await runControlledImplementation(run, {
       orchestrator,
@@ -111,8 +111,11 @@ describe('runControlledImplementation', () => {
     });
 
     assert.equal(result.state, 'failed');
-    assert.match(result.failure ?? '', /modified the implementation after it was committed/);
-    assert.equal(calls.includes('push'), false);
+    assert.match(result.failure ?? '', /modified the implementation or its commit history/);
+    assert.equal(
+      calls.some((call) => call.startsWith('push:')),
+      false,
+    );
   });
 });
 
@@ -134,11 +137,11 @@ function fakeGit(calls: string[]): FactoryGitMutator {
       calls.push(`commit:${message}`);
       return { commitSha: 'abc123', changedFiles: ['factory/implementation.ts'] };
     },
-    async push() {
-      calls.push('push');
+    async push(_workspace, commitSha) {
+      calls.push(`push:${commitSha}`);
     },
-    async isClean() {
-      calls.push('clean');
+    async isPristine(_workspace, commitSha) {
+      calls.push(`pristine:${commitSha}`);
       return true;
     },
   };

@@ -135,6 +135,35 @@ describe('FactoryGitAdapter', () => {
     }
   });
 
+  test('detects verification changes to the worktree or commit history', async () => {
+    const fixture = await createGitFixture();
+    const adapter = new FactoryGitAdapter({
+      sourceRepository: fixture.source,
+      workspaceRoot: fixture.workspaces,
+    });
+    const workspace = await adapter.createWorkspace('run-94', 'factory/94-pristine');
+    await writeFile(path.join(workspace.path, 'implementation.txt'), 'factory output\n');
+    const commit = await adapter.commit(workspace, 'feat: implement issue 94');
+
+    assert.equal(await adapter.isPristine(workspace, commit.commitSha), true);
+    await writeFile(path.join(workspace.path, 'verification.txt'), 'unexpected output\n');
+    assert.equal(await adapter.isPristine(workspace, commit.commitSha), false);
+    await git(['add', 'verification.txt'], workspace.path);
+    await git(
+      [
+        '-c',
+        'user.name=Fixture',
+        '-c',
+        'user.email=fixture@example.com',
+        'commit',
+        '-m',
+        'Verification mutation',
+      ],
+      workspace.path,
+    );
+    assert.equal(await adapter.isPristine(workspace, commit.commitSha), false);
+  });
+
   test('rejects non-factory refs and workspace roots inside the source checkout', async () => {
     assert.throws(() => assertFactoryBranch('main'), /outside a factory-owned branch/);
     assert.throws(() => assertFactoryBranch('factory/../main'), /outside a factory-owned branch/);

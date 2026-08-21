@@ -19,8 +19,8 @@ export type FactoryGitMutator = {
     workspace: FactoryGitWorkspace,
     message: string,
   ): Promise<{ commitSha: string; changedFiles: string[] }>;
-  push(workspace: FactoryGitWorkspace): Promise<void>;
-  isClean(workspace: FactoryGitWorkspace): Promise<boolean>;
+  push(workspace: FactoryGitWorkspace, commitSha: string): Promise<void>;
+  isPristine(workspace: FactoryGitWorkspace, commitSha: string): Promise<boolean>;
 };
 
 export type FactoryVerifier = {
@@ -67,7 +67,7 @@ export async function runControlledImplementation(
     implementing.plan.verificationCommands,
     workspace.path,
   );
-  const clean = await dependencies.git.isClean(workspace);
+  const pristine = await dependencies.git.isPristine(workspace, commit.commitSha);
   await dependencies.orchestrator.recordImplementation(implementing.id, {
     workspaceId: workspace.id,
     commitSha: commit.commitSha,
@@ -78,11 +78,11 @@ export async function runControlledImplementation(
   const failed = verification.find((result) => result.exitCode !== 0);
   const failure = failed
     ? `Verification command failed with exit code ${failed.exitCode}: ${failed.command}`
-    : clean
+    : pristine
       ? undefined
-      : 'Verification commands modified the implementation after it was committed.';
+      : 'Verification commands modified the implementation or its commit history.';
   if (failure === undefined) {
-    await dependencies.git.push(workspace);
+    await dependencies.git.push(workspace, commit.commitSha);
   }
   return dependencies.orchestrator.recordVerification(
     implementing.id,
