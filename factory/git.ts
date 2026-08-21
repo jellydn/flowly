@@ -91,7 +91,7 @@ export class FactoryGitAdapter {
     return workspace;
   }
 
-  async commitAndPush(workspace: FactoryGitWorkspace, message: string): Promise<FactoryCommit> {
+  async commit(workspace: FactoryGitWorkspace, message: string): Promise<FactoryCommit> {
     if (!message.trim()) throw new Error('Factory commit message must not be empty.');
     const sourceRepository = await realpath(this.options.sourceRepository);
     const sourceRemoteUrl = (
@@ -124,11 +124,6 @@ export class FactoryGitAdapter {
       throw new Error('Factory implementation has no commits to push.');
     }
 
-    await this.assertWorkspace(workspace, sourceRemoteUrl);
-    await this.execGit(
-      ['push', '--set-upstream', this.remote, `HEAD:refs/heads/${workspace.branch}`],
-      workspace.path,
-    );
     const commitSha = (await this.execGit(['rev-parse', 'HEAD'], workspace.path)).stdout.trim();
     const changedFiles = (
       await this.execGit(
@@ -140,6 +135,37 @@ export class FactoryGitAdapter {
       .filter(Boolean)
       .sort();
     return { commitSha, changedFiles };
+  }
+
+  async push(workspace: FactoryGitWorkspace, commitSha: string): Promise<void> {
+    assertCommitSha(commitSha);
+    const sourceRepository = await realpath(this.options.sourceRepository);
+    const sourceRemoteUrl = (
+      await this.execGit(['remote', 'get-url', this.remote], sourceRepository)
+    ).stdout.trim();
+    await this.assertWorkspace(workspace, sourceRemoteUrl);
+    await this.execGit(
+      ['push', '--set-upstream', this.remote, `${commitSha}:refs/heads/${workspace.branch}`],
+      workspace.path,
+    );
+  }
+
+  async commitAndPush(workspace: FactoryGitWorkspace, message: string): Promise<FactoryCommit> {
+    const commit = await this.commit(workspace, message);
+    await this.push(workspace, commit.commitSha);
+    return commit;
+  }
+
+  async isPristine(workspace: FactoryGitWorkspace, commitSha: string): Promise<boolean> {
+    assertCommitSha(commitSha);
+    const sourceRepository = await realpath(this.options.sourceRepository);
+    const sourceRemoteUrl = (
+      await this.execGit(['remote', 'get-url', this.remote], sourceRepository)
+    ).stdout.trim();
+    await this.assertWorkspace(workspace, sourceRemoteUrl);
+    const head = (await this.execGit(['rev-parse', 'HEAD'], workspace.path)).stdout.trim();
+    const status = await this.execGit(['status', '--porcelain=v1', '-z'], workspace.path);
+    return head === commitSha && status.stdout === '';
   }
 
   private async assertWorkspace(
@@ -196,6 +222,12 @@ export function assertFactoryBranch(branch: string): void {
     branch.includes('@{')
   ) {
     throw new Error(`Refusing Git mutation outside a factory-owned branch: ${branch}`);
+  }
+}
+
+function assertCommitSha(commitSha: string): void {
+  if (!/^[a-f0-9]{40}$/.test(commitSha)) {
+    throw new Error(`Invalid factory commit SHA: ${commitSha}`);
   }
 }
 

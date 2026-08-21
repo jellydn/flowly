@@ -348,6 +348,24 @@ without starting a session; Flue initializes one shared session environment on
 the first `createSessionEnv` call. Persistence is opt-in and remains separate
 from the read-only repository inspection tools.
 
+## Controlled factory implementation
+
+The factory's implementation stage crosses two trusted boundaries in `factory/`:
+
+- `FactoryGitAdapter` creates or restores an independent clone outside the
+  source checkout. It rejects non-`factory/*` refs, unexpected remotes, escaped
+  workspace paths, and branch changes before committing or pushing.
+- `FactoryVerificationRunner` runs the planner's repository-native commands in
+  that clone with a sanitized environment, per-command timeout, bounded output,
+  and a maximum of 20 commands.
+
+`runControlledImplementation` passes only the issue, structured plan, and
+isolated workspace to the implementer. It commits and pushes the factory-owned
+branch, runs every configured check, records command/exit-code outcomes, and
+enters independent review only when all checks pass and the checkout remains
+clean. Failed or mutating checks persist a failed run instead; this stage never
+creates a PR, approves a review, or merges.
+
 ## GitHub event router
 
 `github/events/` is a dependency-light router that maps GitHub events to
@@ -968,6 +986,14 @@ flowly/
 ├── agents/
 │   ├── repo-assistant.ts       # general inspection agent
 │   └── pr-reviewer.ts          # PR review agent (never auto-approves)
+├── factory/
+│   ├── git.ts                  # isolated clone + factory-branch Git boundary
+│   ├── implementation.ts       # controlled implementation stage runner
+│   ├── intake.ts               # issue classification + progress boundary
+│   ├── orchestrator.ts         # persisted factory state transitions
+│   ├── store.ts                # factory run persistence contract
+│   ├── types.ts                # structured stage inputs and outputs
+│   └── verification.ts         # bounded repository-native checks
 ├── github/
 │   ├── adapter.ts              # trusted review publisher
 │   ├── client.ts               # thin GitHub REST client
