@@ -366,6 +366,23 @@ enters independent review only when all checks pass and the checkout remains
 clean. Failed or mutating checks persist a failed run instead; this stage never
 creates a PR, approves a review, or merges.
 
+### Independent review and draft PR
+
+After verification, `runIndependentReviewAndPublish` builds reviewer evidence
+from the issue, acceptance criteria, factory-branch diff, and recorded
+command/exit-code outcomes. Implementer scratch, conversation history, and
+chain-of-thought are dropped. The reviewer maps each acceptance criterion to a
+satisfied/unsatisfied verdict; Flowly never auto-approves.
+
+`FactoryDraftPrPublisher` then creates (or reuses) one **draft** pull request
+on the factory-owned branch through a trusted GitHub adapter. The body links
+the source issue, lists verification results, and includes the independent
+review checklist. The publisher has no merge path.
+
+Labeling an issue `factory` routes to the `factory` agent via
+`issues.labeled.factory` in `event-router.config.json`. Agent execution is
+still wired by the workflow — the router only decides.
+
 ## GitHub event router
 
 `github/events/` is a dependency-light router that maps GitHub events to
@@ -387,6 +404,7 @@ shorthand map matches the issue's declarative design:
     "pull_request_review.submitted": "address-review",
     "issues.opened": "planner",
     "issues.labeled.implement": "implementation",
+    "issues.labeled.factory": "factory",
     "workflow_run.completed.failure": "ci-fix"
   }
 }
@@ -991,6 +1009,9 @@ flowly/
 │   ├── implementation.ts       # controlled implementation stage runner
 │   ├── intake.ts               # issue classification + progress boundary
 │   ├── orchestrator.ts         # persisted factory state transitions
+│   ├── pipeline.ts             # independent review + draft PR stage
+│   ├── publisher.ts            # trusted draft-PR GitHub adapter
+│   ├── review.ts               # isolated review evidence + AC verdicts
 │   ├── store.ts                # factory run persistence contract
 │   ├── types.ts                # structured stage inputs and outputs
 │   └── verification.ts         # bounded repository-native checks
