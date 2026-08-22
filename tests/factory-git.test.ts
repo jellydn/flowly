@@ -42,6 +42,10 @@ describe('FactoryGitAdapter', () => {
       ),
       'factory output',
     );
+
+    const diff = await adapter.readDiff(workspace);
+    assert.match(diff, /implementation\.txt/);
+    assert.match(diff, /\+factory output/);
   });
 
   test('restores the same workspace without replacing its changes', async () => {
