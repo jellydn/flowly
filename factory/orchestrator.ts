@@ -19,6 +19,13 @@ import {
 export class FactoryOrchestrator {
   constructor(private readonly store: FactoryRunStore) {}
 
+  /** Load the persisted run. Callers must not treat a stale snapshot as current. */
+  async get(id: string): Promise<FactoryRun> {
+    const run = await this.store.load(id);
+    if (!run) throw new Error(`Factory run ${id} does not exist.`);
+    return run;
+  }
+
   async start(task: FactoryTask): Promise<{ run: FactoryRun; duplicate: boolean }> {
     const now = Date.now();
     const run: FactoryRun = {

@@ -114,10 +114,86 @@ describe('runIndependentReviewAndPublish', () => {
     };
 
     const first = await runIndependentReviewAndPublish(run, dependencies);
-    const second = await runIndependentReviewAndPublish(first, dependencies);
+    const second = await runIndependentReviewAndPublish(run, dependencies);
     assert.equal(first.state, 'completed');
     assert.equal(second.state, 'completed');
     assert.equal(second.prNumber, first.prNumber);
+    assert.equal(client.created.length, 1);
+  });
+
+  test('publishes a draft even when independent review requests changes', async () => {
+    const { orchestrator, run } = await verifyingRun();
+    const client = fakeClient([]);
+    const result = await runIndependentReviewAndPublish(run, {
+      orchestrator,
+      publisher: new FactoryDraftPrPublisher(client),
+      readDiff: async () => DIFF,
+      reviewer: {
+        async review() {
+          return {
+            summary: 'The diff does not meet the plan.',
+            verdict: 'REQUEST_CHANGES',
+            findings: [{ title: 'Missing persistence', explanation: 'No store write.' }],
+          };
+        },
+      },
+      judgmentsFrom: () => [],
+    });
+
+    assert.equal(result.state, 'completed');
+    assert.equal(result.review?.readyForHumanReview, false);
+    assert.equal(client.created.length, 1);
+    assert.match(client.created[0]?.body ?? '', /Ready for human review: no/);
+  });
+
+  test('retries publish after a failure without re-running review', async () => {
+    const { orchestrator, run } = await verifyingRun();
+    const calls: string[] = [];
+    const client = fakeClient(calls);
+    let publishAttempts = 0;
+    const publisher = new FactoryDraftPrPublisher(client);
+    const originalPublish = publisher.publish.bind(publisher);
+    publisher.publish = async (current) => {
+      publishAttempts += 1;
+      if (publishAttempts === 1) throw new Error('GitHub unavailable.');
+      return originalPublish(current);
+    };
+
+    const dependencies = {
+      orchestrator,
+      publisher,
+      readDiff: async () => {
+        calls.push('diff');
+        return DIFF;
+      },
+      reviewer: {
+        async review() {
+          calls.push('review');
+          return {
+            summary: `Attempt ${publishAttempts}`,
+            verdict: 'COMMENT' as const,
+            findings: [],
+          };
+        },
+      },
+      judgmentsFrom: () => [
+        {
+          description: 'A run is persisted.',
+          satisfied: true,
+          evidence: 'FactoryRun exists.',
+        },
+      ],
+    };
+
+    await assert.rejects(
+      () => runIndependentReviewAndPublish(run, dependencies),
+      /GitHub unavailable/,
+    );
+    const result = await runIndependentReviewAndPublish(run, dependencies);
+
+    assert.equal(result.state, 'completed');
+    assert.equal(result.prNumber, 110);
+    assert.equal(calls.filter((call) => call === 'review').length, 1);
     assert.equal(client.created.length, 1);
   });
 });
@@ -178,6 +254,7 @@ function fakeClient(calls: string[]): FactoryPullRequestClient & {
         number: 110,
         htmlUrl: 'https://github.com/jellydn/flowly/pull/110',
         draft: true,
+        state: 'open',
         head: input.head,
         base: input.base,
       };

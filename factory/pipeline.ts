@@ -30,17 +30,41 @@ export type IndependentReviewPipelineDependencies = {
 
 /**
  * Record an independent review and open (or reuse) the draft PR. Already
- * published runs complete without creating another PR.
+ * published runs complete without creating another PR. A persisted verdict
+ * is reused so a later publish failure can retry without re-reviewing.
  */
 export async function runIndependentReviewAndPublish(
   reviewingRun: FactoryRun,
   dependencies: IndependentReviewPipelineDependencies,
 ): Promise<FactoryRun> {
-  if (reviewingRun.state === 'completed') return reviewingRun;
-  if (reviewingRun.state === 'pr-created') {
-    return dependencies.orchestrator.complete(reviewingRun.id);
+  const current = await dependencies.orchestrator.get(reviewingRun.id);
+  if (current.state === 'completed') return current;
+  if (current.state === 'pr-created') {
+    return dependencies.orchestrator.complete(current.id);
+  }
+  if (current.state !== 'reviewing') {
+    throw new Error(`Factory run ${current.id} is ${current.state}; expected reviewing.`);
   }
 
+  const reviewed = current.review
+    ? current
+    : await recordIndependentReview(current, dependencies);
+  const pullRequest = await dependencies.publisher.publish(reviewed);
+  if (pullRequest.state !== 'open' || !pullRequest.draft) {
+    throw new Error('Factory publisher refused a non-draft pull request.');
+  }
+  const published = await dependencies.orchestrator.recordDraftPr(reviewed.id, pullRequest.number);
+  await dependencies.progress?.publish(
+    published.task,
+    `Factory draft PR #${pullRequest.number} created. Flowly will not merge or approve it.`,
+  );
+  return dependencies.orchestrator.complete(published.id);
+}
+
+async function recordIndependentReview(
+  reviewingRun: FactoryRun,
+  dependencies: IndependentReviewPipelineDependencies,
+): Promise<FactoryRun> {
   const diff = await dependencies.readDiff(reviewingRun);
   const verdict = await reviewFactoryImplementation(
     reviewingRun,
@@ -53,12 +77,5 @@ export async function runIndependentReviewAndPublish(
     reviewed.task,
     `Factory independent review recorded: ${verdict.summary}`,
   );
-
-  const pullRequest = await dependencies.publisher.publish(reviewed);
-  const published = await dependencies.orchestrator.recordDraftPr(reviewed.id, pullRequest.number);
-  await dependencies.progress?.publish(
-    published.task,
-    `Factory draft PR #${pullRequest.number} created. Flowly will not merge or approve it.`,
-  );
-  return dependencies.orchestrator.complete(published.id);
+  return reviewed;
 }
