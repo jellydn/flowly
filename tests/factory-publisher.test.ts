@@ -32,15 +32,9 @@ describe('FactoryDraftPrPublisher', () => {
     assert.equal('mergePullRequest' in publisher, false);
   });
 
-  test('reuses an existing PR for the same factory branch', async () => {
+  test('reuses an existing open draft for the same factory branch', async () => {
     const run = await reviewedRun();
-    const existing: FactoryPullRequestRecord = {
-      number: 96,
-      htmlUrl: 'https://github.com/jellydn/flowly/pull/96',
-      draft: true,
-      head: 'factory/94-add-factory-pipeline',
-      base: 'main',
-    };
+    const existing = record({ number: 96, draft: true, state: 'open' });
     const client = fakeClient([existing]);
     const publisher = new FactoryDraftPrPublisher(client);
     const first = await publisher.publish(run);
@@ -48,6 +42,29 @@ describe('FactoryDraftPrPublisher', () => {
 
     assert.equal(first.number, 96);
     assert.equal(second.number, 96);
+    assert.equal(client.created.length, 0);
+  });
+
+  test('opens a new draft when the only match is closed or merged', async () => {
+    const run = await reviewedRun();
+    const client = fakeClient([
+      record({ number: 80, draft: true, state: 'closed' }),
+      record({ number: 81, draft: false, state: 'closed' }),
+    ]);
+    const created = await new FactoryDraftPrPublisher(client).publish(run);
+
+    assert.equal(created.number, 110);
+    assert.equal(created.draft, true);
+    assert.equal(client.created.length, 1);
+  });
+
+  test('refuses an open non-draft on the same factory branch', async () => {
+    const run = await reviewedRun();
+    const client = fakeClient([record({ number: 99, draft: false, state: 'open' })]);
+    await assert.rejects(
+      () => new FactoryDraftPrPublisher(client).publish(run),
+      /refused a non-draft pull request/,
+    );
     assert.equal(client.created.length, 0);
   });
 
@@ -79,6 +96,7 @@ describe('FactoryDraftPrPublisher', () => {
       number: 111,
       htmlUrl: 'https://github.com/jellydn/flowly/pull/111',
       draft: false,
+      state: 'open',
       head: input.head,
       base: input.base,
     });
@@ -142,6 +160,19 @@ async function reviewedRun(): Promise<FactoryRun> {
   });
 }
 
+function record(
+  overrides: Partial<FactoryPullRequestRecord> & Pick<FactoryPullRequestRecord, 'number'>,
+): FactoryPullRequestRecord {
+  return {
+    htmlUrl: `https://github.com/jellydn/flowly/pull/${overrides.number}`,
+    draft: true,
+    head: 'factory/94-add-factory-pipeline',
+    base: 'main',
+    state: 'open',
+    ...overrides,
+  };
+}
+
 function fakeClient(existing: FactoryPullRequestRecord[] = []): FactoryPullRequestClient & {
   created: Array<{ title: string; body: string; head: string; base: string }>;
 } {
@@ -155,13 +186,13 @@ function fakeClient(existing: FactoryPullRequestRecord[] = []): FactoryPullReque
     },
     async createDraftPullRequest(input) {
       created.push(input);
-      return {
+      return record({
         number: 110,
-        htmlUrl: 'https://github.com/jellydn/flowly/pull/110',
         draft: true,
+        state: 'open',
         head: input.head,
         base: input.base,
-      };
+      });
     },
   };
 }

@@ -36,6 +36,7 @@ export type GitHubPullRequest = {
   number: number;
   html_url: string;
   draft: boolean;
+  state: 'open' | 'closed';
   head: { ref: string };
   base: { ref: string };
 };
@@ -184,13 +185,13 @@ export class GitHubClient {
   }
 
   /**
-   * GET /repos/{owner}/{repo}/pulls?head={owner}:{ref} — used to reuse an
-   * existing factory PR instead of opening a duplicate.
+   * GET /repos/{owner}/{repo}/pulls?head={owner}:{ref} — open PRs only, so a
+   * closed or merged factory PR does not block a later draft.
    */
   async findPullRequestsByHead(head: string): Promise<GitHubPullRequest[]> {
     const query = new URLSearchParams({
       head: `${this.owner}:${head}`,
-      state: 'all',
+      state: 'open',
       per_page: '100',
     });
     return this.requestJson<GitHubPullRequest[]>(

@@ -14,6 +14,8 @@ export type FactoryPullRequestRecord = {
   draft: boolean;
   head: string;
   base: string;
+  /** GitHub issue-state. Closed/merged PRs must not be reused. */
+  state: 'open' | 'closed';
 };
 
 export type FactoryPullRequestClient = {
@@ -74,7 +76,14 @@ export class FactoryDraftPrPublisher {
     const existing = (await this.client.findPullRequestsByHead(run.branch))
       .slice()
       .sort((left, right) => left.number - right.number);
-    if (existing[0]) return existing[0];
+    const reusable = existing.filter((pullRequest) => isReusableDraft(pullRequest));
+    const openNonDraft = existing.find(
+      (pullRequest) => pullRequest.state === 'open' && !pullRequest.draft,
+    );
+    if (openNonDraft) {
+      throw new Error('Factory publisher refused a non-draft pull request.');
+    }
+    if (reusable[0]) return reusable[0];
 
     const created = await this.client.createDraftPullRequest({
       title: `[factory] ${run.task.title}`,
@@ -82,7 +91,7 @@ export class FactoryDraftPrPublisher {
       head: run.branch,
       base: this.options.baseBranch ?? 'main',
     });
-    if (!created.draft) {
+    if (!isReusableDraft(created)) {
       throw new Error('Factory publisher refused a non-draft pull request.');
     }
     return created;
@@ -144,6 +153,10 @@ export function renderFactoryPrBody(run: FactoryRun): string {
   ].join('\n');
 }
 
+function isReusableDraft(pullRequest: FactoryPullRequestRecord): boolean {
+  return pullRequest.state === 'open' && pullRequest.draft;
+}
+
 function toRecord(pullRequest: GitHubPullRequest): FactoryPullRequestRecord {
   return {
     number: pullRequest.number,
@@ -151,5 +164,6 @@ function toRecord(pullRequest: GitHubPullRequest): FactoryPullRequestRecord {
     draft: pullRequest.draft,
     head: pullRequest.head.ref,
     base: pullRequest.base.ref,
+    state: pullRequest.state,
   };
 }
