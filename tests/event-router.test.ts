@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   createEventRouter,
   createFileDeliveryStore,
@@ -239,9 +240,12 @@ describe('matchRoute', () => {
   });
 
   test('does not match a different conclusion on workflow_run', () => {
-    const event = parseEventPayload('workflow_run', workflowRunPayload('completed', {
-      workflow_run: { id: 55, name: 'CI', head_branch: 'main', conclusion: 'success' },
-    }));
+    const event = parseEventPayload(
+      'workflow_run',
+      workflowRunPayload('completed', {
+        workflow_run: { id: 55, name: 'CI', head_branch: 'main', conclusion: 'success' },
+      }),
+    );
     assert.ok(event.ok);
     assert.equal(matchRoute(routes, event.event), null);
   });
@@ -263,7 +267,11 @@ describe('createEventRouter', () => {
     assert.ok(event.ok);
 
     const first = await router.route(event.event);
-    assert.deepEqual(first, { outcome: 'dispatch', agent: 'planner', route: result.config.routes[0] });
+    assert.deepEqual(first, {
+      outcome: 'dispatch',
+      agent: 'planner',
+      route: result.config.routes[0],
+    });
 
     // A redelivered event is ignored as a duplicate.
     const second = await router.route(event.event);
@@ -315,31 +323,42 @@ describe('createEventRouter', () => {
         {
           event: 'pull_request',
           agent: 'security',
-          filter: { branch: ['main'], label: ['security'], actor: ['bot'], repository: ['trusted/repo'] },
+          filter: {
+            branch: ['main'],
+            label: ['security'],
+            actor: ['bot'],
+            repository: ['trusted/repo'],
+          },
         },
       ],
     });
     assert.ok(result.ok);
     const router = createEventRouter(result.config);
 
-    const matching = parseEventPayload('pull_request', prPayload('opened', {
-      pull_request: {
-        number: 1,
-        head: { ref: 'main', sha: 's1' },
-        labels: [{ name: 'security' }],
-      },
-      repository: { full_name: 'trusted/repo' },
-      sender: { login: 'bot' },
-    }));
+    const matching = parseEventPayload(
+      'pull_request',
+      prPayload('opened', {
+        pull_request: {
+          number: 1,
+          head: { ref: 'main', sha: 's1' },
+          labels: [{ name: 'security' }],
+        },
+        repository: { full_name: 'trusted/repo' },
+        sender: { login: 'bot' },
+      }),
+    );
     assert.ok(matching.ok);
     const ok = await router.route(matching.event);
     assert.equal(ok.outcome, 'dispatch');
 
-    const excluded = parseEventPayload('pull_request', prPayload('opened', {
-      pull_request: { number: 1, head: { ref: 'main', sha: 's1' }, labels: [] },
-      repository: { full_name: 'trusted/repo' },
-      sender: { login: 'bot' },
-    }));
+    const excluded = parseEventPayload(
+      'pull_request',
+      prPayload('opened', {
+        pull_request: { number: 1, head: { ref: 'main', sha: 's1' }, labels: [] },
+        repository: { full_name: 'trusted/repo' },
+        sender: { login: 'bot' },
+      }),
+    );
     assert.ok(excluded.ok);
     const no = await router.route(excluded.event);
     assert.equal(no.outcome, 'ignore');
@@ -397,6 +416,19 @@ describe('loadConfigFromFile integration', () => {
     const result = await loadConfigFromFile(path.join(dir, 'routes.json'));
     assert.ok(result.ok);
     assert.equal(result.config.routes[0].agent, 'review');
+  });
+
+  test('committed config routes issues labeled factory', async () => {
+    const result = await loadConfigFromFile(
+      path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'event-router.config.json'),
+    );
+    assert.ok(result.ok);
+    const factory = result.config.routes.find((route) => route.agent === 'factory');
+    assert.deepEqual(factory, {
+      event: 'issues',
+      agent: 'factory',
+      filter: { action: ['labeled'], label: ['factory'] },
+    });
   });
 
   test('reports missing files and invalid JSON with actionable issues', async () => {

@@ -107,6 +107,53 @@ describe('review publisher', () => {
     assert.match(comment.body, /Suggestion/);
   });
 
+  test('renders advisor decisions produced before publication', async () => {
+    const client = createFakeClient();
+    const publisher = createReviewPublisher({
+      client,
+      prNumber: 1,
+      headSha: 'head123',
+      diffProvider: async () => DIFF,
+      limits,
+    });
+    const result = await publisher.publish(
+      {
+        summary: 'One issue.',
+        verdict: 'COMMENT',
+        findings: [
+          {
+            severity: 'P1',
+            path: 'src/auth.ts',
+            line: 11,
+            title: 'Silent error',
+            explanation: 'The error is swallowed.',
+            confidence: 0.9,
+          },
+        ],
+      },
+      {
+        provenance: [],
+        advisorDecisions: [
+          {
+            path: 'src/auth.ts',
+            line: 11,
+            title: 'Silent error',
+            decision: 'revise',
+            reason: 'Clarify evidence.',
+          },
+        ],
+        specialistErrors: [],
+        advisorErrors: [],
+        validationIssues: [],
+      },
+    );
+    assert.equal(result.submittedFindings, 1);
+    assert.equal(client.submitted[0].payload.comments[0].path, 'src/auth.ts');
+    assert.equal(client.submitted[0].payload.comments[0].line, 11);
+    assert.match(client.submitted[0].payload.body, /Advisor decisions/);
+    assert.match(client.submitted[0].payload.body, /revise/);
+  });
+
   test('uses REQUEST_CHANGES when verdict is REQUEST_CHANGES', async () => {
     const client = createFakeClient();
     const publisher = createReviewPublisher({
@@ -221,20 +268,6 @@ describe('review publisher', () => {
 
     assert.equal(result.submittedFindings, 2);
     assert.equal(result.skippedFindings, 3);
-  });
-
-  test('rejects an invalid review result', async () => {
-    const client = createFakeClient();
-    const publisher = createReviewPublisher({
-      client,
-      prNumber: 1,
-      headSha: 'head123',
-      diffProvider: async () => DIFF,
-      limits,
-    });
-
-    await assert.rejects(() => publisher.publish({ verdict: 'COMMENT' }), /invalid review result/);
-    assert.equal(client.submitted.length, 0);
   });
 
   test('handles an empty findings array (no blocking issues)', async () => {

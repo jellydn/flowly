@@ -12,6 +12,7 @@ flowly/
 ├── planner/           # Plan → execute → reflect meta-tools
 ├── reliability/       # Retry / timeout / validation / failure-injection wrappers
 ├── review/            # PR review tools, schema, filters, limits, state
+├── factory/           # Issue intake, state orchestration, isolated mutation, independent review, draft PR
 ├── github/            # Trusted GitHub client/adapter + event router
 ├── index/             # TF-IDF repository indexer (retrieval)
 ├── scripts/           # CLI entrypoints (review-pr, route-event, flue-eval)
@@ -19,7 +20,7 @@ flowly/
 ├── demo/              # Deterministic demos (bash + ts)
 ├── docs/              # Hand-maintained docs page + ADRs
 ├── skills/            # Flue skills (analyzing-repositories)
-├── tests/             # Node test-runner tests (33 files + helpers)
+├── tests/             # Node test-runner tests (41 files + helpers)
 ├── .planning/         # Codebase map + internal planning docs
 ├── .github/workflows/ # CI + review + example workflows
 ├── sandbox.ts         # Empty toolset replacing default FS/shell tools
@@ -63,8 +64,14 @@ flowly/
 **`review/`:**
 
 - Purpose: PR review domain (tools, schema, state, filters, limits)
-- Contains: `review-tools.ts`, `schema.ts`, `pr-data.ts`, `diff.ts`, `filters.ts`, `limits.ts`, `review-state.ts`, `review-state-store.ts`, `specialists.ts`, `advisor.ts`, `pipeline.ts`
-- Key files: `schema.ts` (ReviewResult), `review-tools.ts`
+- Contains: `review-tools.ts`, `schema.ts`, `pr-data.ts`, `diff.ts`, `filters.ts`, `limits.ts`, `review-state.ts`, `review-state-store.ts`, `specialists.ts`, `advisor.ts`, `model-runners.ts`, `pipeline.ts`
+- Key files: `schema.ts` (ReviewResult), `pipeline.ts` (specialist/advisor orchestration), `review-tools.ts`
+
+**`factory/`:**
+
+- Purpose: Typed issue-to-PR run state and trusted implementation, review, and draft-PR boundaries
+- Contains: `types.ts`, `store.ts`, `orchestrator.ts`, `intake.ts`, `git.ts`, `implementation.ts`, `verification.ts`, `review.ts`, `publisher.ts`, `pipeline.ts`
+- Key files: `orchestrator.ts` (monotonic run transitions), `git.ts` (isolated factory-only Git mutation), `pipeline.ts` (independent review + draft PR coordinator)
 
 **`github/`:**
 
@@ -105,7 +112,7 @@ flowly/
 **`tests/`:**
 
 - Purpose: All automated tests (single directory, not co-located)
-- Contains: 33 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
+- Contains: 41 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
 - Key files: `helpers.ts`, `event-router.test.ts`, `bench-runner.test.ts`
 
 ## Key File Locations
@@ -134,6 +141,9 @@ flowly/
 - `tools/repository.ts`: repository boundary + budget
 - `investigation/loop.ts`: investigation loop
 - `reliability/resilient-tool.ts`: resilience wrapper
+- `factory/implementation.ts`: controlled implementation stage
+- `factory/git.ts`: trusted factory Git mutation boundary
+- `factory/pipeline.ts`: independent review + draft PR stage
 - `github/adapter.ts`: trusted review publisher
 - `eval/bench/runner.ts`: benchmark execution
 

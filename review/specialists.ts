@@ -15,9 +15,12 @@ export type SpecialistContext = {
   repositoryContext?: string;
 };
 
-/** A finding with trusted provenance retained through adjudication. */
-export type AttributedFinding = Finding & {
-  sources: SpecialistRole[];
+export type ReviewSource = 'generalist' | SpecialistRole;
+
+/** Sidecar provenance for one canonical finding. */
+export type FindingProvenance = {
+  finding: Finding;
+  sources: ReviewSource[];
 };
 
 export type SpecialistRunner = (
@@ -34,13 +37,14 @@ export type SpecialistConfig = {
 export type SpecialistRoleResult = {
   role: SpecialistRole;
   status: 'fulfilled' | 'rejected' | 'timed-out';
-  findings: AttributedFinding[];
+  findings: Finding[];
   validationIssues: string[];
   error?: string;
 };
 
 export type SpecialistReviewReport = {
-  findings: AttributedFinding[];
+  findings: Finding[];
+  provenance: FindingProvenance[];
   roles: SpecialistRoleResult[];
   errors: string[];
   validationIssues: string[];
@@ -103,9 +107,14 @@ export async function runSpecialistReview(options: {
 }): Promise<SpecialistReviewReport> {
   const rolePromises = options.config.enabledRoles.map((role) => runOneSpecialist(role, options));
   const settled = await Promise.all(rolePromises);
-  const findings = adjudicateFindings(settled.flatMap((result) => result.findings));
+  const adjudicated = adjudicateFindings(
+    settled.flatMap((result) =>
+      result.findings.map((finding) => ({ finding, sources: [result.role] })),
+    ),
+  );
   return {
-    findings,
+    findings: adjudicated.map(({ finding }) => finding),
+    provenance: adjudicated,
     roles: settled,
     errors: settled.flatMap((result) => (result.error ? [`${result.role}: ${result.error}`] : [])),
     validationIssues: settled.flatMap((result) =>
@@ -146,7 +155,7 @@ async function runOneSpecialist(
     return {
       role,
       status: 'fulfilled',
-      findings: recovered.findings.map((finding) => ({ ...finding, sources: [role] })),
+      findings: recovered.findings,
       validationIssues: recovered.issues,
     };
   } catch (error) {
@@ -170,11 +179,11 @@ async function runOneSpecialist(
  * specialists independently report the same issue, and all source roles are
  * retained for observability.
  */
-export function adjudicateFindings(findings: AttributedFinding[]): AttributedFinding[] {
-  const groups: AttributedFinding[][] = [];
+export function adjudicateFindings(findings: FindingProvenance[]): FindingProvenance[] {
+  const groups: FindingProvenance[][] = [];
   for (const finding of findings) {
     const matchingGroups = groups.filter((group) =>
-      group.some((member) => overlaps(member, finding)),
+      group.some((member) => overlaps(member.finding, finding.finding)),
     );
     if (matchingGroups.length === 0) {
       groups.push([finding]);
@@ -188,18 +197,24 @@ export function adjudicateFindings(findings: AttributedFinding[]): AttributedFin
   return groups
     .map((group) => {
       const representative = [...group].sort((a, b) => {
-        const severity = severityRank[a.severity] - severityRank[b.severity];
-        return severity || b.confidence - a.confidence || a.sources[0].localeCompare(b.sources[0]);
+        const severity = severityRank[a.finding.severity] - severityRank[b.finding.severity];
+        return (
+          severity ||
+          b.finding.confidence - a.finding.confidence ||
+          a.sources[0].localeCompare(b.sources[0])
+        );
       })[0];
       const sources = [...new Set(group.flatMap((finding) => finding.sources))].sort();
       const confidence = Math.min(
         1,
-        Math.max(...group.map((finding) => finding.confidence)) + (sources.length - 1) * 0.05,
+        Math.max(...group.map(({ finding }) => finding.confidence)) + (sources.length - 1) * 0.05,
       );
-      return { ...representative, confidence, sources };
+      return { finding: { ...representative.finding, confidence }, sources };
     })
     .sort(
-      (a, b) => severityRank[a.severity] - severityRank[b.severity] || b.confidence - a.confidence,
+      (a, b) =>
+        severityRank[a.finding.severity] - severityRank[b.finding.severity] ||
+        b.finding.confidence - a.finding.confidence,
     );
 }
 
@@ -222,7 +237,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, onTimeout: () =>
   });
 }
 
-function overlaps(a: AttributedFinding, b: AttributedFinding): boolean {
+function overlaps(a: Finding, b: Finding): boolean {
   if (a.path !== b.path) return false;
   if (normalizeTitle(a.title) !== normalizeTitle(b.title)) return false;
   if (a.line === undefined || b.line === undefined) return true;

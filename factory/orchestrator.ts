@@ -1,10 +1,13 @@
 import { randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import type { FactoryRunStore } from './store.ts';
 import {
   factoryBranch,
   type FactoryRun,
   type FactoryTask,
+  type ImplementationResult,
   type ImplementationPlan,
+  type ReviewVerdict,
   type TaskClassification,
 } from './types.ts';
 
@@ -16,10 +19,21 @@ import {
 export class FactoryOrchestrator {
   constructor(private readonly store: FactoryRunStore) {}
 
+  /** Load the persisted run. Callers must not treat a stale snapshot as current. */
+  async get(id: string): Promise<FactoryRun> {
+    const run = await this.store.load(id);
+    if (!run) throw new Error(`Factory run ${id} does not exist.`);
+    return run;
+  }
+
   async start(task: FactoryTask): Promise<{ run: FactoryRun; duplicate: boolean }> {
     const now = Date.now();
     const run: FactoryRun = {
-      id: randomUUID(), task, state: 'queued', version: 1, updatedAt: now,
+      id: randomUUID(),
+      task,
+      state: 'queued',
+      version: 1,
+      updatedAt: now,
     };
     const created = await this.store.createOrGet(run);
     return { run: created.run, duplicate: !created.created };
@@ -49,6 +63,71 @@ export class FactoryOrchestrator {
       state: 'implementing',
       branch: factoryBranch(run.task.issueNumber, run.task.title),
     });
+  }
+
+  async recordImplementation(
+    id: string,
+    implementation: ImplementationResult,
+  ): Promise<FactoryRun> {
+    const run = await this.requireState(id, ['implementing'], ['verifying']);
+    if (run.state === 'verifying') {
+      if (!isDeepStrictEqual(run.implementation, implementation)) {
+        throw new Error(`Factory run ${id} already has an implementation result.`);
+      }
+      return run;
+    }
+    if (!run.branch) throw new Error(`Factory run ${id} has no factory-owned branch.`);
+    return this.save({ ...run, implementation, state: 'verifying' });
+  }
+
+  async recordVerification(id: string, passed: boolean, failure?: string): Promise<FactoryRun> {
+    const run = await this.requireState(id, ['verifying'], ['reviewing', 'failed']);
+    const normalizedFailure = failure ?? 'Repository verification failed.';
+    if (run.state !== 'verifying') {
+      const matches =
+        (run.state === 'reviewing' && passed) ||
+        (run.state === 'failed' && !passed && run.failure === normalizedFailure);
+      if (!matches) throw new Error(`Factory run ${id} already has a verification result.`);
+      return run;
+    }
+    return this.save({
+      ...run,
+      state: passed ? 'reviewing' : 'failed',
+      ...(passed ? {} : { failure: normalizedFailure }),
+    });
+  }
+
+  async recordReview(id: string, review: ReviewVerdict): Promise<FactoryRun> {
+    const run = await this.requireState(id, ['reviewing'], ['pr-created']);
+    if (run.review) {
+      if (!isDeepStrictEqual(run.review, review)) {
+        throw new Error(`Factory run ${id} already has an independent review verdict.`);
+      }
+      return run;
+    }
+    if (run.state === 'pr-created') return run;
+    return this.save({ ...run, review });
+  }
+
+  async recordDraftPr(id: string, prNumber: number): Promise<FactoryRun> {
+    if (!Number.isInteger(prNumber) || prNumber <= 0) {
+      throw new Error('Draft PR number must be a positive integer.');
+    }
+    const run = await this.requireState(id, ['reviewing'], ['pr-created']);
+    if (run.state === 'pr-created') {
+      if (run.prNumber !== prNumber) {
+        throw new Error(`Factory run ${id} already owns draft PR #${run.prNumber}.`);
+      }
+      return run;
+    }
+    if (!run.review) throw new Error(`Factory run ${id} must be independently reviewed first.`);
+    return this.save({ ...run, prNumber, state: 'pr-created' });
+  }
+
+  async complete(id: string): Promise<FactoryRun> {
+    const run = await this.requireState(id, ['pr-created'], ['completed']);
+    if (run.state === 'completed') return run;
+    return this.save({ ...run, state: 'completed' });
   }
 
   private async requireState(

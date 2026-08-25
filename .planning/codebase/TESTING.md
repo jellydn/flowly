@@ -36,7 +36,7 @@ npx tsx --test tests/<file>.test.ts   # single file
 ```
 tests/
 ├── helpers.ts                  # fixture builder + tool invocation
-├── *.test.ts                   # 33 test files
+├── *.test.ts                   # 41 test files
 ```
 
 ## Test Structure
@@ -120,6 +120,7 @@ export async function createSampleRepo(): Promise<string> {
 
 - Scope: tool pipelines against the sample fixture (`tools.test.ts`, `eval-scenarios.test.ts`, `doc-aware.test.ts`, `repository-search.test.ts`), full event-router flow (`event-router.test.ts`), benchmark runner end-to-end (`bench-runner.test.ts`, `flue-eval-cli.test.ts` — the latter spawns the actual CLI via `spawnSync`), GitHub adapter (mock fetch)
 - Approach: deterministic deciders and static model calls keep them key-free and reproducible
+- Factory Git integration uses temporary real repositories and a local bare remote; no network or shared branch is touched (`factory-git.test.ts`). Controlled implementation and verification use plain dependency fakes plus real subprocess execution (`factory-implementation.test.ts`, `factory-verification.test.ts`). Independent review isolation uses orchestrator state plus a distinctive scratch token that must not appear in reviewer input (`factory-review.test.ts`). The draft-PR publisher uses an in-memory GitHub client fake and never opens a network connection (`factory-publisher.test.ts`). The review-and-publish pipeline composes those fakes end-to-end (`factory-pipeline.test.ts`).
 
 **E2E Tests:**
 

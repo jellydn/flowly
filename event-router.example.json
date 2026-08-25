@@ -4,6 +4,7 @@
     "pull_request_review.submitted": "address-review",
     "issues.opened": "planner",
     "issues.labeled.implement": "implementation",
+    "issues.labeled.factory": "factory",
     "workflow_run.completed.failure": "ci-fix"
   }
 }

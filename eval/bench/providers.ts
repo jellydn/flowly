@@ -84,10 +84,7 @@ export function createProviderClient(
   env: Record<string, string | undefined> = process.env,
 ): ModelCallFn {
   const provider = model.provider.toLowerCase();
-  const baseUrl =
-    model.baseUrl ??
-    PROVIDER_BASE_URLS[provider] ??
-    env.FLUE_EVAL_BASE_URL;
+  const baseUrl = model.baseUrl ?? PROVIDER_BASE_URLS[provider] ?? env.FLUE_EVAL_BASE_URL;
   if (!baseUrl) {
     throw new Error(
       `No base URL for provider "${model.provider}". Add a known provider or set "baseUrl" on the model spec.`,
@@ -125,7 +122,7 @@ export function withDefaultPricing(model: ModelSpec): ModelSpec {
  * provider reported (tokens, billed cost). The benchmark framework never calls
  * providers directly — the CLI wires this.
  */
-export type ModelCallFn = (prompt: string) => Promise<ModelCallResult>;
+export type ModelCallFn = (prompt: string, signal?: AbortSignal) => Promise<ModelCallResult>;
 
 /** A model call function that always returns a fixed reply (for tests/live smoke). */
 export function createStaticModelCall(reply: string): ModelCallFn {
@@ -139,9 +136,10 @@ export function createOpenAiCompatibleClient(input: {
   model: string;
 }): ModelCallFn {
   const { apiKey, baseUrl, model } = input;
-  return async (prompt: string): Promise<ModelCallResult> => {
+  return async (prompt: string, signal?: AbortSignal): Promise<ModelCallResult> => {
     const response = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
+      signal,
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
