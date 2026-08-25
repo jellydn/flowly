@@ -106,8 +106,8 @@ flowly/
 **`docs/`:**
 
 - Purpose: Hand-maintained docs
-- Contains: `index.html`, `adr/` (0001–0004, README, template)
-- Key files: `adr/0001-event-router.md`, `adr/0002-model-eval-benchmark.md`, `adr/0003-tool-composition-seam.md`, `adr/0004-live-eval-provider-seam.md`
+- Contains: `index.html`, `adr/` (0001–0005, README, template), favicon package (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `site.webmanifest`)
+- Key files: `index.html`, `adr/0001-event-router.md`, `adr/0002-model-eval-benchmark.md`, `adr/0003-tool-composition-seam.md`, `adr/0004-live-eval-provider-seam.md`, `adr/0005-transcript-based-showcase.md`
 
 **`tests/`:**
 
