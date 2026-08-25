@@ -12,6 +12,7 @@ format. Each record captures the context, the decision, and the consequences.
 | [0002](./0002-model-eval-benchmark.md) | Model evaluation benchmark framework | Accepted |
 | [0003](./0003-tool-composition-seam.md) | Tool composition seam for the inspection tool set | Accepted |
 | [0004](./0004-live-eval-provider-seam.md) | Live-eval provider seam | Accepted |
+| [0005](./0005-transcript-based-showcase.md) | Transcript-based static showcase and Pages asset conventions | Accepted |
 
 ## Codebase map
 
