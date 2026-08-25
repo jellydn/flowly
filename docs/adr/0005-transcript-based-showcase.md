@@ -27,13 +27,15 @@ live site, where `https://jellydn.github.io/favicon.svg` indeed returns 404.
 
 Two related conventions for web artifacts in this repository:
 
-- **Showcase site (`showcase/`) is plain static HTML/CSS with verbatim demo
+- **Showcase site (`docs/showcase/`) is plain static HTML/CSS with verbatim demo
   transcripts instead of screenshots.** The "screenshots" are the real output
   of the deterministic, key-free demos (`demo/doc-aware-demo.ts`,
   `demo/capstone-demo.ts`) rendered in styled terminal frames. There is no
   build step, no framework, no external requests, and no JavaScript; the
   three pages share one stylesheet using the project brand palette. Anything
-  the demos do not print is not claimed.
+  the demos do not print is not claimed. It lives under `docs/`, the GitHub
+  Pages root, so the existing branch-based Pages publish flow serves it at
+  `/showcase/` alongside the landing page with no deploy workflow.
 - **All assets served from `docs/` (the Pages root) use relative paths** —
   favicon links, `site.webmanifest` `start_url` (`"./"`), and PWA icon
   `src`s — so they resolve correctly at any base path. This holds unless the
@@ -46,7 +48,7 @@ Two related conventions for web artifacts in this repository:
 - The showcase cannot drift from reality: regenerating the demos regenerates
   the claims, and every statistic on the site traces to README or demo output.
 - Zero build tooling and zero dependencies for both sites; the showcase is
-  deployable by copying a folder to any static host.
+  published by the same `main` → `/docs` Pages flow as the landing page.
 - Relative paths make `docs/` correct under the Pages subpath today and
   under a future custom domain or local subpath preview without edits.
 - The honesty stance (cited answers, no fabrication) extends coherently from
