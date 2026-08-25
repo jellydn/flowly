@@ -35,8 +35,8 @@
             <h1>Ask your codebase <span class="grad">anything</span>. Get evidence, not guesses.</h1>
             <p class="hero-desc">
               A read-only AI agent that inspects any Git repository with
-              <strong style="color: var(--text-primary)">five typed tools</strong> and a
-              <strong style="color: var(--teal)">plan → execute → reflect</strong> loop. Every
+              <strong>five typed tools</strong> and a
+              <strong class="accent">plan → execute → reflect</strong> loop. Every
               answer ships with file-and-line citations and a confidence level.
             </p>
             <div class="hero-meta">
@@ -51,10 +51,7 @@
           </div>
 
           <div class="terminal hero-terminal">
-            <div class="terminal-bar">
-              <span class="terminal-dot r"></span><span class="terminal-dot y"></span><span class="terminal-dot g"></span>
-              <span class="terminal-title">flowly · repo-assistant</span>
-            </div>
+            <div class="terminal-bar"><span class="terminal-title">flowly · repo-assistant</span></div>
             <pre><span class="prompt">$</span> <span class="cmd">npx tsx demo/doc-aware-demo.ts</span>
 
 Scenario: Authentication flow (docs + code)
@@ -94,7 +91,7 @@ Scenario: Authentication flow (docs + code)
         <h2 class="section-title">An agent you can verify, not blindly trust.</h2>
         <p class="section-desc">Every claim traces to a file the agent actually read. When the evidence isn't there, it says so.</p>
 
-        <div class="grid grid-2" style="margin-top: 40px;">
+        <div class="grid grid-2 section-body">
           <div class="card reveal">
             <div class="icon">📄</div>
             <h3>Grounded answers, always cited</h3>
@@ -129,7 +126,7 @@ Scenario: Authentication flow (docs + code)
         <h2 class="section-title">Plan. Observe. Reflect. Answer.</h2>
         <p class="section-desc">Three meta-tools structure the loop; five read-only tools do the work, all within one shared budget.</p>
 
-        <div class="grid grid-3" style="margin-top: 40px;">
+        <div class="grid grid-3 section-body">
           <div class="card reveal">
             <div class="icon">🧭</div>
             <h3>1 · Plan</h3>
@@ -147,7 +144,7 @@ Scenario: Authentication flow (docs + code)
           </div>
         </div>
 
-        <p style="margin-top: 28px;"><a href="how-it-works.html">See the full workflow →</a></p>
+        <p class="see-all"><a href="how-it-works.html">See the full workflow →</a></p>
       </div>
     </section>
 
@@ -156,7 +153,7 @@ Scenario: Authentication flow (docs + code)
         <div class="cta-banner reveal">
           <h2>Point it at your repository.</h2>
           <p>One clone, one question, evidence-backed answers.</p>
-          <div class="hero-actions" style="justify-content: center;">
+          <div class="hero-actions">
             <a href="https://github.com/jellydn/flowly" class="btn btn-primary">Get Flowly</a>
             <a href="features.html" class="btn btn-secondary">Explore the features</a>
           </div>

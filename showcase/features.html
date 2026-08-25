@@ -26,15 +26,15 @@
   </nav>
 
   <main id="main">
-    <section style="padding-bottom: 20px;">
+    <section class="page-intro">
       <div class="container">
         <p class="section-label">Features</p>
-        <h1 class="section-title" style="font-size: clamp(2rem, 4vw, 3rem);">What Flowly actually does.</h1>
+        <h1 class="section-title section-title-xl">What Flowly actually does.</h1>
         <p class="section-desc">Real capabilities, shown with real terminal output. No fabricated screenshots.</p>
       </div>
     </section>
 
-    <section style="padding-top: 20px;">
+    <section class="page-body">
       <div class="container">
 
         <div class="feature">
@@ -49,7 +49,7 @@
             </ul>
           </div>
           <div class="terminal">
-            <div class="terminal-bar"><span class="terminal-dot r"></span><span class="terminal-dot y"></span><span class="terminal-dot g"></span><span class="terminal-title">index → retrieve</span></div>
+            <div class="terminal-bar"><span class="terminal-title">index → retrieve</span></div>
             <pre><span class="prompt">Step 2: Indexing (TF-IDF)</span>
   <span class="output">Files indexed:</span>  8
   <span class="output">Chunks indexed:</span> 8
@@ -75,7 +75,7 @@
             </ul>
           </div>
           <div class="terminal">
-            <div class="terminal-bar"><span class="terminal-dot r"></span><span class="terminal-dot y"></span><span class="terminal-dot g"></span><span class="terminal-title">observe → act → reflect</span></div>
+            <div class="terminal-bar"><span class="terminal-title">observe → act → reflect</span></div>
             <pre><span class="output">Question:</span>   How does authentication work here?
 <span class="output">Tools used:</span> search_docs <span class="highlight">→</span> search_code <span class="highlight">→</span> read_file
 <span class="output">Iterations:</span> 4/5
@@ -96,13 +96,13 @@
             </ul>
           </div>
           <div class="terminal">
-            <div class="terminal-bar"><span class="terminal-dot r"></span><span class="terminal-dot y"></span><span class="terminal-dot g"></span><span class="terminal-title">negative search</span></div>
+            <div class="terminal-bar"><span class="terminal-title">negative search</span></div>
             <pre><span class="output">Question:</span>   Where is the database initialized?
 <span class="output">Tools used:</span> search_docs <span class="highlight">→</span> search_code
 <span class="output">Stop reason:</span> no evidence found
 <span class="output">Confidence:</span>  Insufficient
 
-  <span class="cmd">Answer:</span>
+  <span class="output">Answer:</span>
     I could not find sufficient evidence to answer. I used
     search_docs, search_code but found no relevant evidence.
     I will not speculate about repository details that I have
@@ -122,7 +122,7 @@
             </ul>
           </div>
           <div class="terminal">
-            <div class="terminal-bar"><span class="terminal-dot r"></span><span class="terminal-dot y"></span><span class="terminal-dot g"></span><span class="terminal-title">trusted publisher</span></div>
+            <div class="terminal-bar"><span class="terminal-title">trusted publisher</span></div>
             <pre><span class="output">submit_review → publisher</span>
 
   <span class="highlight">validate</span>  schema · path in diff · line in hunk
@@ -147,7 +147,7 @@
             </ul>
           </div>
           <div class="terminal">
-            <div class="terminal-bar"><span class="terminal-dot r"></span><span class="terminal-dot y"></span><span class="terminal-dot g"></span><span class="terminal-title">event-router.config.json</span></div>
+            <div class="terminal-bar"><span class="terminal-title">event-router.config.json</span></div>
             <pre>{
   "routes": {
     "pull_request.opened": "review",
@@ -172,7 +172,7 @@
             </ul>
           </div>
           <div class="terminal">
-            <div class="terminal-bar"><span class="terminal-dot r"></span><span class="terminal-dot y"></span><span class="terminal-dot g"></span><span class="terminal-title">7-scenario suite</span></div>
+            <div class="terminal-bar"><span class="terminal-title">7-scenario suite</span></div>
             <pre><span class="output">Scenarios: 7  |  Passed: 7  |  Failed: 0</span>
 
 <span class="output">Metric Summary:</span>
@@ -194,7 +194,7 @@
         <div class="cta-banner reveal">
           <h2>See the loop from start to finish.</h2>
           <p>Repository → indexing → retrieval → tool execution → cited answer → evaluation.</p>
-          <div class="hero-actions" style="justify-content: center;">
+          <div class="hero-actions">
             <a href="how-it-works.html" class="btn btn-primary">Walk the workflow</a>
             <a href="https://github.com/jellydn/flowly" class="btn btn-secondary">Get the code</a>
           </div>

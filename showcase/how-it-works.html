@@ -26,15 +26,15 @@
   </nav>
 
   <main id="main">
-    <section style="padding-bottom: 20px;">
+    <section class="page-intro">
       <div class="container">
         <p class="section-label">How it works</p>
-        <h1 class="section-title" style="font-size: clamp(2rem, 4vw, 3rem);">What using Flowly actually looks like.</h1>
+        <h1 class="section-title section-title-xl">What using Flowly actually looks like.</h1>
         <p class="section-desc">This is the real, deterministic output of the bundled demo with no API key or editing. The agent runs the whole loop against a fixture repository and prints every step.</p>
       </div>
     </section>
 
-    <section style="padding-top: 20px;">
+    <section class="page-body">
       <div class="container">
 
         <div class="step">
@@ -43,7 +43,7 @@
             <h2>Point it at a repository, then index it</h2>
             <p>Flowly reads one local checkout. On first <code>retrieve</code>, a lazy TF-IDF index chunks source and docs into ~50-line segments, with no embeddings or vector database.</p>
             <div class="terminal">
-              <div class="terminal-bar"><span class="terminal-dot r"></span><span class="terminal-dot y"></span><span class="terminal-dot g"></span><span class="terminal-title">repository → index</span></div>
+              <div class="terminal-bar"><span class="terminal-title">repository → index</span></div>
               <pre><span class="output">Step 1: Repository Selection</span>
   <span class="output">Repository:</span> eval/fixtures/sample-repo
 
@@ -62,7 +62,7 @@
             <h2>Ask a question</h2>
             <p>One natural-language question. The agent declares a short plan first. Planning costs no budget.</p>
             <div class="terminal">
-              <div class="terminal-bar"><span class="terminal-dot r"></span><span class="terminal-dot y"></span><span class="terminal-dot g"></span><span class="terminal-title">chat question</span></div>
+              <div class="terminal-bar"><span class="terminal-title">chat question</span></div>
               <pre><span class="prompt">$</span> <span class="cmd">"Review this repository, explain its architecture,
  identify the highest-risk issue, and suggest an
  implementation plan."</span></pre>
@@ -76,7 +76,7 @@
             <h2>Retrieve the relevant evidence</h2>
             <p>Semantic retrieval scores candidate chunks and returns the strongest leads. Search results are leads, not proof. The next step reads the files to confirm.</p>
             <div class="terminal">
-              <div class="terminal-bar"><span class="terminal-dot r"></span><span class="terminal-dot y"></span><span class="terminal-dot g"></span><span class="terminal-title">RAG retrieval</span></div>
+              <div class="terminal-bar"><span class="terminal-title">RAG retrieval</span></div>
               <pre>[<span class="highlight">score: 0.369</span>] README.md:1-19 (documentation)
 [<span class="highlight">score: 0.222</span>] src/utils/notes.md:1-4 (documentation)
 [<span class="highlight">score: 0.068</span>] docs/architecture.md:1-12 (documentation)</pre>
@@ -90,7 +90,7 @@
             <h2>Execute tools inside the budget</h2>
             <p>Each inspection call spends one step of the shared budget. The loop stops early when the evidence is sufficient. In this run, two calls were enough.</p>
             <div class="terminal">
-              <div class="terminal-bar"><span class="terminal-dot r"></span><span class="terminal-dot y"></span><span class="terminal-dot g"></span><span class="terminal-title">tool execution</span></div>
+              <div class="terminal-bar"><span class="terminal-title">tool execution</span></div>
               <pre><span class="output">Tools used:</span>     retrieve <span class="highlight">→</span> read_file
 <span class="output">Iterations:</span>     2
 <span class="output">Stop reason:</span>    sufficient evidence for architecture review
@@ -105,7 +105,7 @@
             <h2>Answer with citations and confidence</h2>
             <p>The answer names the exact files and lines it read. Confidence reflects what was actually retrieved, and the answer states low confidence instead of hiding it.</p>
             <div class="terminal">
-              <div class="terminal-bar"><span class="terminal-dot r"></span><span class="terminal-dot y"></span><span class="terminal-dot g"></span><span class="terminal-title">cited answer</span></div>
+              <div class="terminal-bar"><span class="terminal-title">cited answer</span></div>
               <pre><span class="output">Confidence:</span> Low
 <span class="output">Sources:</span>    README.md:1-19, docs/architecture.md:1-12,
            AGENTS.md:1-7
@@ -129,7 +129,7 @@
             <h2>Measure the run</h2>
             <p>The benchmark scores the same loop across seven scenarios (tool success, citation accuracy, retrieval relevance, and answer completeness) and reports the outcome.</p>
             <div class="terminal">
-              <div class="terminal-bar"><span class="terminal-dot r"></span><span class="terminal-dot y"></span><span class="terminal-dot g"></span><span class="terminal-title">evaluation report</span></div>
+              <div class="terminal-bar"><span class="terminal-title">evaluation report</span></div>
               <pre><span class="output">Scenarios: 7  |  Passed: 7  |  Failed: 0</span>
 
   <span class="ok">Citation Accuracy:    7/7</span>
@@ -152,7 +152,7 @@
         <div class="cta-banner reveal">
           <h2>That's the whole loop.</h2>
           <p>Deterministic, key-free, and reproducible: run it yourself in one command.</p>
-          <div class="hero-actions" style="justify-content: center;">
+          <div class="hero-actions">
             <a href="https://github.com/jellydn/flowly" class="btn btn-primary">Get Flowly</a>
             <a href="features.html" class="btn btn-secondary">Back to features</a>
           </div>
