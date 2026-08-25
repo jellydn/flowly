@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0a0a0b" />
+  <title>Features: Flowly</title>
+  <meta name="description" content="Five read-only tools, a plan → execute → reflect loop, a PR reviewer that never auto-approves, a GitHub event router, and a deterministic model benchmark." />
+  <meta property="og:title" content="Flowly features" />
+  <meta property="og:type" content="website" />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <nav>
+    <div class="container">
+      <a href="index.html" class="nav-brand"><span class="nav-brand-dot"></span>Flowly</a>
+      <ul class="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="features.html" class="active">Features</a></li>
+        <li><a href="how-it-works.html">How it works</a></li>
+      </ul>
+      <a href="https://github.com/jellydn/flowly" class="nav-cta">GitHub</a>
+    </div>
+  </nav>
+
+  <main id="main">
+    <section style="padding-bottom: 20px;">
+      <div class="container">
+        <p class="section-label">Features</p>
+        <h1 class="section-title" style="font-size: clamp(2rem, 4vw, 3rem);">What Flowly actually does.</h1>
+        <p class="section-desc">Real capabilities, shown with real terminal output. No fabricated screenshots.</p>
+      </div>
+    </section>
+
+    <section style="padding-top: 20px;">
+      <div class="container">
+
+        <div class="feature">
+          <div class="feature-copy">
+            <p class="section-label">Toolkit</p>
+            <h2>Five read-only tools, one budget</h2>
+            <p>List, read, search code, search docs, and semantic <code>retrieve</code> over a lazy TF-IDF index. Every call consumes one step of a shared budget (1–20, default 8); retries never multiply the cost.</p>
+            <ul>
+              <li>Path-confinement rejects <code>..</code> and absolute paths</li>
+              <li>≤400 lines per read, ≤50 matches per search, 1 MB cap</li>
+              <li>Wrapped in retry, timeout, and output validation</li>
+            </ul>
+          </div>
+          <div class="terminal">
+            <div class="terminal-bar"><span class="terminal-dot r"></span><span class="terminal-dot y"></span><span class="terminal-dot g"></span><span class="terminal-title">index → retrieve</span></div>
+            <pre><span class="prompt">Step 2: Indexing (TF-IDF)</span>
+  <span class="output">Files indexed:</span>  8
+  <span class="output">Chunks indexed:</span> 8
+  <span class="output">Unique terms:</span>   72
+  <span class="output">Build time:</span>     14ms
+
+<span class="prompt">Step 4: RAG Retrieval</span>
+  [<span class="highlight">score: 0.369</span>] README.md:1-19 (documentation)
+  [<span class="highlight">score: 0.222</span>] src/utils/notes.md:1-4 (documentation)
+  [<span class="highlight">score: 0.068</span>] docs/architecture.md:1-12 (documentation)</pre>
+          </div>
+        </div>
+
+        <div class="feature">
+          <div class="feature-copy">
+            <p class="section-label">Reasoning</p>
+            <h2>Plan → execute → reflect</h2>
+            <p>The agent declares a short plan before inspecting, revises it when a step returns nothing, and reflects on whether steps could merge. Meta-tools are free; only real inspection spends budget.</p>
+            <ul>
+              <li><code>create_plan</code>, <code>replan</code>, <code>reflect_plan</code></li>
+              <li>Duplicate tool calls are blocked</li>
+              <li>Loop stops early once evidence is sufficient</li>
+            </ul>
+          </div>
+          <div class="terminal">
+            <div class="terminal-bar"><span class="terminal-dot r"></span><span class="terminal-dot y"></span><span class="terminal-dot g"></span><span class="terminal-title">observe → act → reflect</span></div>
+            <pre><span class="output">Question:</span>   How does authentication work here?
+<span class="output">Tools used:</span> search_docs <span class="highlight">→</span> search_code <span class="highlight">→</span> read_file
+<span class="output">Iterations:</span> 4/5
+<span class="output">Stop reason:</span> sufficient evidence collected
+<span class="output">Confidence:</span>  <span class="ok">High</span></pre>
+          </div>
+        </div>
+
+        <div class="feature">
+          <div class="feature-copy">
+            <p class="section-label">Trust</p>
+            <h2>Honest when the evidence isn't there</h2>
+            <p>Negative answers are a feature. When a search finds nothing, Flowly reports insufficient evidence instead of inventing a subsystem that doesn't exist.</p>
+            <ul>
+              <li>Confidence drops to <code>Insufficient</code> or <code>Low</code></li>
+              <li>The answer names exactly which tools were tried</li>
+              <li>No fabricated citations, ever</li>
+            </ul>
+          </div>
+          <div class="terminal">
+            <div class="terminal-bar"><span class="terminal-dot r"></span><span class="terminal-dot y"></span><span class="terminal-dot g"></span><span class="terminal-title">negative search</span></div>
+            <pre><span class="output">Question:</span>   Where is the database initialized?
+<span class="output">Tools used:</span> search_docs <span class="highlight">→</span> search_code
+<span class="output">Stop reason:</span> no evidence found
+<span class="output">Confidence:</span>  Insufficient
+
+  <span class="cmd">Answer:</span>
+    I could not find sufficient evidence to answer. I used
+    search_docs, search_code but found no relevant evidence.
+    I will not speculate about repository details that I have
+    not verified.</pre>
+          </div>
+        </div>
+
+        <div class="feature">
+          <div class="feature-copy">
+            <p class="section-label">Review</p>
+            <h2>PR review that never auto-approves</h2>
+            <p>A second agent reviews pull requests with file-aware limits, incremental diffs since the last review, and repository-specific memory. The model emits structured findings; a trusted publisher re-validates every one before posting.</p>
+            <ul>
+              <li>Verdict is <code>COMMENT</code> or <code>REQUEST_CHANGES</code>, never <code>APPROVE</code></li>
+              <li>Paths checked against the diff, lines clamped to hunks</li>
+              <li>Previous findings classified: resolved, still-present, obsolete, uncertain</li>
+            </ul>
+          </div>
+          <div class="terminal">
+            <div class="terminal-bar"><span class="terminal-dot r"></span><span class="terminal-dot y"></span><span class="terminal-dot g"></span><span class="terminal-title">trusted publisher</span></div>
+            <pre><span class="output">submit_review → publisher</span>
+
+  <span class="highlight">validate</span>  schema · path in diff · line in hunk
+  <span class="highlight">clamp</span>    line numbers to valid hunks
+  <span class="highlight">cap</span>      findings at the configured limit
+  <span class="highlight">post</span>     exactly one review, never APPROVE
+
+  inline findings + body summary,
+  dropped findings still summarized (nothing silent)</pre>
+          </div>
+        </div>
+
+        <div class="feature">
+          <div class="feature-copy">
+            <p class="section-label">Automation</p>
+            <h2>Route GitHub events to agents</h2>
+            <p>A dependency-light router maps GitHub events (PRs, issues, comments, reviews, workflow runs) to agent IDs with declarative routes and filters. It only decides; your workflow wires the dispatch.</p>
+            <ul>
+              <li>First-match routing with AND-ed filters</li>
+              <li>Duplicate deliveries deduplicated</li>
+              <li>Malformed events ignored safely, never crash</li>
+            </ul>
+          </div>
+          <div class="terminal">
+            <div class="terminal-bar"><span class="terminal-dot r"></span><span class="terminal-dot y"></span><span class="terminal-dot g"></span><span class="terminal-title">event-router.config.json</span></div>
+            <pre>{
+  "routes": {
+    "pull_request.opened": "review",
+    "pull_request_review.submitted": "address-review",
+    "issues.opened": "planner",
+    "issues.labeled.implement": "implementation",
+    "workflow_run.completed.failure": "ci-fix"
+  }
+}</pre>
+          </div>
+        </div>
+
+        <div class="feature">
+          <div class="feature-copy">
+            <p class="section-label">Evaluation</p>
+            <h2>Benchmark models with or without a key</h2>
+            <p>A built-in benchmark runs seven repository-assistant scenarios and scores tool success, citation accuracy, retrieval relevance, and answer completeness. Deterministic mode is key-free and CI-safe; live mode calls a real provider.</p>
+            <ul>
+              <li>Keyword judge by default, optional LLM judge</li>
+              <li>Reports record latency, tokens, cost, and acceptance</li>
+              <li>Human accept/reject verdicts fold back in</li>
+            </ul>
+          </div>
+          <div class="terminal">
+            <div class="terminal-bar"><span class="terminal-dot r"></span><span class="terminal-dot y"></span><span class="terminal-dot g"></span><span class="terminal-title">7-scenario suite</span></div>
+            <pre><span class="output">Scenarios: 7  |  Passed: 7  |  Failed: 0</span>
+
+<span class="output">Metric Summary:</span>
+  <span class="ok">Citation Accuracy:    7/7</span>
+  <span class="ok">Retrieval Relevance:  7/7</span>
+  <span class="ok">Tool Success:         7/7</span>
+  <span class="ok">Answer Completeness:  7/7</span>
+
+  ✅ [cap-1] What is the purpose of this repository?
+  ✅ [cap-2] Where is authentication implemented?</pre>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <section>
+      <div class="container">
+        <div class="cta-banner reveal">
+          <h2>See the loop from start to finish.</h2>
+          <p>Repository → indexing → retrieval → tool execution → cited answer → evaluation.</p>
+          <div class="hero-actions" style="justify-content: center;">
+            <a href="how-it-works.html" class="btn btn-primary">Walk the workflow</a>
+            <a href="https://github.com/jellydn/flowly" class="btn btn-secondary">Get the code</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Built with <a href="https://flueframework.com/">Flue</a> · MIT licensed</p>
+      <p><a href="https://github.com/jellydn/flowly">GitHub</a> · <a href="https://github.com/jellydn/flowly/discussions">Questions &amp; feedback</a></p>
+    </div>
+  </footer>
+</body>
+</html>
