@@ -36,6 +36,8 @@ export type ImplementationPlan = {
   steps: string[];
   acceptanceCriteria: AcceptanceCriterion[];
   verificationCommands: string[];
+  relevantFiles?: string[];
+  risks?: string[];
 };
 
 /** Output supplied by the isolated, writable implementation stage. */

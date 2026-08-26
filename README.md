@@ -350,6 +350,12 @@ from the read-only repository inspection tools.
 
 ## Controlled factory implementation
 
+`planFactoryIssue` is the read-only analyst stage. It consumes a classified
+run, calls an injected planner with the issue and classification, and persists
+a structured plan (steps, relevant files, risks, verification commands, and
+acceptance criteria). The planner cannot write to the source checkout. Already
+planned runs return without invoking the planner again.
+
 The factory's implementation stage crosses two trusted boundaries in `factory/`:
 
 - `FactoryGitAdapter` creates or restores an independent clone outside the
@@ -1009,6 +1015,7 @@ flowly/
 │   ├── implementation.ts       # controlled implementation stage runner
 │   ├── intake.ts               # issue classification + progress boundary
 │   ├── orchestrator.ts         # persisted factory state transitions
+│   ├── plan.ts                 # read-only analyst/planner stage
 │   ├── pipeline.ts             # independent review + draft PR stage
 │   ├── publisher.ts            # trusted draft-PR GitHub adapter
 │   ├── review.ts               # isolated review evidence + AC verdicts
