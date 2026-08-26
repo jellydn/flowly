@@ -2,6 +2,7 @@
 export const FACTORY_RUN_STATES = [
   'queued',
   'classified',
+  'planning',
   'planned',
   'implementing',
   'verifying',
@@ -36,6 +37,8 @@ export type ImplementationPlan = {
   steps: string[];
   acceptanceCriteria: AcceptanceCriterion[];
   verificationCommands: string[];
+  relevantFiles?: string[];
+  risks?: string[];
 };
 
 /** Output supplied by the isolated, writable implementation stage. */
