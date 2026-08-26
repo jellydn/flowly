@@ -74,3 +74,34 @@ jobs:
           REPO_ASSISTANT_MODEL: openrouter/cohere/north-mini-code:free
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: npm run review-pr
+
+  factory:
+    needs: route
+    if: needs.route.outputs.agent == 'factory'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      checks: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Run factory pipeline
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          REPOSITORY_PATH: ${{ github.workspace }}
+        run: npm run run-factory

@@ -392,8 +392,10 @@ a PR. Duplicate deliveries reuse the existing run and do not create a second
 branch or pull request. Flowly never auto-merges.
 
 Labeling an issue `factory` routes to the `factory` agent via
-`issues.labeled.factory` in `event-router.config.json`. Agent execution is
-still wired by the workflow — the router only decides.
+`issues.labeled.factory` in `event-router.config.json`. The Event Router
+workflow then runs `npm run run-factory`, which parses the labeled issue and
+executes `runFactoryPipeline`. The job can push `factory/*` branches and open
+a draft PR; it never merges or approves.
 
 ## GitHub event router
 
@@ -1017,6 +1019,8 @@ flowly/
 │   ├── repo-assistant.ts       # general inspection agent
 │   └── pr-reviewer.ts          # PR review agent (never auto-approves)
 ├── factory/
+│   ├── defaults.ts             # deterministic classifier/planner/reviewer ports
+│   ├── dispatch.ts             # issues.labeled.factory → factory task
 │   ├── git.ts                  # isolated clone + factory-branch Git boundary
 │   ├── implementation.ts       # controlled implementation stage runner
 │   ├── intake.ts               # issue classification + progress boundary
@@ -1047,6 +1051,7 @@ flowly/
 ├── scripts/
 │   ├── flue-eval.ts            # eval benchmark CLI (npm run eval)
 │   ├── review-pr.ts            # CI entrypoint (npm run review-pr)
+│   ├── run-factory.ts          # issues.labeled.factory pipeline (npm run run-factory)
 │   └── route-event.ts          # event router CLI (npm run route-event)
 ├── investigation/
 │   ├── answer.ts
