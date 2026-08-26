@@ -1098,7 +1098,14 @@ flowly/
 │   ├── run-eval.sh
 │   └── fixtures/sample-repo/   # bundled evaluation fixture
 ├── docs/
-│   ├── adr/                    # architecture decision records (0001–0004)
+│   ├── adr/                    # architecture decision records (0001–0005)
+│   ├── showcase/               # static Flowly showcase pages and stylesheet
+│   ├── favicon.svg
+│   ├── favicon.ico
+│   ├── apple-touch-icon.png
+│   ├── icon-192.png
+│   ├── icon-512.png
+│   ├── site.webmanifest
 │   └── index.html              # landing page (hand-maintained)
 ├── .planning/
 │   └── codebase/               # codemap: STACK, ARCHITECTURE, CONCERNS, …
