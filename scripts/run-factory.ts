@@ -14,7 +14,8 @@
  * Optional:
  *   REPOSITORY_PATH    – checkout root (defaults to cwd)
  *   FACTORY_WORKSPACE_ROOT – isolated clone root (defaults to <cwd>/.factory-workspaces)
- *   FACTORY_RUN_STORE      – JSON run store directory (defaults to <cwd>/.factory-runs)
+ *   FACTORY_RUN_STORE      – local JSON directory (dev only; Actions uses an issue comment)
+ *   REVIEW_BOT_LOGIN       – expected author of the factory-run comment (default github-actions[bot])
  */
 
 import { readFile } from 'node:fs/promises';
@@ -27,14 +28,15 @@ import {
   createIssueCommentProgress,
   createNoopFactoryImplementer,
 } from '../factory/defaults.ts';
-import { dispatchFactoryLabeledIssue } from '../factory/dispatch.ts';
+import { dispatchFactoryLabeledIssue, factoryTaskFromIssuesEvent } from '../factory/dispatch.ts';
 import { FactoryGitAdapter } from '../factory/git.ts';
 import { FactoryOrchestrator } from '../factory/orchestrator.ts';
 import {
   FactoryDraftPrPublisher,
   createGitHubFactoryPullRequestClient,
 } from '../factory/publisher.ts';
-import { FileFactoryRunStore } from '../factory/store.ts';
+import { createGitHubFactoryRunStore } from '../factory/run-state-store.ts';
+import { FileFactoryRunStore, type FactoryRunStore } from '../factory/store.ts';
 import { FactoryVerificationRunner } from '../factory/verification.ts';
 import { GitHubClient } from '../github/client.ts';
 
@@ -70,13 +72,12 @@ async function main(): Promise<void> {
   const repositoryPath = process.env.REPOSITORY_PATH ?? process.cwd();
   const workspaceRoot =
     process.env.FACTORY_WORKSPACE_ROOT ?? path.join(repositoryPath, '.factory-workspaces');
-  const storeDirectory =
-    process.env.FACTORY_RUN_STORE ?? path.join(repositoryPath, '.factory-runs');
   const git = new FactoryGitAdapter({
     sourceRepository: repositoryPath,
     workspaceRoot,
   });
-  const store = new FileFactoryRunStore(storeDirectory);
+  const task = factoryTaskFromIssuesEvent(eventName, payload);
+  const store = createFactoryRunStore(client, task.issueNumber);
 
   const run = await dispatchFactoryLabeledIssue(eventName, payload, {
     orchestrator: new FactoryOrchestrator(store),
@@ -114,6 +115,17 @@ async function main(): Promise<void> {
   if (run.state === 'failed' || run.state === 'needs-input') {
     process.exitCode = 1;
   }
+}
+
+function createFactoryRunStore(client: GitHubClient, issueNumber: number): FactoryRunStore {
+  if (process.env.FACTORY_RUN_STORE) {
+    return new FileFactoryRunStore(process.env.FACTORY_RUN_STORE);
+  }
+  return createGitHubFactoryRunStore(
+    client,
+    issueNumber,
+    process.env.REVIEW_BOT_LOGIN ?? 'github-actions[bot]',
+  );
 }
 
 main().catch((error: unknown) => {

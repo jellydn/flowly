@@ -70,6 +70,8 @@ export type FactoryRun = {
   prNumber?: number;
   failure?: string;
   updatedAt: number;
+  /** Set when the run enters `planning`; used to reclaim a stale lease. */
+  planningStartedAt?: number;
 };
 
 export function factoryBranch(issueNumber: number, title: string): string {
