@@ -14,6 +14,7 @@
  * Optional:
  *   REPOSITORY_PATH    – checkout root (defaults to cwd)
  *   FACTORY_WORKSPACE_ROOT – isolated clone root (defaults to <cwd>/.factory-workspaces)
+ *   FACTORY_RUN_STORE      – JSON run store directory (defaults to <cwd>/.factory-runs)
  */
 
 import { readFile } from 'node:fs/promises';
@@ -33,7 +34,7 @@ import {
   FactoryDraftPrPublisher,
   createGitHubFactoryPullRequestClient,
 } from '../factory/publisher.ts';
-import { MemoryFactoryRunStore } from '../factory/store.ts';
+import { FileFactoryRunStore } from '../factory/store.ts';
 import { FactoryVerificationRunner } from '../factory/verification.ts';
 import { GitHubClient } from '../github/client.ts';
 
@@ -69,11 +70,13 @@ async function main(): Promise<void> {
   const repositoryPath = process.env.REPOSITORY_PATH ?? process.cwd();
   const workspaceRoot =
     process.env.FACTORY_WORKSPACE_ROOT ?? path.join(repositoryPath, '.factory-workspaces');
+  const storeDirectory =
+    process.env.FACTORY_RUN_STORE ?? path.join(repositoryPath, '.factory-runs');
   const git = new FactoryGitAdapter({
     sourceRepository: repositoryPath,
     workspaceRoot,
   });
-  const store = new MemoryFactoryRunStore();
+  const store = new FileFactoryRunStore(storeDirectory);
 
   const run = await dispatchFactoryLabeledIssue(eventName, payload, {
     orchestrator: new FactoryOrchestrator(store),

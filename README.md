@@ -394,7 +394,9 @@ branch or pull request. Flowly never auto-merges.
 Labeling an issue `factory` routes to the `factory` agent via
 `issues.labeled.factory` in `event-router.config.json`. The Event Router
 workflow then runs `npm run run-factory`, which parses the labeled issue and
-executes `runFactoryPipeline`. The job can push `factory/*` branches and open
+executes `runFactoryPipeline`. Runs persist in `.factory-runs/` (override with
+`FACTORY_RUN_STORE`) so a retried Actions job reuses the same run instead of
+opening a second branch or PR. The job can push `factory/*` branches and open
 a draft PR; it never merges or approves.
 
 ## GitHub event router
@@ -1030,7 +1032,7 @@ flowly/
 │   ├── publisher.ts            # trusted draft-PR GitHub adapter
 │   ├── review.ts               # isolated review evidence + AC verdicts
 │   ├── run.ts                  # classify → plan → implement → review → draft PR
-│   ├── store.ts                # factory run persistence contract
+│   ├── store.ts                # memory + file factory run persistence
 │   ├── types.ts                # structured stage inputs and outputs
 │   └── verification.ts         # bounded repository-native checks
 ├── github/
