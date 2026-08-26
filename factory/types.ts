@@ -2,6 +2,7 @@
 export const FACTORY_RUN_STATES = [
   'queued',
   'classified',
+  'planning',
   'planned',
   'implementing',
   'verifying',

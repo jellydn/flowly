@@ -49,8 +49,30 @@ export class FactoryOrchestrator {
     });
   }
 
+  /**
+   * Atomically claims classified → planning. Concurrent callers observe
+   * planning or planned and must not plan or publish progress.
+   */
+  async beginPlanning(id: string): Promise<{ run: FactoryRun; claimed: boolean }> {
+    const run = await this.requireState(id, ['classified'], ['planning', 'planned']);
+    if (run.state === 'planning' || run.state === 'planned') {
+      return { run, claimed: false };
+    }
+    try {
+      const saved = await this.save({ ...run, state: 'planning' });
+      return { run: saved, claimed: true };
+    } catch (error) {
+      if (!isVersionConflict(error)) throw error;
+      const current = await this.get(id);
+      if (current.state === 'planning' || current.state === 'planned') {
+        return { run: current, claimed: false };
+      }
+      throw error;
+    }
+  }
+
   async plan(id: string, plan: ImplementationPlan): Promise<FactoryRun> {
-    const run = await this.requireState(id, ['classified'], ['planned']);
+    const run = await this.requireState(id, ['classified', 'planning'], ['planned']);
     if (run.state === 'planned') return run;
     return this.save({ ...run, plan, state: 'planned' });
   }
@@ -148,4 +170,8 @@ export class FactoryOrchestrator {
     await this.store.save(next, run.version);
     return next;
   }
+}
+
+function isVersionConflict(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('changed concurrently');
 }

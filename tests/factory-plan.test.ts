@@ -101,6 +101,55 @@ describe('planFactoryIssue', () => {
       /queued; expected classified/,
     );
   });
+
+  test('claims planning so concurrent workers plan and publish once', async () => {
+    const { orchestrator, run } = await classifiedRun();
+    const messages: string[] = [];
+    let plans = 0;
+    let entered = 0;
+    let releasePlanner = () => {};
+    const plannerGate = new Promise<void>((resolve) => {
+      releasePlanner = resolve;
+    });
+    const beginPlanning = orchestrator.beginPlanning.bind(orchestrator);
+    orchestrator.beginPlanning = async (id) => {
+      const result = await beginPlanning(id);
+      entered += 1;
+      if (entered >= 2) releasePlanner();
+      return result;
+    };
+
+    const dependencies = {
+      orchestrator,
+      planner: {
+        async plan() {
+          plans += 1;
+          await plannerGate;
+          return plan;
+        },
+      },
+      progress: {
+        async publish(_task: typeof task, body: string) {
+          messages.push(body);
+        },
+      },
+    };
+
+    const [first, second] = await Promise.all([
+      planFactoryIssue(run, dependencies),
+      planFactoryIssue(run, dependencies),
+    ]);
+
+    assert.equal(plans, 1);
+    assert.deepEqual(messages, [
+      'Factory planning started: inspecting the repository.',
+      'Factory plan recorded: Add a read-only planner stage.',
+    ]);
+    assert.equal(first.state, 'planned');
+    assert.equal(second.state, 'planned');
+    assert.deepEqual(first.plan, plan);
+    assert.deepEqual(second.plan, plan);
+  });
 });
 
 async function classifiedRun(): Promise<{ orchestrator: FactoryOrchestrator; run: FactoryRun }> {
