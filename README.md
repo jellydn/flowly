@@ -385,6 +385,12 @@ on the factory-owned branch through a trusted GitHub adapter. The body links
 the source issue, lists verification results, and includes the independent
 review checklist. The publisher has no merge path.
 
+`runFactoryPipeline` is the trusted orchestrator that chains those stages:
+intake → plan → controlled implementation → independent review → draft PR.
+Non-actionable issues stop at classification. Failed verification never opens
+a PR. Duplicate deliveries reuse the existing run and do not create a second
+branch or pull request. Flowly never auto-merges.
+
 Labeling an issue `factory` routes to the `factory` agent via
 `issues.labeled.factory` in `event-router.config.json`. Agent execution is
 still wired by the workflow — the router only decides.
@@ -1019,6 +1025,7 @@ flowly/
 │   ├── pipeline.ts             # independent review + draft PR stage
 │   ├── publisher.ts            # trusted draft-PR GitHub adapter
 │   ├── review.ts               # isolated review evidence + AC verdicts
+│   ├── run.ts                  # classify → plan → implement → review → draft PR
 │   ├── store.ts                # factory run persistence contract
 │   ├── types.ts                # structured stage inputs and outputs
 │   └── verification.ts         # bounded repository-native checks
