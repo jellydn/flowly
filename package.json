@@ -10,6 +10,7 @@
     "check:docs": "tsx scripts/check-doc-tree.ts",
     "start": "flue run agents/repo-assistant.ts",
     "review-pr": "node --import tsx scripts/review-pr.ts",
+    "run-factory": "node --import tsx scripts/run-factory.ts",
     "route-event": "node --import tsx scripts/route-event.ts",
     "test": "tsx --test tests/*.test.ts",
     "typecheck": "tsc",

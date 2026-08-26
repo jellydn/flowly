@@ -20,7 +20,7 @@ flowly/
 ├── demo/              # Deterministic demos (bash + ts)
 ├── docs/              # Hand-maintained docs page + ADRs
 ├── skills/            # Flue skills (analyzing-repositories)
-├── tests/             # Node test-runner tests (43 files + helpers)
+├── tests/             # Node test-runner tests (44 files + helpers)
 ├── .planning/         # Codebase map + internal planning docs
 ├── .github/workflows/ # CI + review + example workflows
 ├── sandbox.ts         # Empty toolset replacing default FS/shell tools
@@ -70,7 +70,7 @@ flowly/
 **`factory/`:**
 
 - Purpose: Typed issue-to-PR run state and trusted implementation, review, and draft-PR boundaries
-- Contains: `types.ts`, `store.ts`, `orchestrator.ts`, `intake.ts`, `plan.ts`, `run.ts`, `git.ts`, `implementation.ts`, `verification.ts`, `review.ts`, `publisher.ts`, `pipeline.ts`
+- Contains: `types.ts`, `store.ts`, `orchestrator.ts`, `intake.ts`, `plan.ts`, `run.ts`, `dispatch.ts`, `defaults.ts`, `git.ts`, `implementation.ts`, `verification.ts`, `review.ts`, `publisher.ts`, `pipeline.ts`
 - Key files: `orchestrator.ts` (monotonic run transitions), `plan.ts` (read-only analyst stage), `run.ts` (end-to-end factory pipeline), `git.ts` (isolated factory-only Git mutation), `pipeline.ts` (independent review + draft PR coordinator)
 
 **`github/`:**
@@ -88,7 +88,7 @@ flowly/
 **`scripts/`:**
 
 - Purpose: CI entrypoints
-- Contains: `review-pr.ts`, `route-event.ts`, `flue-eval.ts`, `check-doc-tree.ts`
+- Contains: `review-pr.ts`, `run-factory.ts`, `route-event.ts`, `flue-eval.ts`, `check-doc-tree.ts`
 - Key files: all three
 
 **`eval/`:**
@@ -112,7 +112,7 @@ flowly/
 **`tests/`:**
 
 - Purpose: All automated tests (single directory, not co-located)
-- Contains: 43 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
+- Contains: 44 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
 - Key files: `helpers.ts`, `event-router.test.ts`, `bench-runner.test.ts`
 
 ## Key File Locations
