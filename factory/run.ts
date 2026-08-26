@@ -67,7 +67,7 @@ export async function advanceFactoryRun(
   if (current.state === 'pr-created') {
     return dependencies.orchestrator.complete(current.id);
   }
-  if (current.state === 'classified') {
+  if (current.state === 'classified' || current.state === 'planning') {
     current = await planFactoryIssue(current, {
       orchestrator: dependencies.orchestrator,
       planner: dependencies.planner,

@@ -83,6 +83,19 @@ describe('runFactoryPipeline', () => {
     );
   });
 
+  test('resumes a queued run left by a previous delivery', async () => {
+    const calls: string[] = [];
+    const dependencies = pipelineDependencies(calls);
+    await dependencies.orchestrator.start(task);
+
+    const result = await runFactoryPipeline(task, dependencies);
+
+    assert.equal(result.state, 'completed');
+    assert.equal(result.prNumber, 110);
+    assert.equal(calls.filter((call) => call.startsWith('classify:')).length, 1);
+    assert.equal(calls.filter((call) => call.startsWith('plan:')).length, 1);
+  });
+
   test('does not re-classify or re-plan duplicate deliveries of a completed run', async () => {
     const calls: string[] = [];
     const dependencies = pipelineDependencies(calls);

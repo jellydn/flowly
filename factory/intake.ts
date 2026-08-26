@@ -29,9 +29,11 @@ export async function intakeFactoryIssue(
   },
 ): Promise<FactoryIntakeResult> {
   const started = await dependencies.orchestrator.start(task);
-  if (started.duplicate) return started;
+  if (started.duplicate && started.run.state !== 'queued') return started;
 
-  await dependencies.progress.publish(task, 'Factory run started: classifying the issue.');
+  if (!started.duplicate) {
+    await dependencies.progress.publish(task, 'Factory run started: classifying the issue.');
+  }
   const classification = await dependencies.classifier.classify(task);
   const run = await dependencies.orchestrator.classify(started.run.id, classification);
 
@@ -41,9 +43,9 @@ export async function intakeFactoryIssue(
       task,
       `Factory run needs input before planning:\n${missing || '- Clarify the requested change.'}`,
     );
-    return { run, duplicate: false };
+    return { run, duplicate: started.duplicate };
   }
 
   await dependencies.progress.publish(task, 'Factory classification complete: ready for planning.');
-  return { run, duplicate: false };
+  return { run, duplicate: started.duplicate };
 }
