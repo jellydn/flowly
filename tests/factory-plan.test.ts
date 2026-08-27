@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { FactoryOrchestrator } from '../factory/orchestrator.ts';
+import { FactoryOrchestrator, PLANNING_LEASE_MS } from '../factory/orchestrator.ts';
 import { planFactoryIssue } from '../factory/plan.ts';
 import { MemoryFactoryRunStore } from '../factory/store.ts';
 import type { FactoryRun, ImplementationPlan } from '../factory/types.ts';
@@ -149,6 +149,27 @@ describe('planFactoryIssue', () => {
     assert.equal(second.state, 'planned');
     assert.deepEqual(first.plan, plan);
     assert.deepEqual(second.plan, plan);
+  });
+
+  test('reclaims planning after the lease expires', async () => {
+    const store = new MemoryFactoryRunStore();
+    const orchestrator = new FactoryOrchestrator(store);
+    const { run } = await orchestrator.start(task);
+    const classified = await orchestrator.classify(run.id, classification);
+    const held = await orchestrator.beginPlanning(classified.id);
+    assert.equal(held.claimed, true);
+    await store.save(
+      {
+        ...held.run,
+        planningStartedAt: Date.now() - PLANNING_LEASE_MS - 1,
+        version: held.run.version + 1,
+        updatedAt: Date.now(),
+      },
+      held.run.version,
+    );
+    const reclaimed = await orchestrator.beginPlanning(classified.id);
+    assert.equal(reclaimed.claimed, true);
+    assert.equal(reclaimed.run.state, 'planning');
   });
 });
 

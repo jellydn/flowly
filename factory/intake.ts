@@ -17,8 +17,8 @@ export type FactoryIntakeResult = {
 };
 
 /**
- * Starts one classified factory run for an issue delivery. A duplicate delivery
- * never invokes the classifier or emits another progress comment.
+ * Ensures a factory issue is classified. Runs already past `queued` return as-is.
+ * A leftover `queued` snapshot continues classification.
  */
 export async function intakeFactoryIssue(
   task: FactoryTask,
@@ -29,7 +29,7 @@ export async function intakeFactoryIssue(
   },
 ): Promise<FactoryIntakeResult> {
   const started = await dependencies.orchestrator.start(task);
-  if (started.duplicate && started.run.state !== 'queued') return started;
+  if (started.run.state !== 'queued') return started;
 
   if (!started.duplicate) {
     await dependencies.progress.publish(task, 'Factory run started: classifying the issue.');

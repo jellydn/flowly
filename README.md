@@ -389,7 +389,7 @@ review checklist. The publisher has no merge path.
 intake → plan → controlled implementation → independent review → draft PR.
 Non-actionable issues stop at classification. Failed verification never opens
 a PR. Duplicate deliveries reuse the existing run and do not create a second
-branch or pull request. A retried job continues from `queued` or `planning`
+branch or pull request. A retried job continues from `queued` or an expired `planning` lease
 instead of stopping at the leftover snapshot. Flowly never auto-merges.
 
 Labeling an issue `factory` routes to the `factory` agent via
