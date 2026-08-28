@@ -24,15 +24,16 @@ export function encodeFactoryRunComment(run: FactoryRun): string {
 }
 
 export function isFactoryRunComment(body: string): boolean {
-  return body.includes(STATE_MARKER);
+  return body.startsWith(`<!-- ${STATE_MARKER}\n`);
 }
 
 export function parseFactoryRunComment(body: string): FactoryRun | null {
   if (!isFactoryRunComment(body)) return null;
-  const match = body.match(/<!--\s*flue-factory-run\s*:?[\s]*([\s\S]*?)\s*-->/);
-  if (!match?.[1]) return null;
+  const commentEnd = body.indexOf('\n-->');
+  if (commentEnd < 0) return null;
+  const snapshot = body.slice(`<!-- ${STATE_MARKER}\n`.length, commentEnd);
   try {
-    return parseFactoryRun(JSON.parse(match[1]));
+    return parseFactoryRun(JSON.parse(snapshot));
   } catch {
     return null;
   }
@@ -54,22 +55,26 @@ export function createGitHubFactoryRunStore(
   const expectedRepository = `${client.owner}/${client.repo}`;
   let stateCommentId: number | null | undefined;
 
-  async function findStateComment(): Promise<IssueComment | null> {
+  async function findStateRun(): Promise<FactoryRun | null> {
     const comments = await client.listIssueComments(issueNumber);
     for (const comment of comments) {
-      if (isFactoryRunComment(comment.body) && isBotComment(comment, expectedBotLogin)) {
-        stateCommentId = comment.id;
-        return comment;
+      if (!isFactoryRunComment(comment.body) || !isBotComment(comment, expectedBotLogin)) continue;
+      const run = parseFactoryRunComment(comment.body);
+      if (!run) continue;
+      try {
+        assertIssue(run);
+      } catch {
+        continue;
       }
+      stateCommentId = comment.id;
+      return run;
     }
     stateCommentId = null;
     return null;
   }
 
   async function loadFromIssue(): Promise<FactoryRun | null> {
-    const comment = await findStateComment();
-    if (!comment) return null;
-    return parseFactoryRunComment(comment.body);
+    return findStateRun();
   }
 
   function assertIssue(run: FactoryRun): void {
@@ -113,7 +118,7 @@ export function createGitHubFactoryRunStore(
         throw new Error(`Factory run ${run.id} does not own issue #${issueNumber}.`);
       }
       const body = encodeFactoryRunComment(run);
-      if (stateCommentId === undefined) await findStateComment();
+      if (stateCommentId === undefined) await findStateRun();
       if (stateCommentId !== null && stateCommentId !== undefined) {
         await client.updateIssueComment(stateCommentId, body);
         return;

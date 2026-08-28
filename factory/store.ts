@@ -67,6 +67,8 @@ export class MemoryFactoryRunStore implements FactoryRunStore {
  * a new job.
  */
 export class FileFactoryRunStore implements FactoryRunStore {
+  private readonly issueOperations = new Map<string, Promise<void>>();
+
   constructor(private readonly directory: string) {}
 
   async load(id: string): Promise<FactoryRun | null> {
@@ -99,12 +101,15 @@ export class FileFactoryRunStore implements FactoryRunStore {
   }
 
   async save(run: FactoryRun, expectedVersion: number): Promise<void> {
-    const current = await this.findByIssue(run.task.repository, run.task.issueNumber);
-    assertRunVersion(run, expectedVersion, current?.version ?? 0);
-    if (current && current.id !== run.id) {
-      throw new Error(`Factory run ${run.id} does not own issue ${run.task.issueNumber}.`);
-    }
-    await writeAtomicJson(this.filePath(run.task.repository, run.task.issueNumber), run);
+    const key = issueKey(run.task.repository, run.task.issueNumber);
+    await this.withIssueOperation(key, async () => {
+      const current = await this.findByIssue(run.task.repository, run.task.issueNumber);
+      assertRunVersion(run, expectedVersion, current?.version ?? 0);
+      if (current && current.id !== run.id) {
+        throw new Error(`Factory run ${run.id} does not own issue ${run.task.issueNumber}.`);
+      }
+      await writeAtomicJson(this.filePath(run.task.repository, run.task.issueNumber), run);
+    });
   }
 
   private filePath(repository: string, issueNumber: number): string {
@@ -127,6 +132,22 @@ export class FileFactoryRunStore implements FactoryRunStore {
     } catch (error) {
       if (isNotFound(error)) return [];
       throw error;
+    }
+  }
+
+  private async withIssueOperation<T>(key: string, operation: () => Promise<T>): Promise<T> {
+    const previous = this.issueOperations.get(key) ?? Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    this.issueOperations.set(key, current);
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      release();
+      if (this.issueOperations.get(key) === current) this.issueOperations.delete(key);
     }
   }
 }

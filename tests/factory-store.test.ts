@@ -74,6 +74,20 @@ describe('FileFactoryRunStore', () => {
       await assert.rejects(() => store.findByIssue(task.repository, 94), /Invalid type|Expected/i);
     });
   });
+
+  test('serializes parallel saves for one issue', async () => {
+    await withStore(async (directory) => {
+      const store = new FileFactoryRunStore(directory);
+      const { run } = await store.createOrGet(queuedRun('run-1'));
+      const first = { ...run, version: 2, updatedAt: run.updatedAt + 1 };
+      const second = { ...run, version: 2, updatedAt: run.updatedAt + 2 };
+
+      const results = await Promise.allSettled([store.save(first, 1), store.save(second, 1)]);
+
+      assert.deepEqual(results.map(({ status }) => status).sort(), ['fulfilled', 'rejected']);
+      assert.equal((await store.load(run.id))?.version, 2);
+    });
+  });
 });
 
 describe('GitHub factory run store', () => {
@@ -124,6 +138,24 @@ describe('GitHub factory run store', () => {
       () => store.save({ ...next, version: 3, updatedAt: Date.now() }, 1),
       /expected version 1, found 2/,
     );
+  });
+
+  test('skips malformed and mismatched bot snapshots', async () => {
+    const malformed = '<!-- flue-factory-run\nnot-json\n-->';
+    const wrongIssue = encodeFactoryRunComment({
+      ...queuedRun('wrong-issue'),
+      task: { ...task, issueNumber: 95 },
+    });
+    const valid = encodeFactoryRunComment(queuedRun('run-1'));
+    const client = fakeCommentClient([
+      botComment(1, malformed),
+      botComment(2, wrongIssue),
+      botComment(3, valid),
+    ]);
+
+    const store = createGitHubFactoryRunStore(client, 94);
+
+    assert.equal((await store.findByIssue(task.repository, 94))?.id, 'run-1');
   });
 });
 
@@ -177,6 +209,16 @@ function fakeCommentClient(seed: IssueComment[] = []): FactoryRunCommentClientFa
         html_url: `https://github.com/jellydn/flowly/issues/94#issuecomment-${commentId}`,
       };
     },
+  };
+}
+
+function botComment(id: number, body: string): IssueComment {
+  return {
+    id,
+    body,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    user: { login: 'github-actions[bot]' },
   };
 }
 
