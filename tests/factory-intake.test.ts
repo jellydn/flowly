@@ -74,4 +74,30 @@ describe('factory issue intake', () => {
     assert.equal(classifications, 1);
     assert.match(messages.at(-1) ?? '', /Describe the expected behavior/);
   });
+
+  test('resumes classification when a previous delivery stopped at queued', async () => {
+    const orchestrator = new FactoryOrchestrator(new MemoryFactoryRunStore());
+    await orchestrator.start(task);
+    let classifications = 0;
+    const result = await intakeFactoryIssue(task, {
+      orchestrator,
+      classifier: {
+        async classify() {
+          classifications += 1;
+          return {
+            actionable: true,
+            type: 'feature',
+            priority: 'high',
+            complexity: 'large',
+            missingInformation: [],
+          };
+        },
+      },
+      progress: { async publish() {} },
+    });
+
+    assert.equal(result.duplicate, true);
+    assert.equal(result.run.state, 'classified');
+    assert.equal(classifications, 1);
+  });
 });

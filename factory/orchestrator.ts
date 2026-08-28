@@ -50,21 +50,27 @@ export class FactoryOrchestrator {
   }
 
   /**
-   * Atomically claims classified → planning. Concurrent callers observe
-   * planning or planned and must not plan or publish progress.
+   * Atomically claims classified → planning. A live lease is not stolen.
+   * An expired `planning` snapshot (dead worker / retried job) can be reclaimed.
    */
   async beginPlanning(id: string): Promise<{ run: FactoryRun; claimed: boolean }> {
-    const run = await this.requireState(id, ['classified'], ['planning', 'planned']);
-    if (run.state === 'planning' || run.state === 'planned') {
+    const run = await this.requireState(id, ['classified', 'planning'], ['planned']);
+    if (run.state === 'planned') return { run, claimed: false };
+    if (run.state === 'planning' && !planningLeaseExpired(run)) {
       return { run, claimed: false };
     }
     try {
-      const saved = await this.save({ ...run, state: 'planning' });
+      const saved = await this.save({
+        ...run,
+        state: 'planning',
+        planningStartedAt: Date.now(),
+      });
       return { run: saved, claimed: true };
     } catch (error) {
       if (!isVersionConflict(error)) throw error;
       const current = await this.get(id);
-      if (current.state === 'planning' || current.state === 'planned') {
+      if (current.state === 'planned') return { run: current, claimed: false };
+      if (current.state === 'planning' && !planningLeaseExpired(current)) {
         return { run: current, claimed: false };
       }
       throw error;
@@ -170,6 +176,15 @@ export class FactoryOrchestrator {
     await this.store.save(next, run.version);
     return next;
   }
+}
+
+/** How long a `planning` claim is exclusive before a retried worker may take over. */
+export const PLANNING_LEASE_MS = 15 * 60_000;
+
+export function planningLeaseExpired(run: FactoryRun, now = Date.now()): boolean {
+  if (run.state !== 'planning') return false;
+  const startedAt = run.planningStartedAt ?? 0;
+  return now - startedAt >= PLANNING_LEASE_MS;
 }
 
 function isVersionConflict(error: unknown): boolean {
