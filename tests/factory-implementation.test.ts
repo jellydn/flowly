@@ -65,10 +65,47 @@ describe('runControlledImplementation', () => {
       '/workspace',
       'implement:/workspace',
       'commit:Implement issue #94',
+      `workspace:${run.id}:factory/94-controlled-implementation`,
+      '/workspace',
       'verify:/workspace',
       'pristine:abc123',
       'push:abc123',
     ]);
+  });
+
+  test('resumes verification without rerunning the implementer or commit', async () => {
+    const { orchestrator, run } = await plannedRun();
+    const implementing = await orchestrator.beginImplementation(run.id);
+    const verifying = await orchestrator.recordImplementation(implementing.id, {
+      workspaceId: run.id,
+      commitSha: 'abc123',
+      changedFiles: ['factory/implementation.ts'],
+      commands: [],
+    });
+    const calls: string[] = [];
+
+    const result = await runControlledImplementation(verifying, {
+      orchestrator,
+      git: fakeGit(calls),
+      implementer: {
+        async implement() {
+          calls.push('unexpected implement');
+        },
+      },
+      verifier: {
+        async run() {
+          return [commandResult('npm test', 0)];
+        },
+      },
+    });
+
+    assert.equal(result.state, 'reviewing');
+    assert.deepEqual(result.implementation?.commands, [{ command: 'npm test', exitCode: 0 }]);
+    assert.equal(calls.includes('unexpected implement'), false);
+    assert.equal(
+      calls.some((call) => call.startsWith('commit:')),
+      false,
+    );
   });
 
   test('records failed verification and does not enter review', async () => {

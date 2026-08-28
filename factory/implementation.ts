@@ -44,6 +44,9 @@ export async function runControlledImplementation(
   plannedRun: FactoryRun,
   dependencies: ControlledImplementationDependencies,
 ): Promise<FactoryRun> {
+  if (plannedRun.state === 'verifying') {
+    return resumeVerification(plannedRun, dependencies);
+  }
   const implementing = await dependencies.orchestrator.beginImplementation(plannedRun.id);
   if (!implementing.plan || !implementing.branch) {
     throw new Error(`Factory run ${implementing.id} is missing its plan or branch.`);
@@ -63,15 +66,34 @@ export async function runControlledImplementation(
     workspace,
     dependencies.commitMessage ?? `Implement issue #${implementing.task.issueNumber}`,
   );
-  const verification = await dependencies.verifier.run(
-    implementing.plan.verificationCommands,
-    workspace.path,
-  );
-  const pristine = await dependencies.git.isPristine(workspace, commit.commitSha);
-  await dependencies.orchestrator.recordImplementation(implementing.id, {
+  const verifying = await dependencies.orchestrator.recordImplementation(implementing.id, {
     workspaceId: workspace.id,
     commitSha: commit.commitSha,
     changedFiles: commit.changedFiles,
+    commands: [],
+  });
+  return resumeVerification(verifying, dependencies);
+}
+
+async function resumeVerification(
+  verifying: FactoryRun,
+  dependencies: ControlledImplementationDependencies,
+): Promise<FactoryRun> {
+  if (!verifying.plan || !verifying.branch || !verifying.implementation) {
+    throw new Error(`Factory run ${verifying.id} cannot resume verification.`);
+  }
+  const workspace = await dependencies.git.createWorkspace(
+    verifying.id,
+    verifying.branch,
+    dependencies.baseRef,
+  );
+  const verification = await dependencies.verifier.run(
+    verifying.plan.verificationCommands,
+    workspace.path,
+  );
+  const pristine = await dependencies.git.isPristine(workspace, verifying.implementation.commitSha);
+  await dependencies.orchestrator.recordImplementation(verifying.id, {
+    ...verifying.implementation,
     commands: verification.map(({ command, exitCode }) => ({ command, exitCode })),
   });
 
@@ -82,11 +104,7 @@ export async function runControlledImplementation(
       ? undefined
       : 'Verification commands modified the implementation or its commit history.';
   if (failure === undefined) {
-    await dependencies.git.push(workspace, commit.commitSha);
+    await dependencies.git.push(workspace, verifying.implementation.commitSha);
   }
-  return dependencies.orchestrator.recordVerification(
-    implementing.id,
-    failure === undefined,
-    failure,
-  );
+  return dependencies.orchestrator.recordVerification(verifying.id, failure === undefined, failure);
 }

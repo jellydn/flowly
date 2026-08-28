@@ -74,7 +74,11 @@ export async function advanceFactoryRun(
       progress: dependencies.progress,
     });
   }
-  if (current.state === 'planned') {
+  if (
+    current.state === 'planned' ||
+    current.state === 'implementing' ||
+    current.state === 'verifying'
+  ) {
     current = await runControlledImplementation(current, implementationDependencies(dependencies));
   }
   if (current.state === 'failed') return current;

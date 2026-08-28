@@ -350,9 +350,10 @@ from the read-only repository inspection tools.
 
 ## Controlled factory implementation
 
-`planFactoryIssue` is the read-only analyst stage. It consumes a classified
-run, calls an injected planner with the issue and classification, and persists
-a structured plan (steps, relevant files, risks, verification commands, and
+`planFactoryIssue` is the read-only analyst stage. Its production adapter asks
+the configured model to select relevant paths from the confined repository
+manifest, reads only those paths plus core repository guidance, and persists a
+structured plan (steps, relevant files, risks, verification commands, and
 acceptance criteria). The planner cannot write to the source checkout. Already
 planned runs return without invoking the planner again.
 
@@ -371,6 +372,12 @@ branch, runs every configured check, records command/exit-code outcomes, and
 enters independent review only when all checks pass and the checkout remains
 clean. Failed or mutating checks persist a failed run instead; this stage never
 creates a PR, approves a review, or merges.
+
+The production implementer is a separate Flue agent backed by just-bash's
+root-confined `ReadWriteFs`. It can mutate only the isolated clone through a
+bounded shell with no network access; host paths and credentials are not
+exposed. The agent is forbidden from committing, pushing, changing remotes, or
+publishing. `FactoryGitAdapter` remains the only Git mutation boundary.
 
 ### Independent review and draft PR
 
@@ -399,6 +406,8 @@ executes `runFactoryPipeline`. The run snapshot is stored in a hidden comment
 on the source issue so a retried Actions job reuses it. `FACTORY_RUN_STORE`
 selects a local JSON directory for development only. The job can push
 `factory/*` branches and open a draft PR; it never merges or approves.
+Classifier, planner, implementer, and reviewer use `FACTORY_MODEL` (falling
+back to `REPO_ASSISTANT_MODEL`); the workflow supplies its provider key.
 
 ## GitHub event router
 

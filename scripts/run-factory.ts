@@ -19,17 +19,19 @@
  */
 
 import { readFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
-import {
-  createDeterministicFactoryClassifier,
-  createDeterministicFactoryPlanner,
-  createDeterministicFactoryReviewer,
-  createIssueCommentProgress,
-  createNoopFactoryImplementer,
-} from '../factory/defaults.ts';
+import { createAgentFactoryImplementer } from '../factory/agent-implementer.ts';
+import { createIssueCommentProgress } from '../factory/defaults.ts';
 import { dispatchFactoryLabeledIssue, factoryTaskFromIssuesEvent } from '../factory/dispatch.ts';
 import { FactoryGitAdapter } from '../factory/git.ts';
+import {
+  createModelFactoryClassifier,
+  createModelFactoryPlanner,
+  createModelFactoryReview,
+} from '../factory/model-adapters.ts';
+import { createFactoryModelCall } from '../factory/model.ts';
 import { FactoryOrchestrator } from '../factory/orchestrator.ts';
 import {
   FactoryDraftPrPublisher,
@@ -39,6 +41,7 @@ import { createGitHubFactoryRunStore } from '../factory/run-state-store.ts';
 import { FileFactoryRunStore, type FactoryRunStore } from '../factory/store.ts';
 import { FactoryVerificationRunner } from '../factory/verification.ts';
 import { GitHubClient } from '../github/client.ts';
+import { createRepositoryReader } from '../tools/repository.ts';
 
 function fail(message: string): never {
   console.error(`[flue-factory] ${message}`);
@@ -71,7 +74,15 @@ async function main(): Promise<void> {
   const client = GitHubClient.fromEnv(process.env);
   const repositoryPath = process.env.REPOSITORY_PATH ?? process.cwd();
   const workspaceRoot =
-    process.env.FACTORY_WORKSPACE_ROOT ?? path.join(repositoryPath, '.factory-workspaces');
+    process.env.FACTORY_WORKSPACE_ROOT ??
+    path.join(os.tmpdir(), 'flowly-factory', process.env.GITHUB_REPOSITORY!.replace('/', '-'));
+  const model =
+    process.env.FACTORY_MODEL ??
+    process.env.REPO_ASSISTANT_MODEL ??
+    'openrouter/cohere/north-mini-code:free';
+  const modelCall = createFactoryModelCall(model, process.env);
+  const repository = await createRepositoryReader(repositoryPath);
+  const review = createModelFactoryReview(modelCall);
   const git = new FactoryGitAdapter({
     sourceRepository: repositoryPath,
     workspaceRoot,
@@ -81,13 +92,13 @@ async function main(): Promise<void> {
 
   const run = await dispatchFactoryLabeledIssue(eventName, payload, {
     orchestrator: new FactoryOrchestrator(store),
-    classifier: createDeterministicFactoryClassifier(),
-    planner: createDeterministicFactoryPlanner(),
+    classifier: createModelFactoryClassifier(modelCall),
+    planner: createModelFactoryPlanner(modelCall, repository),
     progress: createIssueCommentProgress(client),
     git,
-    implementer: createNoopFactoryImplementer(),
+    implementer: createAgentFactoryImplementer(model),
     verifier: new FactoryVerificationRunner(),
-    reviewer: createDeterministicFactoryReviewer(),
+    reviewer: review.reviewer,
     publisher: new FactoryDraftPrPublisher(createGitHubFactoryPullRequestClient(client)),
     readDiff: async (current) => {
       if (!current.branch || !current.implementation) {
@@ -100,15 +111,7 @@ async function main(): Promise<void> {
         baseRef: 'origin/main',
       });
     },
-    judgmentsFrom: (evidence) =>
-      evidence.acceptanceCriteria.map((criterion) => ({
-        description: criterion.description,
-        satisfied: evidence.diff.trim().length > 0,
-        evidence:
-          evidence.diff.trim().length > 0
-            ? 'The factory-branch diff is available for human review.'
-            : 'The isolated workspace produced no diff.',
-      })),
+    judgmentsFrom: review.judgmentsFrom,
   });
 
   console.error(`[flue-factory] run ${run.id} ended in state ${run.state}`);

@@ -107,4 +107,6 @@ jobs:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           GITHUB_EVENT_PATH: ${{ github.event_path }}
           REPOSITORY_PATH: ${{ github.workspace }}
+          FACTORY_MODEL: openrouter/cohere/north-mini-code:free
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: npm run run-factory
