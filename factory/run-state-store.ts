@@ -56,7 +56,9 @@ export function createGitHubFactoryRunStore(
   let stateCommentId: number | null | undefined;
 
   async function findStateRun(): Promise<FactoryRun | null> {
-    const comments = await client.listIssueComments(issueNumber);
+    const comments = (await client.listIssueComments(issueNumber)).toSorted(
+      (left, right) => left.created_at.localeCompare(right.created_at) || left.id - right.id,
+    );
     for (const comment of comments) {
       if (!isFactoryRunComment(comment.body) || !isBotComment(comment, expectedBotLogin)) continue;
       const run = parseFactoryRunComment(comment.body);

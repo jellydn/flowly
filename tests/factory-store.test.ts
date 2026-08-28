@@ -146,11 +146,13 @@ describe('GitHub factory run store', () => {
       ...queuedRun('wrong-issue'),
       task: { ...task, issueNumber: 95 },
     });
-    const valid = encodeFactoryRunComment(queuedRun('run-1'));
+    const oldestValid = encodeFactoryRunComment(queuedRun('run-1'));
+    const newerValid = encodeFactoryRunComment(queuedRun('run-2'));
     const client = fakeCommentClient([
       botComment(1, malformed),
       botComment(2, wrongIssue),
-      botComment(3, valid),
+      botComment(4, newerValid, '2026-01-02T00:00:00Z'),
+      botComment(3, oldestValid, '2026-01-01T00:00:00Z'),
     ]);
 
     const store = createGitHubFactoryRunStore(client, 94);
@@ -212,12 +214,12 @@ function fakeCommentClient(seed: IssueComment[] = []): FactoryRunCommentClientFa
   };
 }
 
-function botComment(id: number, body: string): IssueComment {
+function botComment(id: number, body: string, createdAt = '2026-01-01T00:00:00Z'): IssueComment {
   return {
     id,
     body,
-    created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z',
+    created_at: createdAt,
+    updated_at: createdAt,
     user: { login: 'github-actions[bot]' },
   };
 }
