@@ -79,6 +79,9 @@ jobs:
     needs: route
     if: needs.route.outputs.agent == 'factory'
     runs-on: ubuntu-latest
+    concurrency:
+      group: factory-${{ github.repository }}-${{ github.event.issue.number }}
+      cancel-in-progress: false
     timeout-minutes: 30
     permissions:
       contents: write
