@@ -43,6 +43,24 @@ describe('factory model adapters', () => {
     assert.equal(result.type, 'feature');
   });
 
+  test('rejects model prose instead of extracting a convenient JSON substring', async () => {
+    const classifier = createModelFactoryClassifier(async () => ({
+      content:
+        'Here is the result: {"actionable":true,"type":"feature","priority":"high","complexity":"medium","missingInformation":[]}',
+    }));
+
+    await assert.rejects(
+      () =>
+        classifier.classify({
+          issueNumber: 94,
+          title: 'Factory agents',
+          body: 'Replace placeholders.',
+          repository: 'jellydn/flowly',
+        }),
+      /one JSON object and no prose/,
+    );
+  });
+
   test('plans from selected repository files and native commands', async () => {
     const root = await fixtureRepository();
     const prompts: string[] = [];

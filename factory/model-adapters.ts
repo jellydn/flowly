@@ -179,8 +179,15 @@ async function callJson<TSchema extends v.BaseSchema<unknown, unknown, v.BaseIss
   schema: TSchema,
 ): Promise<v.InferOutput<TSchema>> {
   const { content } = await call(prompt);
-  const start = content.indexOf('{');
-  const end = content.lastIndexOf('}');
-  if (start < 0 || end < start) throw new Error('Factory model returned no JSON object.');
-  return v.parse(schema, JSON.parse(content.slice(start, end + 1)) as unknown);
+  const trimmed = content.trim();
+  const json = trimmed.startsWith('```')
+    ? trimmed.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')
+    : trimmed;
+  let value: unknown;
+  try {
+    value = JSON.parse(json) as unknown;
+  } catch {
+    throw new Error('Factory model must return one JSON object and no prose.');
+  }
+  return v.parse(schema, value);
 }
