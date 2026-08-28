@@ -99,10 +99,18 @@ export class FactoryOrchestrator {
   ): Promise<FactoryRun> {
     const run = await this.requireState(id, ['implementing'], ['verifying']);
     if (run.state === 'verifying') {
-      if (!isDeepStrictEqual(run.implementation, implementation)) {
-        throw new Error(`Factory run ${id} already has an implementation result.`);
+      if (isDeepStrictEqual(run.implementation, implementation)) return run;
+      if (
+        run.implementation &&
+        run.implementation.commands.length === 0 &&
+        isDeepStrictEqual(
+          { ...run.implementation, commands: implementation.commands },
+          implementation,
+        )
+      ) {
+        return this.save({ ...run, implementation });
       }
-      return run;
+      throw new Error(`Factory run ${id} already has an implementation result.`);
     }
     if (!run.branch) throw new Error(`Factory run ${id} has no factory-owned branch.`);
     return this.save({ ...run, implementation, state: 'verifying' });

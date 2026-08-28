@@ -6,7 +6,7 @@
 
 ```
 flowly/
-├── agents/            # Flue agent definitions (repo-assistant, pr-reviewer)
+├── agents/            # Flue agent definitions (repo assistant, PR reviewer, factory implementer)
 ├── tools/             # Read-only inspection tool factories + repository reader
 ├── investigation/     # Deterministic evidence-collection loop
 ├── planner/           # Plan → execute → reflect meta-tools
@@ -20,7 +20,7 @@ flowly/
 ├── demo/              # Deterministic demos (bash + ts)
 ├── docs/              # Hand-maintained docs page + ADRs
 ├── skills/            # Flue skills (analyzing-repositories)
-├── tests/             # Node test-runner tests (45 files + helpers)
+├── tests/             # Node test-runner tests (46 files + helpers)
 ├── .planning/         # Codebase map + internal planning docs
 ├── .github/workflows/ # CI + review + example workflows
 ├── sandbox.ts         # Empty toolset replacing default FS/shell tools
@@ -34,8 +34,8 @@ flowly/
 **`agents/`:**
 
 - Purpose: Model-facing agents
-- Contains: `repo-assistant.ts`, `pr-reviewer.ts`
-- Key files: both agent factories
+- Contains: `repo-assistant.ts`, `pr-reviewer.ts`, `factory-implementer.ts`
+- Key files: all three agent factories
 
 **`tools/`:**
 
@@ -70,7 +70,7 @@ flowly/
 **`factory/`:**
 
 - Purpose: Typed issue-to-PR run state and trusted implementation, review, and draft-PR boundaries
-- Contains: `types.ts`, `schema.ts`, `store.ts`, `run-state-store.ts`, `orchestrator.ts`, `intake.ts`, `plan.ts`, `run.ts`, `dispatch.ts`, `defaults.ts`, `git.ts`, `implementation.ts`, `verification.ts`, `review.ts`, `publisher.ts`, `pipeline.ts`
+- Contains: `types.ts`, `schema.ts`, `store.ts`, `run-state-store.ts`, `orchestrator.ts`, `intake.ts`, `plan.ts`, `run.ts`, `dispatch.ts`, `defaults.ts`, `model.ts`, `model-adapters.ts`, `agent-implementer.ts`, `git.ts`, `implementation.ts`, `verification.ts`, `review.ts`, `publisher.ts`, `pipeline.ts`
 - Key files: `orchestrator.ts` (monotonic run transitions), `plan.ts` (read-only analyst stage), `run.ts` (end-to-end factory pipeline), `git.ts` (isolated factory-only Git mutation), `pipeline.ts` (independent review + draft PR coordinator)
 
 **`github/`:**
@@ -112,7 +112,7 @@ flowly/
 **`tests/`:**
 
 - Purpose: All automated tests (single directory, not co-located)
-- Contains: 45 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
+- Contains: 46 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
 - Key files: `helpers.ts`, `event-router.test.ts`, `bench-runner.test.ts`
 
 ## Key File Locations
@@ -121,6 +121,7 @@ flowly/
 
 - `agents/repo-assistant.ts`: general repo assistant agent
 - `agents/pr-reviewer.ts`: PR review agent
+- `agents/factory-implementer.ts`: isolated writable factory implementation agent
 - `scripts/review-pr.ts`: CI review entrypoint
 - `scripts/route-event.ts`: CI event-router entrypoint
 - `scripts/flue-eval.ts`: benchmark CLI
