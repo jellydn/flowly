@@ -4,6 +4,9 @@
  */
 
 import type {
+  BenchmarkGate,
+  BenchmarkGateCheck,
+  BenchmarkGateResult,
   BenchmarkReport,
   BenchmarkScenario,
   BenchmarkSummary,
@@ -12,20 +15,43 @@ import type {
   ScenarioResult,
 } from './types.ts';
 
-/** Estimate USD cost from token usage and per-1K pricing. */
-export function estimateCost(
-  tokensIn: number,
-  tokensOut: number,
-  pricing?: ModelPricing,
-): number {
-  if (!pricing) return 0;
-  return (
-    (tokensIn / 1000) * pricing.inputPer1kUsd +
-    (tokensOut / 1000) * pricing.outputPer1kUsd
-  );
+/** Evaluate one report against the suite's versioned acceptance thresholds. */
+export function evaluateBenchmarkGate(
+  report: BenchmarkReport,
+  gate: BenchmarkGate,
+): BenchmarkGateResult {
+  const passRate = report.totalScenarios === 0 ? 0 : report.passed / report.totalScenarios;
+  const checks: BenchmarkGateCheck[] = [];
+  const minimums: Array<[BenchmarkGateCheck['metric'], number, number | undefined]> = [
+    ['minPassRate', passRate, gate.minPassRate],
+    ['minQualityScore', report.summary.qualityScore, gate.minQualityScore],
+    ['minToolSuccessRate', report.summary.toolSuccessRate, gate.minToolSuccessRate],
+  ];
+  const maximums: Array<[BenchmarkGateCheck['metric'], number, number | undefined]> = [
+    ['maxAvgLatencyMs', report.summary.avgLatencyMs, gate.maxAvgLatencyMs],
+    ['maxCostUsd', report.summary.costUsd, gate.maxCostUsd],
+  ];
+  for (const [metric, actual, threshold] of minimums) {
+    if (threshold !== undefined)
+      checks.push({ metric, passed: actual >= threshold, actual, threshold });
+  }
+  for (const [metric, actual, threshold] of maximums) {
+    if (threshold !== undefined)
+      checks.push({ metric, passed: actual <= threshold, actual, threshold });
+  }
+  return { passed: checks.every((check) => check.passed), checks };
 }
 
-const passRate = (results: ScenarioResult[], pick: (r: ScenarioResult) => MetricPass | null): number => {
+/** Estimate USD cost from token usage and per-1K pricing. */
+export function estimateCost(tokensIn: number, tokensOut: number, pricing?: ModelPricing): number {
+  if (!pricing) return 0;
+  return (tokensIn / 1000) * pricing.inputPer1kUsd + (tokensOut / 1000) * pricing.outputPer1kUsd;
+}
+
+const passRate = (
+  results: ScenarioResult[],
+  pick: (r: ScenarioResult) => MetricPass | null,
+): number => {
   const measured = results.map(pick).filter((p): p is MetricPass => p !== null);
   if (measured.length === 0) return Number.NaN;
   return measured.filter((p) => p.passed).length / measured.length;
@@ -45,15 +71,11 @@ export function computeSummary(results: ScenarioResult[]): BenchmarkSummary {
     };
   }
   return {
-    qualityScore:
-      results.reduce((sum, r) => sum + r.metrics.qualityScore, 0) / results.length,
+    qualityScore: results.reduce((sum, r) => sum + r.metrics.qualityScore, 0) / results.length,
     avgLatencyMs: Math.round(
       results.reduce((sum, r) => sum + r.metrics.latencyMs, 0) / results.length,
     ),
-    totalTokens: results.reduce(
-      (sum, r) => sum + r.metrics.tokensIn + r.metrics.tokensOut,
-      0,
-    ),
+    totalTokens: results.reduce((sum, r) => sum + r.metrics.tokensIn + r.metrics.tokensOut, 0),
     costUsd: results.reduce((sum, r) => sum + r.metrics.costUsd, 0),
     toolSuccessRate: passRate(results, (r) => r.metrics.toolSuccess),
     patchApplicabilityRate: passRate(results, (r) => r.metrics.patchApplicability),
@@ -77,9 +99,7 @@ export function recordHumanAcceptance(
 ): BenchmarkReport {
   const results = report.results.map((r) => {
     const verdict = verdicts[r.id];
-    return verdict === undefined
-      ? r
-      : { ...r, metrics: { ...r.metrics, humanAccepted: verdict } };
+    return verdict === undefined ? r : { ...r, metrics: { ...r.metrics, humanAccepted: verdict } };
   });
   return { ...report, results, summary: computeSummary(results) };
 }
@@ -90,7 +110,10 @@ export function recordHumanAcceptance(
  */
 export function scoreScenario(
   scenario: BenchmarkScenario,
-  metricPasses: Record<'toolSuccess' | 'citationAccuracy' | 'retrievalRelevance' | 'answerCompleteness', MetricPass>,
+  metricPasses: Record<
+    'toolSuccess' | 'citationAccuracy' | 'retrievalRelevance' | 'answerCompleteness',
+    MetricPass
+  >,
 ): number {
   const dimensions: MetricPass[] = [
     metricPasses.toolSuccess,
@@ -111,6 +134,7 @@ export function buildReport(input: {
   mode: 'deterministic' | 'live';
   results: ScenarioResult[];
   judge?: 'keyword' | string;
+  lineage?: BenchmarkReport['lineage'];
 }): BenchmarkReport {
   const passed = input.results.filter((r) => r.passed).length;
   return {
@@ -126,5 +150,6 @@ export function buildReport(input: {
     results: input.results,
     summary: computeSummary(input.results),
     judge: input.judge ?? 'keyword',
+    lineage: input.lineage,
   };
 }

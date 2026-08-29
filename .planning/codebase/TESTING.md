@@ -17,7 +17,7 @@
 
 ```bash
 npm test                        # all tests (tsx --test tests/*.test.ts)
-npm run check                   # typecheck + test + build (CI runs this)
+npm run check                   # typecheck + test + deterministic eval gate + build + docs (CI runs this)
 npx tsx --test tests/<file>.test.ts   # single file
 ```
 

@@ -138,9 +138,36 @@ test('CLI run command is smoke-testable via tsx without an LLM key', async (t) =
     }),
   );
   const { spawnSync } = await import('node:child_process');
+  const result = spawnSync('npx', ['tsx', 'scripts/flue-eval.ts', 'run', configPath, '--json'], {
+    cwd: process.cwd(),
+    env: { ...process.env, FLUE_EVAL_RESULTS_DIR: dir },
+    encoding: 'utf8',
+    timeout: 120_000,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const output = JSON.parse(result.stdout) as BenchmarkReport;
+  assert.equal(output.suiteId, 'capstone');
+  assert.equal(output.totalScenarios, 1);
+  assert.equal(output.passed, 1);
+  assert.ok(output.summary.qualityScore > 0);
+  assert.match(output.lineage?.suiteDigest ?? '', /^[a-f0-9]{64}$/);
+});
+
+test('CLI gate exits non-zero when a versioned threshold fails', async (t) => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'flue-eval-gate-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const config = minimalConfig() as {
+    suite: { gate?: { maxCostUsd: number } };
+    models: Array<{ pricing?: { inputPer1kUsd: number; outputPer1kUsd: number } }>;
+  };
+  config.suite.gate = { maxCostUsd: 0 };
+  config.models[0].pricing = { inputPer1kUsd: 1, outputPer1kUsd: 1 };
+  const configPath = path.join(dir, 'config.json');
+  await writeFile(configPath, JSON.stringify(config));
+  const { spawnSync } = await import('node:child_process');
   const result = spawnSync(
     'npx',
-    ['tsx', 'scripts/flue-eval.ts', 'run', configPath, '--json'],
+    ['tsx', 'scripts/flue-eval.ts', 'gate', configPath, '--no-save'],
     {
       cwd: process.cwd(),
       env: { ...process.env, FLUE_EVAL_RESULTS_DIR: dir },
@@ -148,12 +175,9 @@ test('CLI run command is smoke-testable via tsx without an LLM key', async (t) =
       timeout: 120_000,
     },
   );
-  assert.equal(result.status, 0, result.stderr);
-  const output = JSON.parse(result.stdout) as BenchmarkReport;
-  assert.equal(output.suiteId, 'capstone');
-  assert.equal(output.totalScenarios, 1);
-  assert.equal(output.passed, 1);
-  assert.ok(output.summary.qualityScore > 0);
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stdout, /Gate: Qwen3 Coder — FAIL/);
+  assert.match(result.stdout, /FAIL maxCostUsd/);
 });
 
 test('CLI --judge-model rejects a malformed spec with exit 2 and no key needed', async (t) => {
@@ -184,7 +208,14 @@ test('CLI --judge-model with a valid spec fails with the actionable key error be
   const { spawnSync } = await import('node:child_process');
   const result = spawnSync(
     'npx',
-    ['tsx', 'scripts/flue-eval.ts', 'run', configPath, '--judge-model', 'openrouter/qwen/qwen3-coder'],
+    [
+      'tsx',
+      'scripts/flue-eval.ts',
+      'run',
+      configPath,
+      '--judge-model',
+      'openrouter/qwen/qwen3-coder',
+    ],
     {
       cwd: process.cwd(),
       env: { ...process.env, FLUE_EVAL_RESULTS_DIR: dir },

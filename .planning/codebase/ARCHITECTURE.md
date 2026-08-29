@@ -22,7 +22,7 @@ map, record an ADR and keep both documents in sync:
 | ADR | Decision | Status |
 | --- | -------- | ------ |
 | [0001 – Event router](../../docs/adr/0001-event-router.md) | Declarative Valibot route config, normalized event model, first-match routing with AND-ed filters, duplicate-delivery stores, decision-only dispatch (agent execution wired by workflows) | Accepted |
-| [0002 – Model evaluation benchmark](../../docs/adr/0002-model-eval-benchmark.md) | `eval/bench/` framework with deterministic + live runner modes, keyword judge with an LLM-as-a-judge seam, provider pricing, `npm run eval` CLI | Accepted |
+| [0002 – Model evaluation benchmark](../../docs/adr/0002-model-eval-benchmark.md) | `eval/bench/` framework with deterministic + live runner modes, versioned quality gates and input-lineage digests, keyword judge with an LLM-as-a-judge seam, provider pricing, `npm run eval` CLI | Accepted |
 | [0003 – Tool composition seam](../../docs/adr/0003-tool-composition-seam.md) | Pure `(repository) => ToolDefinition` factories composed by one seam: `withInspectionBudget` / `wrapToolWithReliability` in `reliability/resilient-tool.ts`, scope-parameterized `createSearchTool`, shared `createLineLogger` sink, `inspection-registry.ts` as the single tool-set source of truth | Accepted |
 | [0004 – Live-eval provider seam](../../docs/adr/0004-live-eval-provider-seam.md) | Per-model provider registry (`createProviderClient`) resolving each config model's own provider/key/base URL, `createModelDecider` driving the live investigation loop, LLM-as-a-judge wired via `--judge-model` | Accepted |
 | [0005 – Transcript-based showcase](../../docs/adr/0005-transcript-based-showcase.md) | `showcase/` is plain static HTML/CSS whose "screenshots" are verbatim output of the deterministic key-free demos (no build step, no fabricated UI); all assets under `docs/` use relative paths because Pages serves a project subpath | Accepted |
@@ -119,7 +119,8 @@ See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to 
 1. `npm run eval -- run` loads a suite config (JSON), builds deciders (deterministic) or a `modelCall` (live)
 2. Each scenario runs through the investigation pipeline; judge scores 0..1 (keyword default, LLM seam)
 3. Metrics: quality, latency, tokens, cost (pricing table), tool success, patch applicability (opt-in)
-4. Reports persist as JSON under `eval/results/`; `compare`/`leaderboard`/`report` read them
+4. Reports persist as JSON under `eval/results/` with suite and repository-corpus digests; `compare`/`leaderboard`/`report` read them
+5. `npm run eval -- gate` applies the suite's versioned thresholds; the bundled deterministic gate runs in `npm run check`
 
 **State Management:**
 - Stateless per run; no application database. Persistent state: PR review state in hidden GitHub comments, benchmark reports as JSON files, event-router dedupe in an optional file store

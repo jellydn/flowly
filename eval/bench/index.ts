@@ -20,20 +20,33 @@ export { parseSuite, parseModel, parseBenchmarkConfig } from './schema.ts';
 export type { SuiteInput, ModelInput, BenchmarkConfig } from './schema.ts';
 export { loadSuiteFromFile, loadModelFromFile, loadBenchmarkConfigFromFile } from './config.ts';
 export type { LoadResult } from './config.ts';
-export { estimateCost, computeSummary, scoreScenario, buildReport, recordHumanAcceptance } from './metrics.ts';
+export {
+  estimateCost,
+  computeSummary,
+  scoreScenario,
+  buildReport,
+  recordHumanAcceptance,
+  evaluateBenchmarkGate,
+} from './metrics.ts';
 export { createMemoryBenchmarkStore, createFileBenchmarkStore } from './store.ts';
 export type { BenchmarkStore } from './store.ts';
 export {
   estimateTokens,
   estimateTokensFromResult,
   checkScenario,
+  createBenchmarkLineage,
   runScenario,
   runBenchmark,
 } from './runner.ts';
 export type { ScenarioChecks, RunBenchmarkOptions } from './runner.ts';
 export { createPatchCheck, extractFencedBlocks } from './patch.ts';
 export type { PatchValidator } from './patch.ts';
-export { createKeywordJudge, createLlmJudge, createLlmJudgeFromSpec, formatJudgePrompt } from './judge.ts';
+export {
+  createKeywordJudge,
+  createLlmJudge,
+  createLlmJudgeFromSpec,
+  formatJudgePrompt,
+} from './judge.ts';
 export type { Judge, JudgeInput, JudgeVerdict } from './judge.ts';
 export { createModelDecider, formatDeciderPrompt, parseModelAction } from './model-loop.ts';
 export {

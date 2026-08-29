@@ -63,7 +63,30 @@ export type BenchmarkSuite = {
   maxSteps?: number;
   /** Repository path the suite evaluates against (fixture by default). */
   repositoryPath?: string;
+  /** Versioned acceptance thresholds enforced by `flue eval gate`. */
+  gate?: BenchmarkGate;
   scenarios: BenchmarkScenario[];
+};
+
+/** Stable quality and efficiency thresholds for a benchmark suite. */
+export type BenchmarkGate = {
+  minPassRate?: number;
+  minQualityScore?: number;
+  minToolSuccessRate?: number;
+  maxAvgLatencyMs?: number;
+  maxCostUsd?: number;
+};
+
+export type BenchmarkGateCheck = {
+  metric: keyof BenchmarkGate;
+  passed: boolean;
+  actual: number;
+  threshold: number;
+};
+
+export type BenchmarkGateResult = {
+  passed: boolean;
+  checks: BenchmarkGateCheck[];
 };
 
 /** Pass/fail for one metric dimension, with an explanation. */
@@ -135,6 +158,11 @@ export type BenchmarkReport = {
   failed: number;
   results: ScenarioResult[];
   summary: BenchmarkSummary;
+  /** Digests identify the exact suite and inspectable repository corpus. */
+  lineage?: {
+    suiteDigest: string;
+    repositoryDigest: string;
+  };
   /**
    * Judge used for scoring: 'keyword' (default) or the model id of the
    * LLM-as-a-judge. Absent on reports saved before this field existed;

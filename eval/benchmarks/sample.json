@@ -5,6 +5,11 @@
     "description": "Bundled benchmark: repository-analysis scenarios scored on citation accuracy, retrieval relevance, tool success, and answer completeness. Deterministic mode reuses the capstone deciders (no LLM key required).",
     "repositoryPath": "eval/fixtures/sample-repo",
     "maxSteps": 8,
+    "gate": {
+      "minPassRate": 0.85,
+      "minQualityScore": 0.95,
+      "minToolSuccessRate": 1
+    },
     "scenarios": [
       {
         "id": "cap-1",

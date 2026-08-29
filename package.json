@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "check": "npm run typecheck && npm test && npm run build && npm run check:docs",
+    "check": "npm run typecheck && npm test && npm run check:eval && npm run build && npm run check:docs",
+    "check:eval": "tsx scripts/flue-eval.ts gate eval/benchmarks/sample.json --no-save",
     "check:docs": "tsx scripts/check-doc-tree.ts",
     "start": "flue run agents/repo-assistant.ts",
     "review-pr": "node --import tsx scripts/review-pr.ts",

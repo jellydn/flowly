@@ -500,6 +500,7 @@ usage, cost, tool-call success rate, and patch applicability.
 
 ```bash
 npm run eval -- run              # run the bundled suite (deterministic, no LLM key)
+npm run eval -- gate             # enforce versioned suite.gate thresholds
 npm run eval -- run --live --json  # provider-backed run
 npm run eval -- run --judge-model openrouter/qwen/qwen3-coder  # score with an LLM judge
 npm run eval -- compare <config.json>
@@ -516,7 +517,9 @@ with per-provider defaults in `eval/bench/providers.ts`. In live mode the
 model drives the real investigation loop — each tool result is fed back to the
 provider, which replies with the next action until it decides to answer —
 rather than a single scripted retrieval. Results persist as JSON under
-`eval/results/` (override with `FLUE_EVAL_RESULTS_DIR`).
+`eval/results/` (override with `FLUE_EVAL_RESULTS_DIR`). Every new report also
+records SHA-256 digests of the suite and the repository corpus visible to the
+inspection tools, so a result can be tied to its exact evaluation inputs.
 
 The `review` subcommand records human accept/reject verdicts on a saved
 report (ORI-Eval-style human-in-the-loop scoring) and recomputes the
@@ -533,6 +536,16 @@ suites define their own prompts and expectations; scenario ids must map to
 decision functions in deterministic mode (see `eval/bench/runner.ts` and the
 bundled capstone deciders).
 
+Suites can define a versioned `gate` with minimum pass, quality, and tool
+success rates and optional maximum average latency and cost. `npm run eval --
+gate <config.json>` exits non-zero when any configured threshold regresses;
+`--no-save` avoids writing reports in CI. The bundled deterministic gate is
+part of `npm run check`, so pull requests cannot silently weaken the known
+capstone baseline. Latency and cost thresholds are supported for controlled
+live environments but deliberately omitted from the deterministic CI gate,
+where runner speed and estimated provider pricing are not stable release
+signals.
+
 ### Scoring
 
 Each scenario is scored on four dimensions: tool success, citation accuracy,
@@ -546,6 +559,20 @@ billed `total_cost`); they fall back to estimates from the pricing table in
 `eval/bench/providers.ts` when a provider reports no usage. Each report
 records `usageSource: provider | estimated` so you can tell which applied.
 See `.github/workflows/eval.example` for a CI integration example.
+
+### Factory-inspired scope
+
+Flowly follows the pragmatic parts of Poolside's
+[Model Factory](https://poolside.ai/blog/introducing-the-model-factory):
+workflows and benchmark policy are versioned code, pipeline stages remain
+explicit and decoupled, deterministic evaluations gate changes, reports carry
+lineage plus quality/latency/reliability/cost signals, and both PR and factory
+paths retain human review. Flowly intentionally does not copy foundation-model
+infrastructure such as cluster schedulers, GPU preemption, data lakes, or
+automated dataset mixing. Its workload is GitHub-triggered repository analysis
+and isolated code changes; Actions concurrency, durable factory leases, and
+the existing `just-bash` workspace isolation are the appropriately scaled
+mechanisms until measured queue or data-volume pressure justifies more.
 
 ## Day 16: Tools for agents
 

@@ -31,15 +31,16 @@ jobs:
 
       - run: npm ci
 
-      # Deterministic benchmark: no key required, reproducible.
-      - name: Run benchmark (deterministic)
-        run: npm run eval -- run --json
+      # Deterministic quality gate: no key required, reproducible. Omit
+      # --no-save when this workflow should retain reports as artifacts.
+      - name: Enforce benchmark gate (deterministic)
+        run: npm run eval -- gate
 
       # Optional live benchmark against a real model:
       # - name: Run benchmark (live)
       #   env:
       #     FLUE_EVAL_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-      #   run: npm run eval -- run --live --json
+      #   run: npm run eval -- gate --live
 
       - name: Upload benchmark reports
         uses: actions/upload-artifact@v4

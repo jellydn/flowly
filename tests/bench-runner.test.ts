@@ -18,7 +18,12 @@ import {
   runBenchmark,
   withDefaultPricing,
 } from '../eval/bench/index.ts';
-import type { BenchmarkReport, BenchmarkScenario, BenchmarkSuite, ModelSpec } from '../eval/bench/types.ts';
+import type {
+  BenchmarkReport,
+  BenchmarkScenario,
+  BenchmarkSuite,
+  ModelSpec,
+} from '../eval/bench/types.ts';
 import type { DecisionFn, InvestigationResult } from '../investigation/types.ts';
 
 const scenario: BenchmarkScenario = {
@@ -49,7 +54,11 @@ const suite: BenchmarkSuite = {
 /** Deterministic decider mirroring the capstone cap-1 sequence. */
 const cap1Decider: DecisionFn = async (state) => {
   if (state.iteration === 0)
-    return { type: 'call', tool: 'retrieve', input: { query: 'purpose overview repository', topK: 5 } };
+    return {
+      type: 'call',
+      tool: 'retrieve',
+      input: { query: 'purpose overview repository', topK: 5 },
+    };
   if (state.iteration === 1) {
     const ev = state.evidence.find((e) => e.filePath === 'README.md');
     if (ev) return { type: 'call', tool: 'read_file', input: { path: 'README.md', startLine: 1 } };
@@ -78,7 +87,11 @@ test('checkScenario passes when all dimensions are satisfied', () => {
   const result = {
     toolsUsed: ['retrieve', 'read_file'],
     errors: [],
-    answer: { answer: 'authentication is implemented', sources: ['README.md:1'], confidence: 'High' },
+    answer: {
+      answer: 'authentication is implemented',
+      sources: ['README.md:1'],
+      confidence: 'High',
+    },
     evidence: [{ filePath: 'README.md', excerpt: 'authentication' }],
   } as unknown as InvestigationResult;
   const checks = checkScenario(scenario, result);
@@ -105,7 +118,11 @@ test('createKeywordJudge scores 1.0 on a perfect result and < 1 on failures', as
   const good = {
     toolsUsed: ['retrieve', 'read_file'],
     errors: [],
-    answer: { answer: 'authentication is implemented here', sources: ['README.md:1'], confidence: 'High' },
+    answer: {
+      answer: 'authentication is implemented here',
+      sources: ['README.md:1'],
+      confidence: 'High',
+    },
     evidence: [{ filePath: 'README.md', excerpt: 'authentication' }],
   } as unknown as InvestigationResult;
   const goodVerdict = await judge.score({ scenario, result: good });
@@ -125,14 +142,20 @@ test('createLlmJudge parses JSON verdicts and falls back to neutral', async () =
   const judge = createLlmJudge(async () => '{"score": 0.8, "rationale": "good"}');
   const verdict = await judge.score({
     scenario,
-    result: { answer: { answer: 'a', sources: [] }, evidence: [] } as unknown as InvestigationResult,
+    result: {
+      answer: { answer: 'a', sources: [] },
+      evidence: [],
+    } as unknown as InvestigationResult,
   });
   assert.equal(verdict.score, 0.8);
 
   const flaky = createLlmJudge(async () => 'not json');
   const neutral = await flaky.score({
     scenario,
-    result: { answer: { answer: 'a', sources: [] }, evidence: [] } as unknown as InvestigationResult,
+    result: {
+      answer: { answer: 'a', sources: [] },
+      evidence: [],
+    } as unknown as InvestigationResult,
   });
   assert.equal(neutral.score, 0.5);
 });
@@ -160,7 +183,10 @@ test('createLlmJudgeFromSpec builds a judge through the provider registry', asyn
     const judge = createLlmJudgeFromSpec(model, { OPENROUTER_API_KEY: 'sk-test' });
     const verdict = await judge.score({
       scenario,
-      result: { answer: { answer: 'a', sources: [] }, evidence: [] } as unknown as InvestigationResult,
+      result: {
+        answer: { answer: 'a', sources: [] },
+        evidence: [],
+      } as unknown as InvestigationResult,
     });
     assert.equal(verdict.score, 0.9);
     assert.equal(verdict.rationale, 'good');
@@ -171,10 +197,7 @@ test('createLlmJudgeFromSpec builds a judge through the provider registry', asyn
 
 test('createLlmJudgeFromSpec throws without a key', () => {
   const model: ModelSpec = { id: 'openai/gpt-4o', provider: 'openai' };
-  assert.throws(
-    () => createLlmJudgeFromSpec(model, {}),
-    /No API key for provider "openai"/,
-  );
+  assert.throws(() => createLlmJudgeFromSpec(model, {}), /No API key for provider "openai"/);
 });
 
 test('pricingForProvider returns known pricing and undefined for unknown', () => {
@@ -188,7 +211,11 @@ test('withDefaultPricing attaches provider pricing and never mutates', () => {
   assert.equal(priced.pricing?.inputPer1kUsd, 0.003);
   assert.equal(plain.pricing, undefined); // original untouched
 
-  const custom: ModelSpec = { id: 'm', provider: 'anthropic', pricing: { inputPer1kUsd: 9, outputPer1kUsd: 9 } };
+  const custom: ModelSpec = {
+    id: 'm',
+    provider: 'anthropic',
+    pricing: { inputPer1kUsd: 9, outputPer1kUsd: 9 },
+  };
   assert.equal(withDefaultPricing(custom).pricing?.inputPer1kUsd, 9); // explicit wins
 });
 
@@ -219,6 +246,21 @@ test('runBenchmark runs deterministically and produces a report', async () => {
   assert.ok(report.summary.qualityScore > 0);
   assert.ok(report.summary.toolSuccessRate >= 0);
   assert.equal(report.model.id, 'openrouter/qwen/qwen3-coder');
+  assert.match(report.lineage?.suiteDigest ?? '', /^[a-f0-9]{64}$/);
+  assert.match(report.lineage?.repositoryDigest ?? '', /^[a-f0-9]{64}$/);
+});
+
+test('benchmark lineage is stable for identical inputs and changes with the suite', async () => {
+  const first = await runBenchmark(suite, model, {
+    mode: 'deterministic',
+    deciders: { 'cap-1': cap1Decider },
+  });
+  const second = await runBenchmark({ ...suite, description: 'changed' }, model, {
+    mode: 'deterministic',
+    deciders: { 'cap-1': cap1Decider },
+  });
+  assert.notEqual(first.lineage?.suiteDigest, second.lineage?.suiteDigest);
+  assert.equal(first.lineage?.repositoryDigest, second.lineage?.repositoryDigest);
 });
 
 test('runBenchmark throws a clear error when a decider is missing', async () => {
@@ -314,9 +356,8 @@ test('createOpenAiCompatibleClient omits usage when the provider reports none', 
     baseUrl: 'https://example.test/api/v1',
     model: 'm',
   });
-  const result = await withMockFetch(
-    { choices: [{ message: { content: 'the answer' } }] },
-    () => client('prompt'),
+  const result = await withMockFetch({ choices: [{ message: { content: 'the answer' } }] }, () =>
+    client('prompt'),
   );
   assert.equal(result.usage, undefined);
 });
@@ -324,16 +365,15 @@ test('createOpenAiCompatibleClient omits usage when the provider reports none', 
 /** Run `fn` with global fetch stubbed to return `body`, restoring it after. */
 async function withMockFetch<T>(body: unknown, fn: () => Promise<T>): Promise<T> {
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = (async () =>
-    ({
-      ok: true,
-      async text() {
-        return '';
-      },
-      async json() {
-        return body;
-      },
-    })) as unknown as typeof fetch;
+  globalThis.fetch = (async () => ({
+    ok: true,
+    async text() {
+      return '';
+    },
+    async json() {
+      return body;
+    },
+  })) as unknown as typeof fetch;
   try {
     return await fn();
   } finally {

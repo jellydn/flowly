@@ -46,7 +46,7 @@
 - GitHub Actions only (no long-running server deployment)
 
 **CI Pipeline:**
-- GitHub Actions `.github/workflows/ci.yml` — `npm run check` (typecheck + test + build) on push/PR, Node 24.18.1
+- GitHub Actions `.github/workflows/ci.yml` — `npm run check` (typecheck + test + deterministic eval gate + build + docs) on push/PR, Node 24.19.0
 - `.github/workflows/pr-review.yml` — runs `npm run review-pr` on PR events with a 15-min timeout
 - `.github/workflows/event-router.example` and `.github/workflows/eval.example` — example workflows (copy to `.yml` to activate)
 

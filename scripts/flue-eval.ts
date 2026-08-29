@@ -9,6 +9,8 @@
  * Subcommands:
  *   run <config.json>         run every model in the config (deterministic by
  *                             default, --live for provider-backed runs)
+ *   gate <config.json>        run every model and enforce the suite's
+ *                             versioned quality gate (CI-safe by default)
  *   compare <config.json>     run + print a side-by-side model comparison
  *   leaderboard [--suite id]  list best saved reports, ranked by quality
  *   report <runId>            print one saved report
@@ -36,7 +38,6 @@
  */
 
 import { mkdir } from 'node:fs/promises';
-import path from 'node:path';
 import process from 'node:process';
 import { loadBenchmarkConfigFromFile } from '../eval/bench/config.ts';
 import { createFileBenchmarkStore } from '../eval/bench/store.ts';
@@ -47,7 +48,14 @@ import { createLlmJudgeFromSpec } from '../eval/bench/judge.ts';
 import type { Judge } from '../eval/bench/judge.ts';
 import { parseModelSpecString } from '../eval/bench/schema.ts';
 import { recordHumanAcceptance } from '../eval/bench/metrics.ts';
-import type { BenchmarkReport, ModelComparison, ModelSpec } from '../eval/bench/types.ts';
+import { evaluateBenchmarkGate } from '../eval/bench/metrics.ts';
+import type {
+  BenchmarkGate,
+  BenchmarkGateResult,
+  BenchmarkReport,
+  ModelComparison,
+  ModelSpec,
+} from '../eval/bench/types.ts';
 import type { BenchmarkStore } from '../eval/bench/store.ts';
 import { capstoneScenarios } from '../eval/capstone-eval.ts';
 import type { DecisionFn } from '../investigation/types.ts';
@@ -95,6 +103,7 @@ async function loadReportOrExit(
 function usage(): never {
   console.error(`Usage:
   npm run eval -- run <config.json> [--live] [--json] [--judge-model <spec>]
+  npm run eval -- gate <config.json> [--live] [--no-save] [--judge-model <spec>]
   npm run eval -- compare <config.json> [--live] [--judge-model <spec>]
   npm run eval -- leaderboard [--suite <id>]
   npm run eval -- report <runId>
@@ -148,6 +157,10 @@ function printReport(report: BenchmarkReport, json: boolean): void {
   lines.push(`Model:     ${report.model.label ?? report.model.id} (${report.model.provider})`);
   lines.push(`Mode:      ${report.mode}`);
   lines.push(`Judge:     ${report.judge ?? 'keyword'}`);
+  if (report.lineage) {
+    lines.push(`Suite:     sha256:${report.lineage.suiteDigest.slice(0, 12)}`);
+    lines.push(`Corpus:    sha256:${report.lineage.repositoryDigest.slice(0, 12)}`);
+  }
   lines.push(`Result:    ${report.passed}/${report.totalScenarios} passed`);
   lines.push(`Quality:   ${(report.summary.qualityScore * 100).toFixed(0)}%`);
   lines.push(`Latency:   ${report.summary.avgLatencyMs}ms avg`);
@@ -162,7 +175,9 @@ function printReport(report: BenchmarkReport, json: boolean): void {
   );
   for (const result of report.results) {
     const usageMark = result.metrics.usageSource === 'provider' ? 'billed' : 'est.';
-    lines.push(`  [${result.id}] ${result.passed ? '✅' : '❌'} quality=${(result.metrics.qualityScore * 100).toFixed(0)}% latency=${result.metrics.latencyMs}ms tokens=${result.metrics.tokensIn + result.metrics.tokensOut}(${usageMark}) ${verdictLabel(result.metrics.humanAccepted)}`);
+    lines.push(
+      `  [${result.id}] ${result.passed ? '✅' : '❌'} quality=${(result.metrics.qualityScore * 100).toFixed(0)}% latency=${result.metrics.latencyMs}ms tokens=${result.metrics.tokensIn + result.metrics.tokensOut}(${usageMark}) ${verdictLabel(result.metrics.humanAccepted)}`,
+    );
   }
   process.stdout.write(`${lines.join('\n')}\n`);
 }
@@ -171,7 +186,13 @@ async function runAll(
   configPath: string,
   live: boolean,
   judgeModelSpec?: string,
-): Promise<{ suiteName: string; suiteId: string; reports: BenchmarkReport[] }> {
+  save = true,
+): Promise<{
+  suiteName: string;
+  suiteId: string;
+  gate?: BenchmarkGate;
+  reports: BenchmarkReport[];
+}> {
   const loaded = await loadBenchmarkConfigFromFile(configPath);
   if (!loaded.ok) {
     for (const issue of loaded.issues) console.error(`  - ${issue}`);
@@ -179,7 +200,7 @@ async function runAll(
   }
   const { suite, models } = loaded;
   const resultsDir = process.env.FLUE_EVAL_RESULTS_DIR ?? DEFAULT_RESULTS_DIR;
-  await mkdir(resultsDir, { recursive: true });
+  if (save) await mkdir(resultsDir, { recursive: true });
 
   // One client per model, resolved from the model spec's provider (its own
   // base URL and key env). Previously a single client built from
@@ -214,10 +235,27 @@ async function runAll(
       judgeId,
       repositoryPath: suite.repositoryPath,
     });
-    await store.save(report);
+    if (save) await store.save(report);
     reports.push(report);
   }
-  return { suiteName: suite.name, suiteId: suite.id, reports };
+  return { suiteName: suite.name, suiteId: suite.id, gate: suite.gate, reports };
+}
+
+function formatGateValue(metric: keyof BenchmarkGate, value: number): string {
+  return metric === 'maxAvgLatencyMs'
+    ? `${value.toFixed(0)}ms`
+    : metric === 'maxCostUsd'
+      ? `$${value.toFixed(4)}`
+      : `${(value * 100).toFixed(0)}%`;
+}
+
+function printGate(report: BenchmarkReport, result: BenchmarkGateResult): void {
+  process.stdout.write(`Gate: ${report.model.label} — ${result.passed ? 'PASS' : 'FAIL'}\n`);
+  for (const check of result.checks) {
+    process.stdout.write(
+      `  ${check.passed ? 'PASS' : 'FAIL'} ${check.metric}: ${formatGateValue(check.metric, check.actual)} (threshold ${formatGateValue(check.metric, check.threshold)})\n`,
+    );
+  }
 }
 
 function printComparison(comparison: ModelComparison): void {
@@ -257,6 +295,28 @@ async function main(): Promise<number> {
         for (const report of reports) printReport(report, false);
       }
       return 0;
+    }
+    case 'gate': {
+      const configPath = positional(rest) ?? DEFAULT_CONFIG;
+      const live = rest.includes('--live');
+      const judgeModel = flagValue(rest, '--judge-model');
+      if (rest.includes('--judge-model') && judgeModel === undefined) usage();
+      const { reports, gate } = await runAll(
+        configPath,
+        live,
+        judgeModel,
+        !rest.includes('--no-save'),
+      );
+      if (!gate) {
+        console.error(`[flue-eval] Benchmark config "${configPath}" has no suite.gate thresholds.`);
+        return 2;
+      }
+      const results = reports.map((report) => ({
+        report,
+        gate: evaluateBenchmarkGate(report, gate),
+      }));
+      for (const result of results) printGate(result.report, result.gate);
+      return results.every((result) => result.gate.passed) ? 0 : 1;
     }
     case 'compare': {
       const configPath = positional(rest) ?? DEFAULT_CONFIG;
@@ -310,7 +370,9 @@ async function main(): Promise<number> {
       const accept = csvFlag(rest, '--accept');
       const reject = csvFlag(rest, '--reject');
       if (accept.length === 0 && reject.length === 0) {
-        console.error('[flue-eval] review requires --accept and/or --reject with comma-separated scenario ids.');
+        console.error(
+          '[flue-eval] review requires --accept and/or --reject with comma-separated scenario ids.',
+        );
         return 2;
       }
       const report = await loadReportOrExit(store, runId);
@@ -320,9 +382,7 @@ async function main(): Promise<number> {
       const known = new Set(report.results.map((r) => r.id));
       const unknown = Object.keys(verdicts).filter((id) => !known.has(id));
       if (unknown.length > 0) {
-        console.error(
-          `[flue-eval] Warning: unknown scenario id(s) ignored: ${unknown.join(', ')}`,
-        );
+        console.error(`[flue-eval] Warning: unknown scenario id(s) ignored: ${unknown.join(', ')}`);
       }
       const updated = recordHumanAcceptance(report, verdicts);
       await store.save(updated);
@@ -331,7 +391,9 @@ async function main(): Promise<number> {
         `[flue-eval] Recorded ${accept.length} accept(s), ${reject.length} reject(s) on ${runId}.`,
       );
       printReport(updated, false);
-      console.error(`[flue-eval] Human acceptance rate: ${Number.isNaN(rate) ? 'n/a' : `${(rate * 100).toFixed(0)}%`}`);
+      console.error(
+        `[flue-eval] Human acceptance rate: ${Number.isNaN(rate) ? 'n/a' : `${(rate * 100).toFixed(0)}%`}`,
+      );
       return 0;
     }
     default:
@@ -339,7 +401,11 @@ async function main(): Promise<number> {
   }
 }
 
-main().catch((error) => {
-  console.error(`[flue-eval] ${error instanceof Error ? error.message : String(error)}`);
-  process.exit(1);
-});
+main()
+  .then((code) => {
+    process.exitCode = code;
+  })
+  .catch((error) => {
+    console.error(`[flue-eval] ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+  });

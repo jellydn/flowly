@@ -7,7 +7,7 @@
  */
 
 import * as v from 'valibot';
-import type { BenchmarkScenario, BenchmarkSuite, ModelSpec } from './types.ts';
+import type { BenchmarkSuite, ModelSpec } from './types.ts';
 
 const nonEmpty = v.pipe(v.string(), v.minLength(1));
 
@@ -21,12 +21,29 @@ const scenarioSchema = v.object({
   maxSteps: v.optional(v.pipe(v.number(), v.minValue(1), v.maxValue(100))),
 });
 
+const rate = v.pipe(v.number(), v.minValue(0), v.maxValue(1));
+
+const gateSchema = v.pipe(
+  v.object({
+    minPassRate: v.optional(rate),
+    minQualityScore: v.optional(rate),
+    minToolSuccessRate: v.optional(rate),
+    maxAvgLatencyMs: v.optional(v.pipe(v.number(), v.minValue(0))),
+    maxCostUsd: v.optional(v.pipe(v.number(), v.minValue(0))),
+  }),
+  v.check(
+    (gate) => Object.values(gate).some((threshold) => threshold !== undefined),
+    'At least one quality gate threshold is required.',
+  ),
+);
+
 const suiteSchema = v.object({
   id: v.pipe(nonEmpty, v.maxLength(100)),
   name: nonEmpty,
   description: v.optional(nonEmpty),
   maxSteps: v.optional(v.pipe(v.number(), v.minValue(1), v.maxValue(100))),
   repositoryPath: v.optional(nonEmpty),
+  gate: v.optional(gateSchema),
   scenarios: v.pipe(v.array(scenarioSchema), v.minLength(1)),
 });
 
@@ -55,14 +72,18 @@ export type ModelInput = v.InferOutput<typeof modelSchema>;
 export type BenchmarkConfig = v.InferOutput<typeof benchmarkConfigSchema>;
 
 /** Parse a raw suite value, returning field-path issues on failure. */
-export function parseSuite(value: unknown): { ok: true; suite: BenchmarkSuite } | { ok: false; issues: string[] } {
+export function parseSuite(
+  value: unknown,
+): { ok: true; suite: BenchmarkSuite } | { ok: false; issues: string[] } {
   const result = v.safeParse(suiteSchema, value);
   if (result.success) return { ok: true, suite: result.output as BenchmarkSuite };
   return { ok: false, issues: result.issues.map(formatIssue) };
 }
 
 /** Parse a raw model spec value, returning field-path issues on failure. */
-export function parseModel(value: unknown): { ok: true; model: ModelSpec } | { ok: false; issues: string[] } {
+export function parseModel(
+  value: unknown,
+): { ok: true; model: ModelSpec } | { ok: false; issues: string[] } {
   const result = v.safeParse(modelSchema, value);
   if (result.success) return { ok: true, model: result.output as ModelSpec };
   return { ok: false, issues: result.issues.map(formatIssue) };

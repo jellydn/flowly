@@ -18,17 +18,29 @@
  * separately via recordHumanAcceptance (see `flue eval review`).
  */
 
+import { createHash } from 'node:crypto';
 import type { RepositoryReader } from '../../tools/repository.ts';
 import type { InvestigationResult, DecisionFn } from '../../investigation/types.ts';
 import { runInvestigation, buildToolMap } from '../../investigation/loop.ts';
-import { createDebugLogger, createRepositoryReader, createStepBudget } from '../../tools/repository.ts';
+import {
+  createDebugLogger,
+  createRepositoryReader,
+  createStepBudget,
+} from '../../tools/repository.ts';
 import { createBudgetedInspectionTools } from '../../tools/inspection-registry.ts';
-import { estimateCost, scoreScenario, buildReport } from './metrics.ts';
+import { estimateCost, buildReport } from './metrics.ts';
 import type { Judge } from './judge.ts';
 import { createKeywordJudge } from './judge.ts';
 import type { ModelCallFn, ModelUsage } from './providers.ts';
 import { createModelDecider } from './model-loop.ts';
-import type { BenchmarkReport, BenchmarkScenario, BenchmarkSuite, MetricPass, ModelSpec, ScenarioResult } from './types.ts';
+import type {
+  BenchmarkReport,
+  BenchmarkScenario,
+  BenchmarkSuite,
+  MetricPass,
+  ModelSpec,
+  ScenarioResult,
+} from './types.ts';
 
 /** Approximate tokens from text length (4 chars/token heuristic). */
 export function estimateTokens(text: string): number {
@@ -44,9 +56,7 @@ export function estimateTokensFromResult(result: InvestigationResult): {
   tokensIn: number;
   tokensOut: number;
 } {
-  const inputs = result.callHistory
-    .map((c) => JSON.stringify(c.input))
-    .join(' ');
+  const inputs = result.callHistory.map((c) => JSON.stringify(c.input)).join(' ');
   const evidence = result.evidence.map((e) => e.excerpt).join(' ');
   return {
     tokensIn: estimateTokens(`${result.answer.answer} ${inputs}`),
@@ -73,14 +83,22 @@ export function checkScenario(
   const matches = (expected: string[], actual: Set<string>): boolean =>
     expected.some((e) => [...actual].some((a) => a === e || a.startsWith(e)));
 
-  const toolSuccess =
-    !scenario.requiresToolCall
-      ? { passed: result.toolsUsed.length === 0, detail: result.toolsUsed.length === 0 ? 'No tool call required — correct' : `Unexpected tool calls: ${result.toolsUsed.join(', ')}` }
-      : result.toolsUsed.length === 0
-        ? { passed: false, detail: 'No tools were called' }
-        : result.errors.length > 0
-          ? { passed: false, detail: `${result.errors.length} tool error(s): ${result.errors[0]}` }
-          : { passed: true, detail: `${result.toolsUsed.length} tool call(s) completed without errors` };
+  const toolSuccess = !scenario.requiresToolCall
+    ? {
+        passed: result.toolsUsed.length === 0,
+        detail:
+          result.toolsUsed.length === 0
+            ? 'No tool call required — correct'
+            : `Unexpected tool calls: ${result.toolsUsed.join(', ')}`,
+      }
+    : result.toolsUsed.length === 0
+      ? { passed: false, detail: 'No tools were called' }
+      : result.errors.length > 0
+        ? { passed: false, detail: `${result.errors.length} tool error(s): ${result.errors[0]}` }
+        : {
+            passed: true,
+            detail: `${result.toolsUsed.length} tool call(s) completed without errors`,
+          };
 
   const citationAccuracy = !scenario.requiresCitation
     ? { passed: true, detail: 'Citation not required' }
@@ -88,13 +106,20 @@ export function checkScenario(
       ? { passed: false, detail: 'No citations in answer' }
       : matches(scenario.expectedSources ?? [], citedFiles)
         ? { passed: true, detail: `Cited expected sources: ${[...citedFiles].join(', ')}` }
-        : { passed: false, detail: `Expected sources not cited. Got: ${[...citedFiles].join(', ') || '(none)'}` };
+        : {
+            passed: false,
+            detail: `Expected sources not cited. Got: ${[...citedFiles].join(', ') || '(none)'}`,
+          };
 
-  const retrievalRelevance = !scenario.expectedSources || scenario.expectedSources.length === 0
-    ? { passed: true, detail: 'No specific sources expected' }
-    : matches(scenario.expectedSources, retrievedFiles)
-      ? { passed: true, detail: `Retrieved expected sources: ${[...retrievedFiles].join(', ')}` }
-      : { passed: false, detail: `Expected sources not retrieved. Got: ${[...retrievedFiles].join(', ') || '(none)'}` };
+  const retrievalRelevance =
+    !scenario.expectedSources || scenario.expectedSources.length === 0
+      ? { passed: true, detail: 'No specific sources expected' }
+      : matches(scenario.expectedSources, retrievedFiles)
+        ? { passed: true, detail: `Retrieved expected sources: ${[...retrievedFiles].join(', ')}` }
+        : {
+            passed: false,
+            detail: `Expected sources not retrieved. Got: ${[...retrievedFiles].join(', ') || '(none)'}`,
+          };
 
   const expectedKeywords = scenario.expectedKeywords ?? [];
   const haystack = `${result.answer.answer.toLowerCase()} ${result.evidence
@@ -104,7 +129,13 @@ export function checkScenario(
   const missing = expectedKeywords.filter((kw) => !haystack.includes(kw.toLowerCase()));
   const answerCompleteness =
     missing.length === 0
-      ? { passed: true, detail: expectedKeywords.length === 0 ? 'No keyword requirements' : `All expected keywords present: ${expectedKeywords.join(', ')}` }
+      ? {
+          passed: true,
+          detail:
+            expectedKeywords.length === 0
+              ? 'No keyword requirements'
+              : `All expected keywords present: ${expectedKeywords.join(', ')}`,
+        }
       : { passed: false, detail: `Missing keywords: ${missing.join(', ')}` };
 
   return { toolSuccess, citationAccuracy, retrievalRelevance, answerCompleteness };
@@ -136,13 +167,30 @@ async function runLive(
   // conceptual scenarios answer directly from the model with no tool calls.
   const investigation = scenario.requiresToolCall
     ? await runInvestigation(scenario.prompt, tools, budget, decide)
-    : { answer: { answer: '', sources: [], confidence: 'Insufficient' as const, toolsUsed: [], insufficientEvidence: true, keyFindings: [] }, iterations: 0, evidence: [], errors: [], toolsUsed: [], stopReason: 'no tools required', callHistory: [] };
+    : {
+        answer: {
+          answer: '',
+          sources: [],
+          confidence: 'Insufficient' as const,
+          toolsUsed: [],
+          insufficientEvidence: true,
+          keyFindings: [],
+        },
+        iterations: 0,
+        evidence: [],
+        errors: [],
+        toolsUsed: [],
+        stopReason: 'no tools required',
+        callHistory: [],
+      };
 
   const evidenceText = investigation.evidence.map((e) => e.excerpt).join('\n');
   const prompt = [
     scenario.prompt,
     '',
-    evidenceText ? `Repository evidence:\n${evidenceText}` : '(No repository evidence was retrieved.)',
+    evidenceText
+      ? `Repository evidence:\n${evidenceText}`
+      : '(No repository evidence was retrieved.)',
     '',
     'Answer concisely with file citations when relevant (path/to/file.ts:line).',
   ].join('\n');
@@ -192,8 +240,11 @@ export async function runScenario(input: {
   const { scenario, repository, judge, model, decide, modelCall } = input;
 
   const startedAt = Date.now();
-  const live = modelCall ? await runLive(scenario, repository, modelCall, input.maxSteps) : undefined;
-  const result = live?.result ?? (await runScenarioWithDecider(scenario, repository, decide!, input.maxSteps));
+  const live = modelCall
+    ? await runLive(scenario, repository, modelCall, input.maxSteps)
+    : undefined;
+  const result =
+    live?.result ?? (await runScenarioWithDecider(scenario, repository, decide!, input.maxSteps));
   const latencyMs = Date.now() - startedAt;
 
   const checks = checkScenario(scenario, result);
@@ -203,8 +254,7 @@ export async function runScenario(input: {
   const estimated = estimateTokensFromResult(result);
   const tokensIn = live?.usage?.inputTokens ?? estimated.tokensIn;
   const tokensOut = live?.usage?.outputTokens ?? estimated.tokensOut;
-  const costUsd =
-    live?.usage?.billedCostUsd ?? estimateCost(tokensIn, tokensOut, model.pricing);
+  const costUsd = live?.usage?.billedCostUsd ?? estimateCost(tokensIn, tokensOut, model.pricing);
   const patchApplicability = input.measurePatch
     ? await input.measurePatch(scenario, result.answer.answer)
     : null;
@@ -272,6 +322,39 @@ export type RunBenchmarkOptions = {
   measurePatch?: (scenario: BenchmarkScenario, answer: string) => Promise<MetricPass | null>;
 };
 
+/** Hash the versioned suite and the exact repository corpus visible to inspection tools. */
+export async function createBenchmarkLineage(
+  suite: BenchmarkSuite,
+  repository: RepositoryReader,
+): Promise<NonNullable<BenchmarkReport['lineage']>> {
+  const files = [
+    ...new Set([...(await repository.sourceFiles()), ...(await repository.documentationFiles())]),
+  ].toSorted();
+  const corpus = createHash('sha256');
+  for (const file of files) {
+    corpus
+      .update(file)
+      .update('\0')
+      .update(await repository.readText(file))
+      .update('\0');
+  }
+  return {
+    suiteDigest: createHash('sha256').update(stableJson(suite)).digest('hex'),
+    repositoryDigest: corpus.digest('hex'),
+  };
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value !== null && typeof value === 'object') {
+    const entries = Object.entries(value)
+      .toSorted(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`);
+    return `{${entries.join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'null';
+}
+
 /**
  * Run a benchmark suite against a model, returning a full report.
  * The report is saved to the store when one is provided.
@@ -286,6 +369,7 @@ export async function runBenchmark(
   );
   const judge = options.judge ?? createKeywordJudge();
   const defaultSteps = suite.maxSteps ?? 8;
+  const lineage = await createBenchmarkLineage(suite, repository);
 
   const results: ScenarioResult[] = [];
   for (const scenario of suite.scenarios) {
@@ -312,13 +396,11 @@ export async function runBenchmark(
     mode: options.mode,
     results,
     judge: options.judgeId ?? 'keyword',
+    lineage,
   });
 }
 
-function resolveDecider(
-  scenario: BenchmarkScenario,
-  options: RunBenchmarkOptions,
-): DecisionFn {
+function resolveDecider(scenario: BenchmarkScenario, options: RunBenchmarkOptions): DecisionFn {
   const decider = options.deciders?.[scenario.id];
   if (!decider) {
     throw new Error(

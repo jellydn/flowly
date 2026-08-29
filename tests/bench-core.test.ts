@@ -6,6 +6,7 @@ import test from 'node:test';
 import {
   createFileBenchmarkStore,
   createMemoryBenchmarkStore,
+  evaluateBenchmarkGate,
   estimateCost,
   loadBenchmarkConfigFromFile,
   loadModelFromFile,
@@ -36,7 +37,11 @@ const sampleSuite = {
   ],
 };
 
-const sampleModel = { id: 'openrouter/qwen/qwen3-coder', provider: 'openrouter', label: 'Qwen3 Coder' };
+const sampleModel = {
+  id: 'openrouter/qwen/qwen3-coder',
+  provider: 'openrouter',
+  label: 'Qwen3 Coder',
+};
 
 test('parseSuite accepts a valid suite', () => {
   const result = parseSuite(sampleSuite);
@@ -59,6 +64,14 @@ test('parseSuite rejects empty scenario ids', () => {
   });
   assert.ok(!result.ok);
   if (!result.ok) assert.ok(result.issues.some((i) => i.includes('scenarios.0.id')));
+});
+
+test('parseSuite validates versioned quality gates', () => {
+  const valid = parseSuite({ ...sampleSuite, gate: { minQualityScore: 0.9 } });
+  assert.ok(valid.ok);
+  assert.ok(!parseSuite({ ...sampleSuite, gate: {} }).ok);
+  assert.ok(!parseSuite({ ...sampleSuite, gate: { minPassRate: 1.1 } }).ok);
+  assert.ok(!parseSuite({ ...sampleSuite, gate: { maxCostUsd: -1 } }).ok);
 });
 
 test('parseModel rejects models without a provider', () => {
@@ -211,7 +224,6 @@ test('computeSummary aggregates reports', () => {
 });
 
 test('buildReport computes pass/fail counts and summary', () => {
-  const scenario: BenchmarkScenario = { id: 's1', prompt: 'p' };
   const metrics = {
     qualityScore: 1,
     latencyMs: 10,
@@ -232,13 +244,60 @@ test('buildReport computes pass/fail counts and summary', () => {
     model: { id: 'openrouter/qwen/qwen3-coder', provider: 'openrouter', label: 'Qwen3 Coder' },
     mode: 'deterministic',
     results: [
-      { id: 's1', prompt: 'p', passed: true, metrics, toolsUsed: [], citedSources: [], errors: [], answer: 'a', confidence: 'high' },
-      { id: 's2', prompt: 'p2', passed: false, metrics, toolsUsed: [], citedSources: [], errors: ['x'], answer: '', confidence: 'low' },
+      {
+        id: 's1',
+        prompt: 'p',
+        passed: true,
+        metrics,
+        toolsUsed: [],
+        citedSources: [],
+        errors: [],
+        answer: 'a',
+        confidence: 'high',
+      },
+      {
+        id: 's2',
+        prompt: 'p2',
+        passed: false,
+        metrics,
+        toolsUsed: [],
+        citedSources: [],
+        errors: ['x'],
+        answer: '',
+        confidence: 'low',
+      },
     ],
   });
   assert.equal(report.totalScenarios, 2);
   assert.equal(report.passed, 1);
   assert.equal(report.failed, 1);
+});
+
+test('evaluateBenchmarkGate reports every threshold and fails regressions', () => {
+  const report = buildReport({
+    runId: 'gate-run',
+    suiteId: 'sample',
+    suiteName: 'Sample',
+    model: { id: 'm', provider: 'p', label: 'M' },
+    mode: 'deterministic',
+    results: [],
+  });
+  const result = evaluateBenchmarkGate(report, {
+    minPassRate: 1,
+    minQualityScore: 0,
+    maxAvgLatencyMs: 0,
+    maxCostUsd: 0,
+  });
+  assert.equal(result.passed, false);
+  assert.deepEqual(
+    result.checks.map((check) => [check.metric, check.passed]),
+    [
+      ['minPassRate', false],
+      ['minQualityScore', true],
+      ['maxAvgLatencyMs', true],
+      ['maxCostUsd', true],
+    ],
+  );
 });
 
 test('memory store saves, loads, lists, and ranks leaderboards', async () => {
@@ -282,13 +341,19 @@ test('memory store saves, loads, lists, and ranks leaderboards', async () => {
   await store.save(bad);
 
   assert.deepEqual((await store.load('a'))?.runId, 'a');
-  assert.equal((await store.load('nope')), null);
+  assert.equal(await store.load('nope'), null);
 
   const list = await store.list();
-  assert.deepEqual(list.map((r) => r.runId), ['a', 'b']); // newest first
+  assert.deepEqual(
+    list.map((r) => r.runId),
+    ['a', 'b'],
+  ); // newest first
 
   const board = await store.leaderboard('sample');
-  assert.deepEqual(board.map((e) => e.modelId), ['m', 'm']);
+  assert.deepEqual(
+    board.map((e) => e.modelId),
+    ['m', 'm'],
+  );
   assert.equal(board[0].qualityScore, 1);
   assert.equal(board[1].qualityScore, 0.2);
 });
