@@ -9,15 +9,15 @@
       // (JS disabled), the page and terminal render fully visible.
       document.documentElement.classList.add('js');
     </script>
-    <title>Flowly — AI-native engineering assistant for modern development</title>
+    <title>Flowly — factory software for any GitHub repository</title>
     <meta
       name="description"
-      content="Flowly is an AI-native engineering assistant built with Flue 2.0. It inspects repositories using five read-only tools — list, read, search code, search docs, and semantic retrieve — inside an evidence-first plan → execute → reflect loop. Every answer ships with file-and-line citations."
+      content="Flowly is factory software for GitHub repositories. It turns labeled issues into verified, independently reviewed draft pull requests and never auto-merges or auto-approves."
     />
-    <meta property="og:title" content="Flowly — AI-native engineering assistant" />
+    <meta property="og:title" content="Flowly — factory software for GitHub repositories" />
     <meta
       property="og:description"
-      content="AI-native engineering assistant for modern development: repository analysis, PR review, event-driven automation, and grounded answers with citations."
+      content="Run an evidence-first software factory on your GitHub repository: issue planning, isolated implementation, verification, independent review, and draft pull requests."
     />
     <meta property="og:type" content="website" />
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
@@ -957,19 +957,18 @@
             <div class="reveal in">
               <div class="hero-badge">
                 <span class="hero-badge-dot"></span>
-                Reference implementation · Flue 2.0
+                Factory software · Flue 2.0
               </div>
-              <h1>Ask your codebase <span class="grad">anything</span>. Get evidence, not guesses.</h1>
+              <h1>Turn GitHub issues into <span class="grad">reviewed draft PRs</span>.</h1>
               <p class="hero-desc">
-                A read-only AI agent that inspects any Git repository with
-                <strong style="color: var(--text-primary)">five typed tools</strong> and a
-                <strong style="color: var(--teal)">plan → execute → reflect</strong> loop. Every
-                answer comes with file-and-line citations and a confidence level.
+                Flowly is factory software you run against any GitHub repository. It plans an issue,
+                implements it in an isolated clone, runs repository-native checks, performs an
+                independent review, and opens a <strong style="color: var(--teal)">draft PR</strong>.
               </p>
               <div class="hero-meta">
-                <span><span class="tick">✓</span> read-only — no shell, no write, no Git, no network</span>
-                <span><span class="tick">✓</span> shared inspection budget, default 8</span>
-                <span><span class="tick">✓</span> plan → execute → reflect</span>
+                <span><span class="tick">✓</span> target repository chosen by your workflow</span>
+                <span><span class="tick">✓</span> isolated implementation and bounded verification</span>
+                <span><span class="tick">✓</span> never auto-merges or auto-approves</span>
               </div>
               <div class="hero-actions">
                 <a href="#start" class="btn btn-primary">Get started</a>
@@ -1177,12 +1176,21 @@ meta-tools (<span class="pre-accent">create_plan · replan · reflect_plan</span
       <section id="beyond">
         <div class="container">
           <p class="section-label">Beyond the loop</p>
-          <h2 class="section-title">A small agent, surrounded by the tools to trust it.</h2>
+          <h2 class="section-title">A repository factory with trust boundaries you can inspect.</h2>
           <p class="section-desc">
-            The core loop is the foundation. Around it live a PR reviewer, an event router, a model
-            benchmark, a reliability layer, and a living set of architecture docs.
+            The evidence-first loop is the foundation. Around it live controlled implementation,
+            independent review, GitHub event routing, evaluation, and reliability controls.
           </p>
           <div class="beyond-grid">
+            <div class="beyond-card reveal">
+              <span class="beyond-tag">factory</span>
+              <h3>Issue to reviewed draft PR</h3>
+              <p>
+                A <code>factory</code> label starts classification, grounded planning, isolated
+                implementation, repository-native verification, independent review, and draft-PR
+                publication. Failed checks stop before publication.
+              </p>
+            </div>
             <div class="beyond-card reveal">
               <span class="beyond-tag">agent</span>
               <h3>PR review agent</h3>
@@ -1413,9 +1421,9 @@ meta-tools (<span class="pre-accent">create_plan · replan · reflect_plan</span
       <section id="start">
         <div class="container">
           <p class="section-label">Get started</p>
-          <h2 class="section-title">Two clones, one question.</h2>
+          <h2 class="section-title">Use the assistant locally. Run the factory in GitHub Actions.</h2>
           <p class="section-desc">
-            Point the agent at any local Git repository. The default target is
+            Point the read-only assistant at any local Git repository. The example target is
             <a href="https://github.com/jellydn/oak" style="color: var(--teal)">project-oak/oak</a>,
             a Rust monorepo for privacy-preserving distributed systems.
           </p>
@@ -1459,17 +1467,21 @@ cp .env.example .env
               </p>
             </div>
             <div class="quick-win">
-              <h4>Route a GitHub event</h4>
+              <h4>Apply the factory to a GitHub repository</h4>
               <p>
-                <code>npm run route-event</code> maps a webhook payload to an agent with declarative
-                routes — the seed of event-driven workflows.
+                Adapt the checked-in Event Router workflow in the target repository, run Flowly
+                alongside its checkout, add the model-provider secret, then label an actionable issue
+                <code>factory</code>. Flowly opens only a verified draft PR; it never merges or approves.
               </p>
             </div>
           </div>
           <p style="margin-top: 24px; font-size: 0.875rem; color: var(--text-muted)">
             Requires Node.js ≥ 22.19.0. Override
             <code style="color: var(--text-secondary)">REPOSITORY_PATH</code> to inspect any local
-            checkout; tune the budget with
+            checkout. GitHub automation is source-integrated, not a hosted app: the target workflow
+            must make Flowly available and install that repository's required toolchain. The current
+            factory entrypoint assumes <code style="color: var(--text-secondary)">origin/main</code>;
+            adapt its base-ref wiring for another default branch. Tune the budget with
             <code style="color: var(--text-secondary)">REPO_ASSISTANT_MAX_STEPS</code>.
           </p>
         </div>

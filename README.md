@@ -1,18 +1,25 @@
 # Flowly
 
-> AI-native engineering assistant for modern development.
+> Factory software for any GitHub repository.
 
 [![CI](https://github.com/jellydn/flowly/actions/workflows/ci.yml/badge.svg)](https://github.com/jellydn/flowly/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-**Flowly** is an AI-native engineering assistant built with [Flue](https://flueframework.com/) that helps you understand codebases, review pull requests, and automate development workflows. It features bounded, read-only repository analysis through an intelligent **observe → act → reflect** loop.
+**Flowly** is factory software built with [Flue](https://flueframework.com/) that turns GitHub issues
+into independently reviewed draft pull requests. It can operate on any GitHub repository you check
+out and configure it against; it is not tied to Flowly's own source tree or to one language. The
+factory is backed by a bounded repository assistant, a PR reviewer, and a GitHub event router, so the
+same evidence-first system can also explain a codebase and review human-authored changes.
 
-The default target is [jellydn/oak](https://github.com/jellydn/oak), a large
-Rust-focused monorepo for privacy-preserving distributed systems.
+Flowly is a reference implementation you run in your own CI environment, not a hosted service or a
+one-click GitHub App. Applying it to a repository means running the Flowly runtime alongside that
+repository's checkout and granting the workflow only the GitHub and model credentials it needs.
 
 ## Features
 
-- One Flue agent
+- An issue → plan → implementation → verification → independent review → draft PR factory
+- A factory-owned `factory/*` branch per accepted issue; never auto-merges or auto-approves
+- One general-purpose Flue repository agent
 - Five typed, read-only tools (`list_files`, `read_file`, `search_code`,
   `search_docs`, `retrieve` — semantic TF-IDF retrieval)
 - A PR review agent (`agents/pr-reviewer.ts`) with review-specific tools and a
@@ -58,6 +65,39 @@ The default model is `openrouter/qwen/qwen3-coder`, which requires an
 `OPENROUTER_API_KEY`. Set `REPO_ASSISTANT_MODEL` to any model listed in
 [Flue's model catalog](https://flueframework.com/models.json) to use another
 provider.
+
+## Use Flowly with any GitHub repository
+
+There are two supported boundaries:
+
+- **Local repository analysis:** set `REPOSITORY_PATH` to any local Git checkout, then run the repo
+  assistant. This path is read-only.
+- **GitHub factory automation:** run Flowly's scripts from a workflow in the target repository, with
+  `REPOSITORY_PATH` pointing at that workflow's checkout and `GITHUB_REPOSITORY` identifying it.
+  The target repository's `GITHUB_TOKEN` then scopes issue comments, factory branches, reviews, and
+  draft pull requests to that repository.
+
+The checked-in [Event Router workflow](./.github/workflows/event-router.yml) is wired directly to
+this repository. To adopt it elsewhere, copy and adapt that workflow in the target repository. The
+job must:
+
+1. check out the target repository with full Git history;
+2. make the Flowly source available in a separate directory and run `npm ci` there;
+3. run Flowly commands from that directory while setting `REPOSITORY_PATH` to the target checkout;
+4. add an `OPENROUTER_API_KEY` Actions secret (or configure another supported model/provider); and
+5. install any language or build tools required by the target repository's verification commands.
+
+Keep `GITHUB_EVENT_NAME`, `GITHUB_EVENT_PATH`, and `GITHUB_REPOSITORY` sourced from the Actions
+context, as the checked-in workflow does. Once integrated, label an actionable issue `factory`.
+Flowly classifies and plans the issue, changes an isolated clone, runs repository-native checks,
+performs an independent review, and opens a draft PR only if verification passes. Non-actionable
+issues and failed checks stop without a PR.
+
+This is repository-portable, not zero-configuration: Flowly does not install itself into other
+repositories, provision missing toolchains, choose production credentials, merge a pull request, or
+approve its own work. The current production entrypoint also uses `origin/main` as the factory base
+ref. A repository with a different default branch must adapt that base-ref wiring before enabling
+the factory; there is not yet an environment-variable override.
 
 ## Quick start
 
@@ -319,7 +359,7 @@ lockfiles, snapshots, and vendored code are detected and skipped.
 
 ### Running it
 
-A GitHub Actions workflow (`.github/workflows/pr-review.yml`) runs the reviewer
+The routed `review` job in `.github/workflows/event-router.yml` runs the reviewer
 on `opened`, `reopened`, `synchronize`, and `ready_for_review` events. Locally:
 
 ```bash
@@ -349,6 +389,10 @@ the first `createSessionEnv` call. Persistence is opt-in and remains separate
 from the read-only repository inspection tools.
 
 ## Controlled factory implementation
+
+This is Flowly's core factory path. It operates on the repository selected by
+`REPOSITORY_PATH` and `GITHUB_REPOSITORY`; no implementation stage is specific
+to `jellydn/flowly`.
 
 `planFactoryIssue` is the read-only analyst stage. Its production adapter asks
 the configured model to select relevant paths from the confined repository

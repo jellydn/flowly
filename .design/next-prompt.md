@@ -9,6 +9,11 @@ copy the header/nav/footer from `docs/index.html` verbatim and mark
 `docs/index.html` too if a new link is added, and keep the design system
 exact (dark, amber + teal, JetBrains Mono).
 
+Keep the current product framing: Flowly is factory software that users run
+against a configured GitHub repository. Explain the benchmark as evidence for
+choosing models for that factory; do not imply that Flowly is a hosted service,
+installs itself into repositories, or auto-merges and auto-approves changes.
+
 Facts to cover (verify against `eval/README.md` and `scripts/flue-eval.ts`):
 - ORI-Eval-inspired framework; 7 capstone scenarios; deterministic mode needs
   no LLM key (safe for CI); `--live` uses an OpenAI-compatible client.

@@ -4,10 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0a0a0b" />
-  <title>Flowly: Ask your codebase anything</title>
-  <meta name="description" content="Flowly is an AI-native engineering assistant that inspects any Git repository with five read-only tools and a plan → execute → reflect loop. Every answer ships with file-and-line citations and a confidence level." />
-  <meta property="og:title" content="Flowly: AI-native engineering assistant" />
-  <meta property="og:description" content="Ask your codebase anything. Get evidence, not guesses." />
+  <title>Flowly: Factory software for GitHub repositories</title>
+  <meta name="description" content="Flowly turns GitHub issues into verified, independently reviewed draft pull requests on the repository you configure it against." />
+  <meta property="og:title" content="Flowly: Factory software for GitHub repositories" />
+  <meta property="og:description" content="Issue in. Verified draft pull request out. Never auto-merged or auto-approved." />
   <meta property="og:type" content="website" />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="stylesheet" href="styles.css" />
@@ -31,18 +31,17 @@
       <div class="container">
         <div class="hero-grid">
           <div class="reveal">
-            <div class="hero-badge"><span class="hero-badge-dot"></span>AI-native engineering assistant · Flue 2.0</div>
-            <h1>Ask your codebase <span class="grad">anything</span>. Get evidence, not guesses.</h1>
+            <div class="hero-badge"><span class="hero-badge-dot"></span>Factory software · Flue 2.0</div>
+            <h1>Turn GitHub issues into <span class="grad">reviewed draft PRs</span>.</h1>
             <p class="hero-desc">
-              A read-only AI agent that inspects any Git repository with
-              <strong>five typed tools</strong> and a
-              <strong class="accent">plan → execute → reflect</strong> loop. Every
-              answer ships with file-and-line citations and a confidence level.
+              Run Flowly against any GitHub repository you configure. It grounds a plan in the
+              repository, implements in an isolated clone, runs native checks, and opens a
+              <strong class="accent">draft pull request</strong> after independent review.
             </p>
             <div class="hero-meta">
-              <span><span class="tick">✓</span> read-only: no shell, no write, no network</span>
-              <span><span class="tick">✓</span> shared inspection budget, default 8</span>
-              <span><span class="tick">✓</span> honest when evidence is missing</span>
+              <span><span class="tick">✓</span> isolated factory-owned branches</span>
+              <span><span class="tick">✓</span> repository-native verification</span>
+              <span><span class="tick">✓</span> never auto-merges or auto-approves</span>
             </div>
             <div class="hero-actions">
               <a href="https://github.com/jellydn/flowly" class="btn btn-primary">View on GitHub</a>
@@ -151,8 +150,8 @@ Scenario: Authentication flow (docs + code)
     <section>
       <div class="container">
         <div class="cta-banner reveal">
-          <h2>Point it at your repository.</h2>
-          <p>One clone, one question, evidence-backed answers.</p>
+          <h2>Bring factory software to your repository.</h2>
+          <p>Run Flowly alongside the target checkout in GitHub Actions, then label an actionable issue <code>factory</code>. Integration, the repository's toolchain, and adapting the current <code>origin/main</code> base-ref assumption remain under your control.</p>
           <div class="hero-actions">
             <a href="https://github.com/jellydn/flowly" class="btn btn-primary">Get Flowly</a>
             <a href="features.html" class="btn btn-secondary">Explore the features</a>

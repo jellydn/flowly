@@ -7,8 +7,8 @@
 | Field | Value |
 |-------|-------|
 | **Project Name** | Flowly docs site |
-| **Mission** | Show how Flowly, an AI-native engineering assistant, answers codebase questions with cited evidence — and teach the safety-through-architecture story |
-| **Target Audience** | Developers evaluating the agent, Flue learners, and contributors to the repo |
+| **Mission** | Present Flowly as factory software that can operate on any configured GitHub repository, while showing the evidence and architecture behind safe issue-to-draft-PR automation |
+| **Target Audience** | Developers applying factory automation to a repository, Flue learners, and contributors to Flowly |
 | **Voice & Tone** | Precise, calm, evidence-first; developer-to-developer |
 | **Region** | International (US English) |
 

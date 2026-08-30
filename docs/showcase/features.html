@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0a0a0b" />
   <title>Features: Flowly</title>
-  <meta name="description" content="Five read-only tools, a plan → execute → reflect loop, a PR reviewer that never auto-approves, a GitHub event router, and a deterministic model benchmark." />
+  <meta name="description" content="Flowly's GitHub factory, five read-only tools, independent PR review, event routing, and deterministic model benchmark." />
   <meta property="og:title" content="Flowly features" />
   <meta property="og:type" content="website" />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
@@ -112,6 +112,30 @@
 
         <div class="feature">
           <div class="feature-copy">
+            <p class="section-label">Factory</p>
+            <h2>Issue in, reviewed draft PR out</h2>
+            <p>Label an actionable GitHub issue <code>factory</code>. Flowly classifies it, creates a repository-grounded plan, implements it in an isolated clone, runs the plan's repository-native checks, and sends the real diff to an independent reviewer.</p>
+            <ul>
+              <li>Factory-owned <code>factory/*</code> branches only</li>
+              <li>Failed verification stops without a pull request</li>
+              <li>Publishes a draft; never auto-merges or auto-approves</li>
+            </ul>
+          </div>
+          <div class="terminal">
+            <div class="terminal-bar"><span class="terminal-title">issues.labeled.factory</span></div>
+            <pre><span class="output">classify</span> → <span class="output">plan</span> → <span class="output">implement</span>
+    → <span class="highlight">verify</span> → <span class="highlight">independent review</span>
+    → <span class="ok">draft pull request</span>
+
+  target: repository checked out by the workflow
+  branch: factory/&lt;issue&gt;-&lt;slug&gt;
+  merge:  never
+  approve: never</pre>
+          </div>
+        </div>
+
+        <div class="feature">
+          <div class="feature-copy">
             <p class="section-label">Review</p>
             <h2>PR review that never auto-approves</h2>
             <p>A second agent reviews pull requests with file-aware limits, incremental diffs since the last review, and repository-specific memory. The model emits structured findings; a trusted publisher re-validates every one before posting.</p>
@@ -139,7 +163,7 @@
           <div class="feature-copy">
             <p class="section-label">Automation</p>
             <h2>Route GitHub events to agents</h2>
-            <p>A dependency-light router maps GitHub events (PRs, issues, comments, reviews, workflow runs) to agent IDs with declarative routes and filters. It only decides; your workflow wires the dispatch.</p>
+            <p>A dependency-light router maps GitHub events (PRs, issues, comments, reviews, workflow runs) to agent IDs with declarative routes and filters. The router only decides; the checked-in workflow wires the review and factory jobs.</p>
             <ul>
               <li>First-match routing with AND-ed filters</li>
               <li>Duplicate deliveries deduplicated</li>
@@ -154,6 +178,7 @@
     "pull_request_review.submitted": "address-review",
     "issues.opened": "planner",
     "issues.labeled.implement": "implementation",
+    "issues.labeled.factory": "factory",
     "workflow_run.completed.failure": "ci-fix"
   }
 }</pre>
