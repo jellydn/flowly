@@ -15,6 +15,7 @@ import {
   reviewFactoryImplementation,
 } from './review.ts';
 import type { FactoryRun } from './types.ts';
+import { assertFactoryAutonomyGate } from './autonomy.ts';
 
 export type IndependentReviewPipelineDependencies = {
   orchestrator: FactoryOrchestrator;
@@ -45,11 +46,19 @@ export async function runIndependentReviewAndPublish(
   if (current.state !== 'reviewing') {
     throw new Error(`Factory run ${current.id} is ${current.state}; expected reviewing.`);
   }
+  assertFactoryAutonomyGate(current, 'publication');
 
-  const reviewed = current.review
-    ? current
-    : await recordIndependentReview(current, dependencies);
-  const pullRequest = await dependencies.publisher.publish(reviewed);
+  const reviewed = current.review ? current : await recordIndependentReview(current, dependencies);
+  if (!reviewed.review?.readyForHumanReview) {
+    await dependencies.orchestrator.recordAutonomyEvent(reviewed.id, 'review-failure');
+  }
+  let pullRequest;
+  try {
+    pullRequest = await dependencies.publisher.publish(reviewed);
+  } catch (error) {
+    await dependencies.orchestrator.recordAutonomyEvent(reviewed.id, 'publication-failure');
+    throw error;
+  }
   if (pullRequest.state !== 'open' || !pullRequest.draft) {
     throw new Error('Factory publisher refused a non-draft pull request.');
   }

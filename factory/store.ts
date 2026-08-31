@@ -8,6 +8,7 @@ export type FactoryRunStore = {
   save(run: FactoryRun, expectedVersion: number): Promise<void>;
   createOrGet(run: FactoryRun): Promise<{ run: FactoryRun; created: boolean }>;
   findByIssue(repository: string, issueNumber: number): Promise<FactoryRun | null>;
+  listByRepository(repository: string): Promise<FactoryRun[]>;
 };
 
 export function assertRunVersion(
@@ -59,6 +60,12 @@ export class MemoryFactoryRunStore implements FactoryRunStore {
     const existingId = this.issueRuns.get(issueKey(repository, issueNumber));
     return existingId ? this.load(existingId) : null;
   }
+
+  async listByRepository(repository: string): Promise<FactoryRun[]> {
+    return [...this.runs.values()]
+      .filter((run) => run.task.repository === repository)
+      .map((run) => structuredClone(run));
+  }
 }
 
 /**
@@ -80,6 +87,10 @@ export class FileFactoryRunStore implements FactoryRunStore {
 
   async findByIssue(repository: string, issueNumber: number): Promise<FactoryRun | null> {
     return readRunFile(this.filePath(repository, issueNumber));
+  }
+
+  async listByRepository(repository: string): Promise<FactoryRun[]> {
+    return (await this.readAll()).filter((run) => run.task.repository === repository);
   }
 
   async createOrGet(run: FactoryRun): Promise<{ run: FactoryRun; created: boolean }> {

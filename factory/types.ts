@@ -57,6 +57,71 @@ export type ReviewVerdict = {
   unresolvedFindings: string[];
 };
 
+export const FACTORY_AUTONOMY_LEVELS = [
+  'plan-only',
+  'implement-and-verify',
+  'publish-draft-pr',
+] as const;
+export type FactoryAutonomyLevel = (typeof FACTORY_AUTONOMY_LEVELS)[number];
+
+export const FACTORY_AUTONOMY_EVENTS = [
+  'verification-failure',
+  'review-failure',
+  'security-failure',
+  'publication-failure',
+] as const;
+export type FactoryAutonomyEvent = (typeof FACTORY_AUTONOMY_EVENTS)[number];
+
+export type FactoryAutonomyBoundary = 'implementation' | 'publication';
+export type FactoryManualConfirmation = FactoryAutonomyBoundary;
+
+export type FactoryAutonomyPolicy = {
+  version: string;
+  promotionEnabled: boolean;
+  defaultLevel: FactoryAutonomyLevel;
+  maximumLevel: FactoryAutonomyLevel;
+  minimumSamples: {
+    implementAndVerify: number;
+    publishDraftPr: number;
+  };
+  promotionThresholds: {
+    verificationSuccessRate: number;
+    reviewReadyRate: number;
+    publicationSuccessRate: number;
+  };
+  demotions: Partial<Record<FactoryAutonomyEvent, FactoryAutonomyLevel>>;
+};
+
+export type FactoryAutonomyEvidence = {
+  runsConsidered: number;
+  verificationSamples: number;
+  verificationSuccesses: number;
+  verificationSuccessRate: number;
+  reviewSamples: number;
+  reviewReady: number;
+  reviewReadyRate: number;
+  publicationSamples: number;
+  publicationSuccesses: number;
+  publicationSuccessRate: number;
+  events: FactoryAutonomyEvent[];
+};
+
+export type FactoryAutonomyGateDecision = {
+  boundary: FactoryAutonomyBoundary;
+  allowed: boolean;
+  manualConfirmation: boolean;
+  reason: string;
+  decidedAt: number;
+};
+
+export type FactoryAutonomyAudit = {
+  policyVersion: string;
+  evidence: FactoryAutonomyEvidence;
+  effectiveLevel: FactoryAutonomyLevel;
+  explanation: string[];
+  gateDecisions: FactoryAutonomyGateDecision[];
+};
+
 export type FactoryRun = {
   id: string;
   task: FactoryTask;
@@ -67,6 +132,8 @@ export type FactoryRun = {
   branch?: string;
   implementation?: ImplementationResult;
   review?: ReviewVerdict;
+  autonomy?: FactoryAutonomyAudit;
+  autonomyEvents?: FactoryAutonomyEvent[];
   prNumber?: number;
   failure?: string;
   updatedAt: number;

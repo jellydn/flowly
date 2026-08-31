@@ -1,5 +1,11 @@
 import * as v from 'valibot';
-import { FACTORY_RUN_STATES, type FactoryRun, type FactoryRunState } from './types.ts';
+import {
+  FACTORY_AUTONOMY_EVENTS,
+  FACTORY_AUTONOMY_LEVELS,
+  FACTORY_RUN_STATES,
+  type FactoryRun,
+  type FactoryRunState,
+} from './types.ts';
 
 const factoryRunStateSchema = v.picklist(
   FACTORY_RUN_STATES as unknown as [FactoryRunState, ...FactoryRunState[]],
@@ -54,6 +60,36 @@ const reviewVerdictSchema = v.object({
   unresolvedFindings: v.array(v.string()),
 });
 
+const autonomyEvidenceSchema = v.object({
+  runsConsidered: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  verificationSamples: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  verificationSuccesses: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  verificationSuccessRate: v.pipe(v.number(), v.minValue(0), v.maxValue(1)),
+  reviewSamples: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  reviewReady: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  reviewReadyRate: v.pipe(v.number(), v.minValue(0), v.maxValue(1)),
+  publicationSamples: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  publicationSuccesses: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  publicationSuccessRate: v.pipe(v.number(), v.minValue(0), v.maxValue(1)),
+  events: v.array(v.picklist(FACTORY_AUTONOMY_EVENTS)),
+});
+
+const autonomyAuditSchema = v.object({
+  policyVersion: v.pipe(v.string(), v.minLength(1)),
+  evidence: autonomyEvidenceSchema,
+  effectiveLevel: v.picklist(FACTORY_AUTONOMY_LEVELS),
+  explanation: v.array(v.string()),
+  gateDecisions: v.array(
+    v.object({
+      boundary: v.picklist(['implementation', 'publication']),
+      allowed: v.boolean(),
+      manualConfirmation: v.boolean(),
+      reason: v.string(),
+      decidedAt: v.pipe(v.number(), v.integer(), v.minValue(0)),
+    }),
+  ),
+});
+
 /** Persistence contract for a factory run snapshot. */
 export const factoryRunSchema = v.object({
   id: v.pipe(v.string(), v.minLength(1)),
@@ -65,6 +101,8 @@ export const factoryRunSchema = v.object({
   branch: v.optional(v.pipe(v.string(), v.minLength(1))),
   implementation: v.optional(implementationResultSchema),
   review: v.optional(reviewVerdictSchema),
+  autonomy: v.optional(autonomyAuditSchema),
+  autonomyEvents: v.optional(v.array(v.picklist(FACTORY_AUTONOMY_EVENTS))),
   prNumber: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1))),
   failure: v.optional(v.string()),
   updatedAt: v.pipe(v.number(), v.integer(), v.minValue(0)),

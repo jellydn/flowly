@@ -18,6 +18,8 @@ import {
 } from './pipeline.ts';
 import type { FactoryDraftPrPublisher } from './publisher.ts';
 import type { FactoryRun, FactoryTask } from './types.ts';
+import type { FactoryAutonomyPolicy, FactoryManualConfirmation } from './types.ts';
+import { decideFactoryAutonomyGate, evaluateFactoryAutonomy } from './autonomy.ts';
 
 export type FactoryPipelineDependencies = {
   orchestrator: FactoryOrchestrator;
@@ -33,6 +35,8 @@ export type FactoryPipelineDependencies = {
   judgmentsFrom: IndependentReviewPipelineDependencies['judgmentsFrom'];
   baseRef?: string;
   commitMessage?: string;
+  autonomyPolicy?: FactoryAutonomyPolicy;
+  manualConfirmation?: FactoryManualConfirmation;
 };
 
 /**
@@ -57,6 +61,13 @@ export async function advanceFactoryRun(
   dependencies: FactoryPipelineDependencies,
 ): Promise<FactoryRun> {
   let current = await dependencies.orchestrator.get(run.id);
+  if (!current.autonomy) {
+    const history = await dependencies.orchestrator.history(current.task.repository, current.id);
+    current = await dependencies.orchestrator.recordAutonomyAudit(
+      current.id,
+      evaluateFactoryAutonomy(dependencies.autonomyPolicy, history),
+    );
+  }
   if (
     current.state === 'needs-input' ||
     current.state === 'failed' ||
@@ -79,10 +90,20 @@ export async function advanceFactoryRun(
     current.state === 'implementing' ||
     current.state === 'verifying'
   ) {
+    current = await decideAndRecordGate(current, 'implementation', dependencies);
+    const implementationAllowed = current.autonomy?.gateDecisions.some(
+      (decision) => decision.boundary === 'implementation' && decision.allowed,
+    );
+    if (!implementationAllowed) return current;
     current = await runControlledImplementation(current, implementationDependencies(dependencies));
   }
   if (current.state === 'failed') return current;
   if (current.state === 'reviewing') {
+    current = await decideAndRecordGate(current, 'publication', dependencies);
+    const publicationAllowed = current.autonomy?.gateDecisions.some(
+      (decision) => decision.boundary === 'publication' && decision.allowed,
+    );
+    if (!publicationAllowed) return current;
     current = await runIndependentReviewAndPublish(current, {
       orchestrator: dependencies.orchestrator,
       reviewer: dependencies.reviewer,
@@ -93,6 +114,27 @@ export async function advanceFactoryRun(
     });
   }
   return current;
+}
+
+async function decideAndRecordGate(
+  run: FactoryRun,
+  boundary: 'implementation' | 'publication',
+  dependencies: FactoryPipelineDependencies,
+): Promise<FactoryRun> {
+  if (!run.autonomy) throw new Error(`Factory run ${run.id} has no autonomy audit.`);
+  const updated = await dependencies.orchestrator.recordAutonomyGate(
+    run.id,
+    boundary,
+    decideFactoryAutonomyGate(run.autonomy, boundary, dependencies.manualConfirmation),
+  );
+  const decision = updated.autonomy?.gateDecisions.find((item) => item.boundary === boundary);
+  if (decision && !decision.allowed) {
+    await dependencies.progress.publish(
+      updated.task,
+      `Factory autonomy gate stopped before ${boundary}: ${decision.reason} Human confirmation may advance this run by one boundary.`,
+    );
+  }
+  return updated;
 }
 
 function implementationDependencies(

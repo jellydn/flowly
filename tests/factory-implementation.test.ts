@@ -160,8 +160,36 @@ async function plannedRun(): Promise<{ orchestrator: FactoryOrchestrator; run: F
   const orchestrator = new FactoryOrchestrator(new MemoryFactoryRunStore());
   const { run } = await orchestrator.start(task);
   await orchestrator.classify(run.id, classification);
-  const planned = await orchestrator.plan(run.id, plan);
+  await orchestrator.plan(run.id, plan);
+  await orchestrator.recordAutonomyAudit(run.id, autonomyAudit('implement-and-verify'));
+  const planned = await orchestrator.recordAutonomyGate(run.id, 'implementation', {
+    allowed: true,
+    manualConfirmation: false,
+    reason: 'Test policy allows implementation.',
+  });
   return { orchestrator, run: planned };
+}
+
+function autonomyAudit(effectiveLevel: 'implement-and-verify') {
+  return {
+    policyVersion: 'test-v1',
+    evidence: {
+      runsConsidered: 0,
+      verificationSamples: 0,
+      verificationSuccesses: 0,
+      verificationSuccessRate: 0,
+      reviewSamples: 0,
+      reviewReady: 0,
+      reviewReadyRate: 0,
+      publicationSamples: 0,
+      publicationSuccesses: 0,
+      publicationSuccessRate: 0,
+      events: [],
+    },
+    effectiveLevel,
+    explanation: ['Test policy.'],
+    gateDecisions: [],
+  };
 }
 
 function fakeGit(calls: string[]): FactoryGitMutator {

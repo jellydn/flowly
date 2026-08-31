@@ -2,6 +2,7 @@ import type { FactoryGitWorkspace } from './git.ts';
 import type { FactoryOrchestrator } from './orchestrator.ts';
 import type { FactoryRun, FactoryTask, ImplementationPlan } from './types.ts';
 import type { VerificationCommandResult } from './verification.ts';
+import { assertFactoryAutonomyGate } from './autonomy.ts';
 
 export type FactoryImplementerInput = {
   task: FactoryTask;
@@ -44,6 +45,7 @@ export async function runControlledImplementation(
   plannedRun: FactoryRun,
   dependencies: ControlledImplementationDependencies,
 ): Promise<FactoryRun> {
+  assertFactoryAutonomyGate(plannedRun, 'implementation');
   if (plannedRun.state === 'verifying') {
     return resumeVerification(plannedRun, dependencies);
   }
@@ -106,5 +108,13 @@ async function resumeVerification(
   if (failure === undefined) {
     await dependencies.git.push(workspace, verifying.implementation.commitSha);
   }
-  return dependencies.orchestrator.recordVerification(verifying.id, failure === undefined, failure);
+  const result = await dependencies.orchestrator.recordVerification(
+    verifying.id,
+    failure === undefined,
+    failure,
+  );
+  if (failure !== undefined) {
+    return dependencies.orchestrator.recordAutonomyEvent(result.id, 'verification-failure');
+  }
+  return result;
 }

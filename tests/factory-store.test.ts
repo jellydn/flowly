@@ -159,6 +159,28 @@ describe('GitHub factory run store', () => {
 
     assert.equal((await store.findByIssue(task.repository, 94))?.id, 'run-1');
   });
+
+  test('enumerates bot-authored persisted outcomes across the repository', async () => {
+    const previous = { ...queuedRun('run-93'), task: { ...task, issueNumber: 93 } };
+    const current = queuedRun('run-94');
+    const client = fakeCommentClient(
+      [botComment(2, encodeFactoryRunComment(current))],
+      [
+        botComment(1, encodeFactoryRunComment(previous)),
+        botComment(2, encodeFactoryRunComment(current)),
+        {
+          ...botComment(3, encodeFactoryRunComment(queuedRun('spoofed'))),
+          user: { login: 'attacker' },
+        },
+      ],
+    );
+    const store = createGitHubFactoryRunStore(client, 94);
+
+    assert.deepEqual((await store.listByRepository(task.repository)).map((run) => run.id).sort(), [
+      'run-93',
+      'run-94',
+    ]);
+  });
 });
 
 function queuedRun(id: string): FactoryRun {
@@ -180,7 +202,10 @@ async function withStore(run: (directory: string) => Promise<void>): Promise<voi
   }
 }
 
-function fakeCommentClient(seed: IssueComment[] = []): FactoryRunCommentClientFake {
+function fakeCommentClient(
+  seed: IssueComment[] = [],
+  repositorySeed: IssueComment[] = seed,
+): FactoryRunCommentClientFake {
   const comments = [...seed];
   let nextId = 1000;
   const created: string[] = [];
@@ -190,6 +215,9 @@ function fakeCommentClient(seed: IssueComment[] = []): FactoryRunCommentClientFa
     created,
     async listIssueComments() {
       return comments;
+    },
+    async listRepositoryIssueComments() {
+      return repositorySeed;
     },
     async createIssueComment(_issueNumber, body) {
       created.push(body);
@@ -229,6 +257,7 @@ type FactoryRunCommentClientFake = {
   repo: string;
   created: string[];
   listIssueComments(issueNumber: number): Promise<IssueComment[]>;
+  listRepositoryIssueComments(): Promise<IssueComment[]>;
   createIssueComment(issueNumber: number, body: string): Promise<{ id: number; html_url: string }>;
   updateIssueComment(commentId: number, body: string): Promise<{ id: number; html_url: string }>;
 };

@@ -6,6 +6,7 @@ import { FactoryDraftPrPublisher, type FactoryPullRequestClient } from '../facto
 import { runFactoryPipeline, type FactoryPipelineDependencies } from '../factory/run.ts';
 import { MemoryFactoryRunStore } from '../factory/store.ts';
 import type { FactoryTask, ImplementationPlan, TaskClassification } from '../factory/types.ts';
+import type { FactoryAutonomyPolicy } from '../factory/types.ts';
 
 const task: FactoryTask = {
   issueNumber: 94,
@@ -36,6 +37,79 @@ const DIFF = [
 const COMMIT = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
 describe('runFactoryPipeline', () => {
+  test('defaults to plan only when no autonomy policy is configured', async () => {
+    const calls: string[] = [];
+    const dependencies = pipelineDependencies(calls);
+    dependencies.autonomyPolicy = undefined;
+
+    const result = await runFactoryPipeline(task, dependencies);
+
+    assert.equal(result.state, 'planned');
+    assert.equal(result.autonomy?.effectiveLevel, 'plan-only');
+    assert.equal(
+      result.autonomy?.gateDecisions.find((decision) => decision.boundary === 'implementation')
+        ?.allowed,
+      false,
+    );
+    assert.equal(
+      calls.some((call) => call.startsWith('implement:')),
+      false,
+    );
+    assert.equal(
+      calls.some((call) => call.startsWith('create:')),
+      false,
+    );
+  });
+
+  test('implement-and-verify level stops before review and draft publication', async () => {
+    const calls: string[] = [];
+    const dependencies = pipelineDependencies(calls);
+    dependencies.autonomyPolicy = {
+      ...publishPolicy,
+      version: 'test-verify-v1',
+      defaultLevel: 'implement-and-verify',
+      maximumLevel: 'implement-and-verify',
+    };
+
+    const result = await runFactoryPipeline(task, dependencies);
+
+    assert.equal(result.state, 'reviewing');
+    assert.equal(result.review, undefined);
+    assert.equal(result.prNumber, undefined);
+    assert.equal(
+      calls.some((call) => call.startsWith('review:')),
+      false,
+    );
+    assert.equal(
+      calls.some((call) => call.startsWith('create:')),
+      false,
+    );
+  });
+
+  test('one-run confirmations advance one boundary and remain idempotent on retry', async () => {
+    const calls: string[] = [];
+    const dependencies = pipelineDependencies(calls);
+    dependencies.autonomyPolicy = undefined;
+    dependencies.manualConfirmation = 'implementation';
+
+    const implemented = await runFactoryPipeline(task, dependencies);
+    assert.equal(implemented.state, 'reviewing');
+    assert.equal(implemented.prNumber, undefined);
+    assert.equal(
+      implemented.autonomy?.gateDecisions.find((decision) => decision.boundary === 'implementation')
+        ?.manualConfirmation,
+      true,
+    );
+
+    dependencies.manualConfirmation = 'publication';
+    const published = await runFactoryPipeline(task, dependencies);
+    const retried = await runFactoryPipeline(task, dependencies);
+    assert.equal(published.state, 'completed');
+    assert.equal(retried.id, published.id);
+    assert.equal(calls.filter((call) => call.startsWith('implement:')).length, 1);
+    assert.equal(calls.filter((call) => call.startsWith('create:')).length, 1);
+  });
+
   test('runs classify → plan → implement → review → draft PR without merging', async () => {
     const calls: string[] = [];
     const dependencies = pipelineDependencies(calls);
@@ -193,8 +267,23 @@ function pipelineDependencies(
         satisfied: true,
         evidence: `${criterion.description} is present in the diff.`,
       })),
+    autonomyPolicy: publishPolicy,
   };
 }
+
+const publishPolicy: FactoryAutonomyPolicy = {
+  version: 'test-publish-v1',
+  promotionEnabled: false,
+  defaultLevel: 'publish-draft-pr',
+  maximumLevel: 'publish-draft-pr',
+  minimumSamples: { implementAndVerify: 1, publishDraftPr: 1 },
+  promotionThresholds: {
+    verificationSuccessRate: 1,
+    reviewReadyRate: 1,
+    publicationSuccessRate: 1,
+  },
+  demotions: {},
+};
 
 function fakeGit(calls: string[]): FactoryGitMutator {
   return {

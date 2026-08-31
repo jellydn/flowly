@@ -454,6 +454,45 @@ selects a local JSON directory for development only. The job can push
 Classifier, planner, implementer, and reviewer use `FACTORY_MODEL` (falling
 back to `REPO_ASSISTANT_MODEL`); the workflow supplies its provider key.
 
+### Graduated factory autonomy
+
+Flowly applies a repository policy before the two trusted boundaries that can
+increase side effects. With no `FACTORY_AUTONOMY_POLICY`, every repository
+cold-starts at **Plan only** and no isolated workspace mutation begins. The
+three maximum levels are:
+
+1. **Plan only** — classify and persist a repository-grounded plan.
+2. **Implement and verify** — mutate only the isolated factory workspace,
+   push the factory branch after checks pass, and stop before independent review
+   or PR publication.
+3. **Publish draft PR** — run independent review and create or reuse the same
+   draft-only PR as the existing trusted publisher.
+
+`factory-autonomy.example.json` documents the validated policy shape. Set
+`promotionEnabled` to opt into deterministic history-based promotion; it is
+disabled by default. `defaultLevel` is always bounded by `maximumLevel`, sample
+minimums prevent promotion from sparse history, and each threshold is a 0–1
+rate. Configured verification, review, security, or publication events lower
+the effective level immediately. Operators can recover after investigating a
+demotion by supplying a clean bounded outcome window in persistent history or
+by lowering/adjusting a versioned policy; every new run records the exact policy
+version, evidence snapshot, explanation, and gate decisions it used.
+
+Evidence comes only from persisted Flowly run snapshots: verification command
+outcomes, independent-review readiness, draft publication, and enumerated
+failure events. GitHub issue comments provide bounded repository-wide history;
+local development uses the file store. PR disposition is counted only when it
+is present in Flowly's persisted state, so manually closed or merged PRs may be
+unknown and never increase trust. No opaque model score contributes to a level.
+
+`FACTORY_CONFIRM_BOUNDARY=implementation` or `publication` confirms exactly one
+otherwise-blocked boundary for the current persisted run. It does not change
+the repository policy or effective level, and retries reuse the recorded gate
+decision without repeating implementation or publication. None of the levels
+adds approval, merge, deployment, production writes, network access inside the
+implementer, or broader credentials. The top level still publishes **drafts
+only** for human review.
+
 ## GitHub event router
 
 `github/events/` is a dependency-light router that maps GitHub events to

@@ -231,7 +231,31 @@ async function verifyingRun(): Promise<{
     commands: [{ command: 'npm test', exitCode: 0 }],
   });
   const reviewing = await orchestrator.recordVerification(run.id, true);
-  return { orchestrator, run: reviewing };
+  await orchestrator.recordAutonomyAudit(run.id, {
+    policyVersion: 'test-v1',
+    evidence: {
+      runsConsidered: 0,
+      verificationSamples: 0,
+      verificationSuccesses: 0,
+      verificationSuccessRate: 0,
+      reviewSamples: 0,
+      reviewReady: 0,
+      reviewReadyRate: 0,
+      publicationSamples: 0,
+      publicationSuccesses: 0,
+      publicationSuccessRate: 0,
+      events: [],
+    },
+    effectiveLevel: 'publish-draft-pr',
+    explanation: ['Test policy.'],
+    gateDecisions: [],
+  });
+  const gated = await orchestrator.recordAutonomyGate(run.id, 'publication', {
+    allowed: true,
+    manualConfirmation: false,
+    reason: 'Test policy allows publication.',
+  });
+  return { orchestrator, run: gated.state === 'reviewing' ? gated : reviewing };
 }
 
 function fakeClient(calls: string[]): FactoryPullRequestClient & {
