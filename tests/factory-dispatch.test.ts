@@ -71,6 +71,19 @@ function pipelineDependencies(): FactoryPipelineDependencies {
   }> = [];
   return {
     orchestrator: new FactoryOrchestrator(new MemoryFactoryRunStore()),
+    autonomyPolicy: {
+      version: 'dispatch-test-v1',
+      promotionEnabled: false,
+      defaultLevel: 'publish-draft-pr',
+      maximumLevel: 'publish-draft-pr',
+      minimumSamples: { implementAndVerify: 1, publishDraftPr: 1 },
+      promotionThresholds: {
+        verificationSuccessRate: 1,
+        reviewReadyRate: 1,
+        publicationSuccessRate: 1,
+      },
+      demotions: {},
+    },
     classifier: {
       async classify() {
         return {
