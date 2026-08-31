@@ -36,7 +36,7 @@ npx tsx --test tests/<file>.test.ts   # single file
 ```
 tests/
 ├── helpers.ts                  # fixture builder + tool invocation
-├── *.test.ts                   # 46 test files
+├── *.test.ts                   # 47 test files
 ```
 
 ## Test Structure
@@ -118,7 +118,7 @@ export async function createSampleRepo(): Promise<string> {
 
 **Integration Tests:**
 
-- Scope: tool pipelines against the sample fixture (`tools.test.ts`, `eval-scenarios.test.ts`, `doc-aware.test.ts`, `repository-search.test.ts`), full event-router flow (`event-router.test.ts`), benchmark runner end-to-end (`bench-runner.test.ts`, `flue-eval-cli.test.ts` — the latter spawns the actual CLI via `spawnSync`), GitHub adapter (mock fetch)
+- Scope: tool pipelines against the sample fixture (`tools.test.ts`, `eval-scenarios.test.ts`, `doc-aware.test.ts`, `repository-search.test.ts`, `relationship-index.test.ts`), full event-router flow (`event-router.test.ts`), benchmark runner end-to-end (`bench-runner.test.ts`, `flue-eval-cli.test.ts` — the latter spawns the actual CLI via `spawnSync`), GitHub adapter (mock fetch)
 - Approach: deterministic deciders and static model calls keep them key-free and reproducible
 - Factory Git integration uses temporary real repositories and a local bare remote; no network or shared branch is touched (`factory-git.test.ts`). Controlled implementation and verification use plain dependency fakes plus real subprocess execution (`factory-implementation.test.ts`, `factory-verification.test.ts`). Independent review isolation uses orchestrator state plus a distinctive scratch token that must not appear in reviewer input (`factory-review.test.ts`). The draft-PR publisher uses an in-memory GitHub client fake and never opens a network connection (`factory-publisher.test.ts`). The read-only planner stage uses the same orchestrator fakes (`factory-plan.test.ts`). The review-and-publish pipeline composes those fakes end-to-end (`factory-pipeline.test.ts`). `runFactoryPipeline` covers the full classify → plan → implement → review → draft PR chain, including non-actionable stops and failed verification (`factory-run.test.ts`). Labeled-issue dispatch parses `issues.labeled` payloads and rejects non-factory events (`factory-dispatch.test.ts`). The file-backed run store round-trips JSON snapshots in a temp directory; the GitHub comment store reuses one bot-authored issue comment (`factory-store.test.ts`).
 

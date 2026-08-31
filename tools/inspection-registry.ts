@@ -4,6 +4,7 @@ import { createReadFileTool } from './read-file.ts';
 import { createSearchCodeTool } from './search-code.ts';
 import { createSearchDocsTool } from './search-docs.ts';
 import { createRetrieveTool } from './retrieve.ts';
+import { createRelatedContextTool } from './related-context.ts';
 import type { DebugLogger, RepositoryReader, StepBudget } from './repository.ts';
 import type { FailureInjector } from '../reliability/failure-injection.ts';
 import type { ReliabilityLogger } from '../reliability/observability.ts';
@@ -14,7 +15,13 @@ import {
 } from '../reliability/resilient-tool.ts';
 import { withSearchReadFallback } from '../reliability/fallback-tool.ts';
 
-export type InspectionToolName = 'list_files' | 'read_file' | 'search_code' | 'search_docs' | 'retrieve';
+export type InspectionToolName =
+  | 'list_files'
+  | 'read_file'
+  | 'search_code'
+  | 'search_docs'
+  | 'retrieve'
+  | 'related_context';
 
 export type InspectionRegistryOptions = {
   repository: RepositoryReader;
@@ -47,6 +54,7 @@ const TOOL_NAMES = [
   'search_code',
   'search_docs',
   'retrieve',
+  'related_context',
 ] as const satisfies readonly InspectionToolName[];
 
 export type RawToolFactories = Readonly<Record<InspectionToolName, RawToolFactory>>;
@@ -54,7 +62,7 @@ export type RawToolFactories = Readonly<Record<InspectionToolName, RawToolFactor
 /**
  * The single source of truth for the inspection tool set. Both the reliable
  * registry below and the standalone budgeted builder share this map, so no
- * other module re-lists the five tools.
+ * other module re-lists the inspection tools.
  */
 export const rawToolFactories: RawToolFactories = {
   list_files: (repository) => createListFilesTool(repository),
@@ -62,6 +70,7 @@ export const rawToolFactories: RawToolFactories = {
   search_code: (repository) => createSearchCodeTool(repository),
   search_docs: (repository) => createSearchDocsTool(repository),
   retrieve: (repository) => createRetrieveTool(repository),
+  related_context: (repository) => createRelatedContextTool(repository),
 };
 
 /**
@@ -82,7 +91,7 @@ export function createBudgetedInspectionTools(
 }
 
 /**
- * Build the five inspection tools once, applying the same reliability policy
+ * Build the inspection tools once, applying the same reliability policy
  * to every raw tool. When `searchFallback` is set, the two search tools are
  * composed with the search→read fallback seam instead of plain reliability.
  * The returned list is the single registration source for live agent

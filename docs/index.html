@@ -934,7 +934,9 @@
         </ul>
         <div class="nav-actions">
           <a href="https://github.com/jellydn/flowly" class="nav-cta">GitHub</a>
-          <button class="nav-burger" id="burger" aria-label="Toggle menu" aria-expanded="false">☰</button>
+          <button class="nav-burger" id="burger" aria-label="Toggle menu" aria-expanded="false">
+            ☰
+          </button>
         </div>
       </div>
       <div class="container">
@@ -963,11 +965,15 @@
               <p class="hero-desc">
                 Flowly is factory software you run against any GitHub repository. It plans an issue,
                 implements it in an isolated clone, runs repository-native checks, performs an
-                independent review, and opens a <strong style="color: var(--teal)">draft PR</strong>.
+                independent review, and opens a
+                <strong style="color: var(--teal)">draft PR</strong>.
               </p>
               <div class="hero-meta">
                 <span><span class="tick">✓</span> target repository chosen by your workflow</span>
-                <span><span class="tick">✓</span> isolated implementation and bounded verification</span>
+                <span
+                  ><span class="tick">✓</span> isolated implementation and bounded
+                  verification</span
+                >
                 <span><span class="tick">✓</span> never auto-merges or auto-approves</span>
               </div>
               <div class="hero-actions">
@@ -989,7 +995,9 @@
               <div class="hero-terminal-body" id="terminal">
                 <span class="terminal-line terminal-hidden">
                   <span class="prompt">$</span>
-                  <span class="cmd">npm start -- --input '{"message":"How does Oak authenticate enclaves?"}'</span>
+                  <span class="cmd"
+                    >npm start -- --input '{"message":"How does Oak authenticate enclaves?"}'</span
+                  >
                 </span>
                 <span class="terminal-line terminal-hidden">
                   <span class="output">plan:</span> <span class="highlight">create_plan</span>
@@ -1011,7 +1019,8 @@
                 </span>
                 <span class="terminal-line terminal-hidden">
                   <span class="output">reflect:</span> <span class="highlight">reflect_plan</span>
-                  <span class="dim">"steps 2-3 could merge"</span> <span class="dim">budget 3/8</span>
+                  <span class="dim">"steps 2-3 could merge"</span>
+                  <span class="dim">budget 3/8</span>
                 </span>
                 <span class="terminal-line terminal-hidden">
                   <span class="ok">✓ answer</span>
@@ -1065,25 +1074,37 @@
             <div class="tool-card reveal">
               <div class="tool-icon">🗂️</div>
               <div class="tool-name">list_files</div>
-              <p>Walk the repository tree — the cheapest way to discover structure when a path is unknown.</p>
+              <p>
+                Walk the repository tree — the cheapest way to discover structure when a path is
+                unknown.
+              </p>
               <span class="tool-budget">consumes budget</span>
             </div>
             <div class="tool-card reveal" style="--d: 0.05s">
               <div class="tool-icon">📄</div>
               <div class="tool-name">read_file</div>
-              <p>Read a bounded line range (≤ 400 lines) from a known file to ground claims in context.</p>
+              <p>
+                Read a bounded line range (≤ 400 lines) from a known file to ground claims in
+                context.
+              </p>
               <span class="tool-budget">consumes budget</span>
             </div>
             <div class="tool-card reveal" style="--d: 0.1s">
               <div class="tool-icon">🔎</div>
               <div class="tool-name">search_code</div>
-              <p>Literal search over source files (≤ 50 matches) for symbols, config, and implementations.</p>
+              <p>
+                Literal search over source files (≤ 50 matches) for symbols, config, and
+                implementations.
+              </p>
               <span class="tool-budget">consumes budget</span>
             </div>
             <div class="tool-card reveal">
               <div class="tool-icon">📚</div>
               <div class="tool-name">search_docs</div>
-              <p>Literal search over documentation files — README, AGENTS, CHANGELOG, docs/, Markdown.</p>
+              <p>
+                Literal search over documentation files — README, AGENTS, CHANGELOG, docs/,
+                Markdown.
+              </p>
               <span class="tool-budget">consumes budget</span>
             </div>
             <div class="tool-card reveal" style="--d: 0.05s">
@@ -1099,8 +1120,8 @@
               <div class="tool-icon">🧭</div>
               <div class="tool-name">create_plan · replan · reflect_plan</div>
               <p>
-                Declare a 3–5 step plan before inspecting, revise it when a step returns nothing, and
-                reflect on whether steps could merge.
+                Declare a 3–5 step plan before inspecting, revise it when a step returns nothing,
+                and reflect on whether steps could merge.
               </p>
               <span class="tool-budget free">meta-tools — no budget</span>
             </div>
@@ -1156,7 +1177,7 @@
               <pre>
 Question ──▶ ┌────────────────┐       ┌──────────────────────────────────────┐
              │  Flue harness  │──────▶│ <span class="pre-teal">list_files / read_file / search_code</span>  │
-             │   + LLM        │◀──────│ <span class="pre-teal">search_docs / retrieve</span> (semantic)   │
+             │   + LLM        │◀──────│ <span class="pre-teal">search_docs / retrieve / related_context</span> │
              │ plan→execute→  │       │ read-only, wrapped in reliability      │
              │   reflect      │       └───────────────────┬────────────────────┘
              └───────┬────────┘                           │
@@ -1195,8 +1216,8 @@ meta-tools (<span class="pre-accent">create_plan · replan · reflect_plan</span
               <span class="beyond-tag">agent</span>
               <h3>PR review agent</h3>
               <p>
-                Reviews pull requests with file-aware limits (30 files, 4000 diff lines), incremental
-                reviews, and repository memory — and never auto-approves.
+                Reviews pull requests with file-aware limits (30 files, 4000 diff lines),
+                incremental reviews, and repository memory — and never auto-approves.
               </p>
             </div>
             <div class="beyond-card reveal" style="--d: 0.05s">
@@ -1333,7 +1354,7 @@ meta-tools (<span class="pre-accent">create_plan · replan · reflect_plan</span
               <div class="security-item-text">
                 <h4>Finite inspection budget</h4>
                 <p>
-                  One shared 1–20 call budget across all five tools; exhaustion stops the loop and
+                  One shared 1–20 call budget across all six tools; exhaustion stops the loop and
                   the agent answers from collected evidence.
                 </p>
               </div>
@@ -1354,7 +1375,7 @@ meta-tools (<span class="pre-accent">create_plan · replan · reflect_plan</span
                 <h4>No shell, Git, or network</h4>
                 <p>
                   Flue's default filesystem and shell tools are removed. Access exists only through
-                  the five inspection tools.
+                  the six inspection tools.
                 </p>
               </div>
             </div>
@@ -1372,37 +1393,64 @@ meta-tools (<span class="pre-accent">create_plan · replan · reflect_plan</span
             records explain why it is shaped this way.
           </p>
           <div class="docs-grid">
-            <a href="https://github.com/jellydn/flowly/blob/main/docs/adr/README.md" class="doc-card reveal">
+            <a
+              href="https://github.com/jellydn/flowly/blob/main/docs/adr/README.md"
+              class="doc-card reveal"
+            >
               <div class="doc-card-type">docs/adr</div>
               <h3>ADR index</h3>
               <p>Event router, model eval, tool-seam, and live-eval decisions.</p>
             </a>
-            <a href="https://github.com/jellydn/flowly/blob/main/docs/adr/0001-event-router.md" class="doc-card reveal" style="--d: 0.05s">
+            <a
+              href="https://github.com/jellydn/flowly/blob/main/docs/adr/0001-event-router.md"
+              class="doc-card reveal"
+              style="--d: 0.05s"
+            >
               <div class="doc-card-type">ADR 0001</div>
               <h3>GitHub event router</h3>
               <p>Why events map to agents via declarative routes.</p>
             </a>
-            <a href="https://github.com/jellydn/flowly/blob/main/docs/adr/0002-model-eval-benchmark.md" class="doc-card reveal" style="--d: 0.1s">
+            <a
+              href="https://github.com/jellydn/flowly/blob/main/docs/adr/0002-model-eval-benchmark.md"
+              class="doc-card reveal"
+              style="--d: 0.1s"
+            >
               <div class="doc-card-type">ADR 0002</div>
               <h3>Model eval benchmark</h3>
               <p>Deterministic scoring without a provider key.</p>
             </a>
-            <a href="https://github.com/jellydn/flowly/blob/main/docs/adr/0003-tool-composition-seam.md" class="doc-card reveal" style="--d: 0.15s">
+            <a
+              href="https://github.com/jellydn/flowly/blob/main/docs/adr/0003-tool-composition-seam.md"
+              class="doc-card reveal"
+              style="--d: 0.15s"
+            >
               <div class="doc-card-type">ADR 0003</div>
               <h3>Tool composition seam</h3>
               <p>One seam for budgets, reliability, and search scope.</p>
             </a>
-            <a href="https://github.com/jellydn/flowly/blob/main/docs/adr/0004-live-eval-provider-seam.md" class="doc-card reveal" style="--d: 0.2s">
+            <a
+              href="https://github.com/jellydn/flowly/blob/main/docs/adr/0004-live-eval-provider-seam.md"
+              class="doc-card reveal"
+              style="--d: 0.2s"
+            >
               <div class="doc-card-type">ADR 0004</div>
               <h3>Live-eval provider seam</h3>
               <p>Per-model providers, model-driven loop, LLM judge.</p>
             </a>
-            <a href="https://github.com/jellydn/flowly/blob/main/docs/adr/0005-transcript-based-showcase.md" class="doc-card reveal" style="--d: 0.25s">
+            <a
+              href="https://github.com/jellydn/flowly/blob/main/docs/adr/0005-transcript-based-showcase.md"
+              class="doc-card reveal"
+              style="--d: 0.25s"
+            >
               <div class="doc-card-type">ADR 0005</div>
               <h3>Transcript-based showcase</h3>
               <p>Verbatim demo transcripts, not screenshots; relative Pages assets.</p>
             </a>
-            <a href="https://github.com/jellydn/flowly/blob/main/.planning/codebase/STACK.md" class="doc-card reveal" style="--d: 0.3s">
+            <a
+              href="https://github.com/jellydn/flowly/blob/main/.planning/codebase/STACK.md"
+              class="doc-card reveal"
+              style="--d: 0.3s"
+            >
               <div class="doc-card-type">codemap</div>
               <h3>Code map</h3>
               <p>Stack, architecture, conventions, concerns, and more.</p>
@@ -1410,9 +1458,21 @@ meta-tools (<span class="pre-accent">create_plan · replan · reflect_plan</span
           </div>
           <p style="margin-top: 20px; font-size: 0.875rem; color: var(--text-muted)">
             Also read
-            <a href="https://github.com/jellydn/flowly/blob/main/README.md" style="color: var(--teal)">README.md</a>,
-            <a href="https://github.com/jellydn/flowly/blob/main/AGENTS.md" style="color: var(--teal)">AGENTS.md</a>, and the
-            <a href="https://github.com/jellydn/flowly/blob/main/eval/README.md" style="color: var(--teal)">eval documentation</a>.
+            <a
+              href="https://github.com/jellydn/flowly/blob/main/README.md"
+              style="color: var(--teal)"
+              >README.md</a
+            >,
+            <a
+              href="https://github.com/jellydn/flowly/blob/main/AGENTS.md"
+              style="color: var(--teal)"
+              >AGENTS.md</a
+            >, and the
+            <a
+              href="https://github.com/jellydn/flowly/blob/main/eval/README.md"
+              style="color: var(--teal)"
+              >eval documentation</a
+            >.
           </p>
         </div>
       </section>
@@ -1421,7 +1481,9 @@ meta-tools (<span class="pre-accent">create_plan · replan · reflect_plan</span
       <section id="start">
         <div class="container">
           <p class="section-label">Get started</p>
-          <h2 class="section-title">Use the assistant locally. Run the factory in GitHub Actions.</h2>
+          <h2 class="section-title">
+            Use the assistant locally. Run the factory in GitHub Actions.
+          </h2>
           <p class="section-desc">
             Point the read-only assistant at any local Git repository. The example target is
             <a href="https://github.com/jellydn/oak" style="color: var(--teal)">project-oak/oak</a>,
@@ -1433,8 +1495,8 @@ meta-tools (<span class="pre-accent">create_plan · replan · reflect_plan</span
               <div>
                 <p class="step-label">Clone both repositories as siblings</p>
                 <code
-                  >git clone https://github.com/jellydn/flowly.git
-git clone --depth 1 https://github.com/jellydn/oak.git</code
+                  >git clone https://github.com/jellydn/flowly.git git clone --depth 1
+                  https://github.com/jellydn/oak.git</code
                 >
               </div>
             </div>
@@ -1443,10 +1505,10 @@ git clone --depth 1 https://github.com/jellydn/oak.git</code
               <div>
                 <p class="step-label">Install dependencies and set your API key</p>
                 <code
-                  >cd flowly
-npm install
-cp .env.example .env
-<span style="color: var(--text-muted)"># add your OPENROUTER_API_KEY to .env</span></code
+                  >cd flowly npm install cp .env.example .env
+                  <span style="color: var(--text-muted)"
+                    ># add your OPENROUTER_API_KEY to .env</span
+                  ></code
                 >
               </div>
             </div>
@@ -1462,16 +1524,18 @@ cp .env.example .env
             <div class="quick-win">
               <h4>Run the benchmark without an LLM key</h4>
               <p>
-                <code>npm run eval -- run</code> — seven deterministic scenarios, safe for CI.
-                Add <code>--live --json</code> to hit a real provider.
+                <code>npm run eval -- run</code> — seven deterministic scenarios, safe for CI. Add
+                <code>--live --json</code> to hit a real provider.
               </p>
             </div>
             <div class="quick-win">
               <h4>Apply the factory to a GitHub repository</h4>
               <p>
                 Adapt the checked-in Event Router workflow in the target repository, run Flowly
-                alongside its checkout, add the model-provider secret, then label an actionable issue
-                <code>factory</code>. Flowly opens only a verified draft PR; it never merges or approves.
+                alongside its checkout, add the model-provider secret, then label an actionable
+                issue
+                <code>factory</code>. Flowly opens only a verified draft PR; it never merges or
+                approves.
               </p>
             </div>
           </div>
@@ -1480,8 +1544,9 @@ cp .env.example .env
             <code style="color: var(--text-secondary)">REPOSITORY_PATH</code> to inspect any local
             checkout. GitHub automation is source-integrated, not a hosted app: the target workflow
             must make Flowly available and install that repository's required toolchain. The current
-            factory entrypoint assumes <code style="color: var(--text-secondary)">origin/main</code>;
-            adapt its base-ref wiring for another default branch. Tune the budget with
+            factory entrypoint assumes
+            <code style="color: var(--text-secondary)">origin/main</code>; adapt its base-ref wiring
+            for another default branch. Tune the budget with
             <code style="color: var(--text-secondary)">REPO_ASSISTANT_MAX_STEPS</code>.
           </p>
         </div>
@@ -1517,7 +1582,7 @@ cp .env.example .env
             menu.classList.remove('open');
             burger.setAttribute('aria-expanded', 'false');
             burger.textContent = '☰';
-          })
+          }),
         );
       }
 
@@ -1542,7 +1607,7 @@ cp .env.example .env
               }
             });
           },
-          { threshold: 0.12 }
+          { threshold: 0.12 },
         );
         reveals.forEach((el) => io.observe(el));
       }

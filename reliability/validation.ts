@@ -260,3 +260,54 @@ export function validateRetrieveResult(output: unknown): ValidationResult<{
 
   return { ok: true, value: shape.value as never };
 }
+
+export function validateRelatedContextResult(output: unknown): ValidationResult<{
+  path: string;
+  relationship: string | null;
+  relationships: unknown[];
+  resultCount: number;
+  diagnostics: unknown[];
+  indexStats: unknown;
+  inspection: unknown;
+}> {
+  const shape = validateShape(output, {
+    path: 'string',
+    relationships: 'array',
+    resultCount: 'number',
+    diagnostics: 'array',
+    indexStats: 'object',
+    inspection: 'object',
+  });
+  if (!shape.ok) return shape;
+
+  const relationships = (shape.value as { relationships: unknown[] }).relationships;
+  for (const value of relationships) {
+    const edge = value as Record<string, unknown> | undefined;
+    if (
+      typeof edge?.id !== 'string' ||
+      typeof edge.relationship !== 'string' ||
+      typeof edge.source !== 'object' ||
+      typeof edge.target !== 'object' ||
+      typeof edge.citation !== 'object'
+    ) {
+      return {
+        ok: false,
+        error: new InvalidToolResponseError('Related-context edge has an invalid shape'),
+      };
+    }
+    const citation = edge.citation as Record<string, unknown>;
+    if (
+      typeof citation.path !== 'string' ||
+      typeof citation.line !== 'number' ||
+      typeof citation.excerpt !== 'string'
+    ) {
+      return {
+        ok: false,
+        error: new InvalidToolResponseError('Related-context citation has an invalid shape'),
+      };
+    }
+    const size = validateContentSize(citation.excerpt, 1_000);
+    if (!size.ok) return size;
+  }
+  return { ok: true, value: shape.value as never };
+}

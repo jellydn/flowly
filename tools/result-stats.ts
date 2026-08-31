@@ -23,9 +23,11 @@ export function countToolResult(toolName: string, output: unknown): number | und
   if (toolName === 'read_file') {
     return (output as { totalLines?: number })?.totalLines;
   }
-  if (toolName === 'retrieve') {
+  if (toolName === 'retrieve' || toolName === 'related_context') {
     const results = (output as { results?: unknown[] })?.results;
-    return Array.isArray(results) ? results.length : undefined;
+    const relationships = (output as { relationships?: unknown[] })?.relationships;
+    const value = toolName === 'retrieve' ? results : relationships;
+    return Array.isArray(value) ? value.length : undefined;
   }
   return undefined;
 }

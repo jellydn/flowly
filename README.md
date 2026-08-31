@@ -20,8 +20,9 @@ repository's checkout and granting the workflow only the GitHub and model creden
 - An issue → plan → implementation → verification → independent review → draft PR factory
 - A factory-owned `factory/*` branch per accepted issue; never auto-merges or auto-approves
 - One general-purpose Flue repository agent
-- Five typed, read-only tools (`list_files`, `read_file`, `search_code`,
-  `search_docs`, `retrieve` — semantic TF-IDF retrieval)
+- Six typed, read-only tools (`list_files`, `read_file`, `search_code`,
+  `search_docs`, `retrieve` — semantic TF-IDF retrieval, and `related_context`
+  — cited repository relationships)
 - A PR review agent (`agents/pr-reviewer.ts`) with review-specific tools and a
   trusted GitHub adapter — never auto-approves
 - A GitHub event router (`github/events/`) that maps repository events to
@@ -213,9 +214,9 @@ defaults. Findings are validated against the PR diff before posting; findings us
 
 ## How the bound works
 
-Every `list_files`, `read_file`, `search_code`, `search_docs`, or `retrieve`
+Every `list_files`, `read_file`, `search_code`, `search_docs`, `retrieve`, or `related_context`
 call consumes one shared inspection step. Tool results include `used` and
-`remaining`; after that limit, all five inspection tools reject further calls
+`remaining`; after that limit, all six inspection tools reject further calls
 and the instructions
 require the agent to answer from collected evidence. Each tool result carries an
 `inspection` object of the shape `{ used, remaining, limit }` so the model can see whether
@@ -232,14 +233,14 @@ nonexistent setting.
 
 ## Read-only guarantees
 
-The agent's only application-data capabilities are five custom inspection
+The agent's only application-data capabilities are six custom inspection
 tools. They use Node's read-only filesystem APIs and expose no shell, write,
 Git, or network operation. A restricted in-memory sandbox removes Flue's default
 model-facing filesystem and shell tools.
 
 Flue still appends its framework-owned `activate_skill` and `task` tools. This
 project has no declared subagent profiles and explicitly instructs the agent not
-to delegate. An implicit task would inherit the same five inspection tool
+to delegate. An implicit task would inherit the same six inspection tool
 instances and shared budget; it cannot reset the inspection limit or access the
 host checkout through the sandbox.
 
@@ -626,13 +627,14 @@ the agent loop.**
 
 ### When to select each tool
 
-| Tool          | Select when                                                                                   |
-| ------------- | --------------------------------------------------------------------------------------------- |
-| `list_files`  | The repository structure or a file path is unknown.                                           |
-| `search_docs` | You are looking for documented architecture, configuration, or design context.                |
-| `search_code` | You are looking for a symbol, phrase, configuration, or implementation whose path is unknown. |
-| `read_file`   | An exact file path is already known and surrounding context is needed.                        |
-| `retrieve`    | You need conceptual retrieval over indexed source and docs, not a literal match.              |
+| Tool              | Select when                                                                                        |
+| ----------------- | -------------------------------------------------------------------------------------------------- |
+| `list_files`      | The repository structure or a file path is unknown.                                                |
+| `search_docs`     | You are looking for documented architecture, configuration, or design context.                     |
+| `search_code`     | You are looking for a symbol, phrase, configuration, or implementation whose path is unknown.      |
+| `read_file`       | An exact file path is already known and surrounding context is needed.                             |
+| `retrieve`        | You need conceptual retrieval over indexed source and docs, not a literal match.                   |
+| `related_context` | You know a path and need explicit imports, owners, dependencies, linked docs, or issue references. |
 
 Selection rules baked into the agent instructions and the
 `analyzing-repositories` skill:
@@ -752,8 +754,8 @@ continuing—the stretch-goal dynamic replanning loop.
 | `replan`       | No               | Revise the plan when a step returns no results    |
 | `reflect_plan` | No               | State whether steps could be simplified or merged |
 
-The five inspection tools (`list_files`, `read_file`, `search_code`,
-`search_docs`, `retrieve`) still consume the shared budget as before. Planning
+The six inspection tools (`list_files`, `read_file`, `search_code`,
+`search_docs`, `retrieve`, `related_context`) still consume the shared budget as before. Planning
 tools are
 meta-tools that structure the agent's reasoning without inspecting the
 repository.
@@ -985,21 +987,31 @@ Grounded answer with citations + confidence
 
 ### Available tools
 
-| Tool           | Consumes budget? | Purpose                                         |
-| -------------- | ---------------- | ----------------------------------------------- |
-| `search_docs`  | Yes              | Search documentation files for a literal string |
-| `search_code`  | Yes              | Search source files for a literal string        |
-| `read_file`    | Yes              | Read a bounded line range from a known file     |
-| `list_files`   | Yes              | List files and directories under a path         |
-| `retrieve`     | Yes              | Semantic retrieval over the repository index    |
-| `create_plan`  | No               | Declare a 3–5 step plan before executing        |
-| `replan`       | No               | Revise the plan when a step returns no results  |
-| `reflect_plan` | No               | Reflect on whether steps could be simplified    |
+| Tool              | Consumes budget? | Purpose                                         |
+| ----------------- | ---------------- | ----------------------------------------------- |
+| `search_docs`     | Yes              | Search documentation files for a literal string |
+| `search_code`     | Yes              | Search source files for a literal string        |
+| `read_file`       | Yes              | Read a bounded line range from a known file     |
+| `list_files`      | Yes              | List files and directories under a path         |
+| `retrieve`        | Yes              | Semantic retrieval over the repository index    |
+| `related_context` | Yes              | Cited repository relationship lookup            |
+| `create_plan`     | No               | Declare a 3–5 step plan before executing        |
+| `replan`          | No               | Revise the plan when a step returns no results  |
+| `reflect_plan`    | No               | Reflect on whether steps could be simplified    |
 
 `search_docs` searches files with documentation extensions (`.md`, `.markdown`,
 `.txt`) and documentation basenames (README, AGENTS, SOUL, CHANGELOG,
 CONTRIBUTING, LICENSE). It excludes the same ignored directories as
 `search_code` (node_modules, dist, .git, etc.).
+
+`related_context` builds a repository-local in-memory relationship index lazily
+and performs no network or write operations. It extracts relative JavaScript/
+TypeScript imports and exports, package-manifest dependencies, `CODEOWNERS`
+rules, Markdown links, and explicit GitHub issue/PR references. Every returned
+edge identifies its relationship, source, target, and repository-relative
+file/line citation. Unsupported or malformed inputs are skipped and surfaced
+as bounded diagnostics. Use `retrieve` for textual or conceptual similarity;
+use `related_context` only for explicit relationships involving a known path.
 
 ### Planning-loop limits
 
@@ -1145,7 +1157,8 @@ flowly/
 │   ├── loop.ts
 │   └── types.ts
 ├── index/
-│   └── repository-indexer.ts   # lazy TF-IDF index backing `retrieve`
+│   ├── repository-indexer.ts   # lazy TF-IDF index backing `retrieve`
+│   └── repository-relationship-index.ts # cited relationship graph
 ├── planner/
 │   ├── plan-run.ts             # plan lifecycle + programmatic executor + replan
 │   ├── plan-store.ts
@@ -1164,7 +1177,7 @@ flowly/
 │   └── validation.ts
 ├── tools/
 │   ├── contracts.ts            # tool names + shared limits
-│   ├── inspection-registry.ts  # ordered composition of the five tools
+│   ├── inspection-registry.ts  # ordered composition of inspection tools
 │   ├── list-files.ts
 │   ├── read-file.ts
 │   ├── repository-search.ts    # bounded literal search

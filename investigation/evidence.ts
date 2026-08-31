@@ -130,5 +130,23 @@ export function extractEvidence(tool: string, output: unknown, collector: Eviden
         relevance: Math.max(0.3, Math.min(0.8, item.score)),
       });
     }
+  } else if (tool === 'related_context') {
+    const result = output as {
+      relationships?: Array<{
+        relationship: string;
+        target: { label: string };
+        citation: { path: string; line: number; excerpt: string };
+      }>;
+    };
+    for (const edge of result.relationships ?? []) {
+      collector.add({
+        filePath: edge.citation.path,
+        lineStart: edge.citation.line,
+        lineEnd: edge.citation.line,
+        excerpt: `${edge.relationship} ${edge.target.label}: ${edge.citation.excerpt}`,
+        sourceType: isDocumentationFile(edge.citation.path) ? 'documentation' : 'code',
+        relevance: 0.8,
+      });
+    }
   }
 }

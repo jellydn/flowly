@@ -33,7 +33,7 @@ after(async () => {
 
 describe('inspection registry', () => {
   test('builds one reliable tool per inspection contract in stable order', async () => {
-    const budget = createStepBudget(5);
+    const budget = createStepBudget(6);
     const registry = createInspectionRegistry({
       repository: await createRepositoryReader(root),
       budget,
@@ -45,10 +45,10 @@ describe('inspection registry', () => {
 
     assert.deepEqual(
       registry.list.map((tool) => tool.name),
-      ['list_files', 'read_file', 'search_code', 'search_docs', 'retrieve'],
+      ['list_files', 'read_file', 'search_code', 'search_docs', 'retrieve', 'related_context'],
     );
     assert.equal(registry.get('read_file'), registry.tools.read_file);
-    assert.equal(registry.list.length, 5);
+    assert.equal(registry.list.length, 6);
 
     const listResult = await runTool<{ entries: unknown[] }>(registry.get('list_files'), {
       path: '.',
@@ -71,13 +71,18 @@ describe('inspection registry', () => {
     const retrieveResult = await runTool<{ results: unknown[] }>(registry.get('retrieve'), {
       query: 'authentication',
     });
+    const relatedResult = await runTool<{ relationships: unknown[] }>(
+      registry.get('related_context'),
+      { path: 'src/auth.ts' },
+    );
 
     assert.ok(listResult.entries.length > 0);
     assert.match(readResult.content, /Sample Repository/);
     assert.ok(codeResult.matches.length > 0);
     assert.ok(docsResult.matches.length > 0);
     assert.ok(retrieveResult.results.length > 0);
-    assert.equal(budget.used, 5);
+    assert.ok(relatedResult.relationships.length > 0);
+    assert.equal(budget.used, 6);
   });
 
   test('searchFallback option composes the search tools with read fallback', async () => {
@@ -95,7 +100,7 @@ describe('inspection registry', () => {
     // Same names and order; only the search tools' run behaviour changes.
     assert.deepEqual(
       registry.list.map((tool) => tool.name),
-      ['list_files', 'read_file', 'search_code', 'search_docs', 'retrieve'],
+      ['list_files', 'read_file', 'search_code', 'search_docs', 'retrieve', 'related_context'],
     );
 
     const searchTool = registry.get('search_code') as ToolDefinition;

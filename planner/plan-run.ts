@@ -252,6 +252,7 @@ function summarizeResult(tool: PlanTool, output: unknown): string {
   if (tool === 'search_code' || tool === 'search_docs') return `${count} matches`;
   if (tool === 'list_files') return `${count} entries`;
   if (tool === 'retrieve') return `${count} chunks retrieved`;
+  if (tool === 'related_context') return `${count} relationships found`;
   return 'done';
 }
 
