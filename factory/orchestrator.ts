@@ -124,7 +124,7 @@ export class FactoryOrchestrator {
     return this.save({
       ...run,
       state: 'implementing',
-      branch: factoryBranch(run.task.issueNumber, run.task.title),
+      branch: factoryBranch(run.task.issueNumber, run.task.title, run.task.campaign),
     });
   }
 

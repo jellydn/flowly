@@ -20,6 +20,10 @@ export type FactoryTask = {
   title: string;
   body: string;
   repository: string;
+  campaign?: {
+    campaignId: string;
+    batchId: string;
+  };
 };
 
 export type TaskClassification = {
@@ -141,12 +145,23 @@ export type FactoryRun = {
   planningStartedAt?: number;
 };
 
-export function factoryBranch(issueNumber: number, title: string): string {
+export function factoryBranch(
+  issueNumber: number,
+  title: string,
+  campaign?: FactoryTask['campaign'],
+): string {
   const slug =
     title
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')
       .slice(0, 60) || 'issue';
-  return `factory/${issueNumber}-${slug}`;
+  const campaignSlug = campaign
+    ? `${campaign.campaignId}-${campaign.batchId}`
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
+        .slice(0, 50)
+    : undefined;
+  return `factory/${issueNumber}-${campaignSlug ? `${campaignSlug}-` : ''}${slug}`;
 }

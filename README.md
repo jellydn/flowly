@@ -493,6 +493,55 @@ adds approval, merge, deployment, production writes, network access inside the
 implementer, or broader credentials. The top level still publishes **drafts
 only** for human review.
 
+### Migration campaigns
+
+Migration campaigns decompose a repository-local mechanical migration into a
+deterministic inventory and bounded batches above the existing factory. A
+version-1 manifest records the goal, repository constraints, included/excluded
+path scopes, maximum files per batch, path-ordering dependencies, and required
+verification commands:
+
+```json
+{
+  "version": "1",
+  "id": "node-test-migration",
+  "repository": "owner/repo",
+  "issueNumber": 119,
+  "goal": "Replace the legacy test API with node:test",
+  "constraints": ["Preserve test behavior", "Do not edit generated files"],
+  "includePaths": ["src/**", "tests/**"],
+  "excludePaths": ["src/generated/**"],
+  "maxFilesPerBatch": 20,
+  "orderingDependencies": [{ "before": "src/**", "after": "tests/**" }],
+  "verificationCommands": ["npm test", "npm run typecheck"]
+}
+```
+
+`createMigrationCampaign` inventories through `RepositoryReader`, so ignored
+directories, symlinks, oversized files, and repository escapes follow the same
+rules as inspection tools. `buildMigrationCampaignPlan` sorts and deduplicates
+that inventory, applies declared ordering, enforces the batch limit, and emits
+a SHA-256 plan digest. Mutation remains impossible until a human calls
+`approveMigrationCampaign(store, id, planDigest, actor)` against that exact
+digest.
+
+After approval, `runMigrationCampaign` schedules ready batches and persists
+each status, failure, nested factory run, and draft PR number. The
+`createFactoryMigrationBatchExecutor` adapter sends every batch through the
+existing classifier → planner → isolated implementer → required verification →
+independent review → trusted draft-publisher path. It replaces the planner's
+file scope and verification list with the approved batch values. Completed
+batches and draft PRs are reused on retry. A failed batch blocks only dependent
+batches with the failure evidence; independent batches continue and remain
+resumable after operational errors.
+
+`MemoryMigrationCampaignStore` supports embedding/tests, while
+`FileMigrationCampaignStore` atomically persists resumable local campaigns.
+Campaign execution remains subject to the repository autonomy policy and never
+approves, merges, deploys, performs production/database migrations, or expands
+the implementer's credentials. Cross-repository campaigns and free-form task
+decomposition are intentionally outside the MVP.
+
 ## GitHub event router
 
 `github/events/` is a dependency-light router that maps GitHub events to

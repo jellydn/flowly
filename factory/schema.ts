@@ -16,6 +16,12 @@ const factoryTaskSchema = v.object({
   title: v.string(),
   body: v.string(),
   repository: v.pipe(v.string(), v.regex(/^.+\/.+$/)),
+  campaign: v.optional(
+    v.object({
+      campaignId: v.pipe(v.string(), v.minLength(1)),
+      batchId: v.pipe(v.string(), v.minLength(1)),
+    }),
+  ),
 });
 
 const classificationSchema = v.object({
