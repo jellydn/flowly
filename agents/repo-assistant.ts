@@ -83,7 +83,7 @@ cited evidence.
   returns ranked chunks with relevance scores. Follow up with read_file to
   confirm findings.
 - Use related_context when the question is relational and a path is known:
-  imports/callers, package dependencies, CODEOWNERS ownership, linked docs, or
+  module imports/importers, package dependencies, CODEOWNERS ownership, linked docs, or
   repository text that references an issue/PR. Every edge includes file/line
   evidence. Use retrieve instead when the relationship is conceptual rather
   than explicit.

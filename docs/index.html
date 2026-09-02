@@ -1042,7 +1042,7 @@
         <div class="container">
           <div class="stats-grid">
             <div>
-              <div class="stat-value"><em>5</em></div>
+              <div class="stat-value"><em>6</em></div>
               <div class="stat-label">inspection tools</div>
             </div>
             <div>
@@ -1065,7 +1065,7 @@
       <section id="toolkit">
         <div class="container">
           <p class="section-label">Toolkit</p>
-          <h2 class="section-title">Five tools. One budget. Zero side effects.</h2>
+          <h2 class="section-title">Six tools. One budget. Zero side effects.</h2>
           <p class="section-desc">
             Every inspection call consumes one step of a shared budget (1–20, default 8). Retries
             never multiply the cost — one step per logical call. Planning meta-tools are free.
@@ -1113,6 +1113,15 @@
               <p>
                 Semantic retrieval over a lazy TF-IDF index of source and docs, chunked at ~50-line
                 segments. No external embeddings, no vector database.
+              </p>
+              <span class="tool-budget">consumes budget</span>
+            </div>
+            <div class="tool-card reveal" style="--d: 0.1s">
+              <div class="tool-icon">🕸️</div>
+              <div class="tool-name">related_context</div>
+              <p>
+                Follow cited imports, dependencies, ownership, documentation links, and issue or
+                pull-request references from a known repository path.
               </p>
               <span class="tool-budget">consumes budget</span>
             </div>

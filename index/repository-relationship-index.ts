@@ -158,7 +158,7 @@ export async function buildRepositoryRelationshipIndex(
     }
   }
 
-  applyCodeowners(index, entries, codeowners, report);
+  applyCodeowners(index, entries, codeowners);
   index.stats.nodesIndexed = index.nodeCount;
   index.stats.edgesIndexed = index.edgeCount;
   index.stats.skippedEntries = skippedEntries;
@@ -280,16 +280,11 @@ function applyCodeowners(
   index: RepositoryRelationshipIndex,
   entries: Array<{ path: string; type: 'file' | 'directory' }>,
   rules: CodeownersRule[],
-  report: (path: string, message: string) => void,
 ): void {
   for (const entry of entries.sort((left, right) => left.path.localeCompare(right.path))) {
     let matched: (typeof rules)[number] | undefined;
     for (const rule of rules) {
-      try {
-        if (codeownersPattern(rule.pattern).test(entry.path)) matched = rule;
-      } catch {
-        report(rule.codeownersPath, `Skipped unsupported CODEOWNERS pattern ${rule.pattern}.`);
-      }
+      if (matchesCodeownersPattern(rule.pattern, entry.path)) matched = rule;
     }
     if (!matched) continue;
     const source = index.addNode(repositoryNode(entry.path, entry.type));
@@ -316,18 +311,61 @@ type CodeownersRule = {
   excerpt: string;
 };
 
-function codeownersPattern(pattern: string): RegExp {
+function matchesCodeownersPattern(pattern: string, candidate: string): boolean {
   const anchored = pattern.startsWith('/');
   const directory = pattern.endsWith('/');
-  let source = pattern.replace(/^\//, '').replace(/\/$/, '');
-  source = source
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*\*/g, '__DOUBLE_STAR__')
-    .replace(/\*/g, '[^/]*')
-    .replace(/\?/g, '[^/]')
-    .replace(/__DOUBLE_STAR__/g, '.*');
-  const prefix = anchored || pattern.includes('/') ? '^' : '(^|.*/)';
-  return new RegExp(`${prefix}${source}${directory ? '(?:/.*)?' : ''}$`);
+  const source = pattern.replace(/^\//, '').replace(/\/$/, '');
+
+  if (!anchored && !source.includes('/')) {
+    const segments = candidate.split('/');
+    return directory
+      ? segments.some((segment) => matchesGlob(source, segment))
+      : matchesGlob(source, segments.at(-1) ?? '');
+  }
+
+  if (matchesGlob(source, candidate)) return true;
+  if (!directory) return false;
+  return candidate
+    .split('/')
+    .slice(0, -1)
+    .some((_, index, segments) => matchesGlob(source, segments.slice(0, index + 1).join('/')));
+}
+
+function matchesGlob(pattern: string, candidate: string): boolean {
+  let previous = Array.from({ length: candidate.length + 1 }, (_, index) => index === 0);
+
+  for (let patternIndex = 0; patternIndex < pattern.length; patternIndex += 1) {
+    const token = pattern[patternIndex];
+    let wildcardEnd = patternIndex;
+    while (token === '*' && pattern[wildcardEnd + 1] === '*') wildcardEnd += 1;
+    const doubleStar = wildcardEnd > patternIndex;
+    const globstarDirectory = doubleStar && pattern[wildcardEnd + 1] === '/';
+    patternIndex = globstarDirectory ? wildcardEnd + 1 : wildcardEnd;
+
+    const current = Array.from({ length: candidate.length + 1 }, () => false);
+    if (token === '*') current[0] = previous[0] ?? false;
+    let canConsumeDirectory = previous[0] ?? false;
+    for (let candidateIndex = 1; candidateIndex <= candidate.length; candidateIndex += 1) {
+      const character = candidate[candidateIndex - 1];
+      if (globstarDirectory) {
+        current[candidateIndex] =
+          previous[candidateIndex] || (character === '/' && canConsumeDirectory);
+        canConsumeDirectory ||= previous[candidateIndex] ?? false;
+      } else if (token === '*') {
+        current[candidateIndex] =
+          previous[candidateIndex] ||
+          (character !== '/' && current[candidateIndex - 1]) ||
+          (doubleStar && current[candidateIndex - 1]);
+      } else if (token === '?' && character !== '/') {
+        current[candidateIndex] = previous[candidateIndex - 1];
+      } else if (token === character) {
+        current[candidateIndex] = previous[candidateIndex - 1];
+      }
+    }
+    previous = current;
+  }
+
+  return previous[candidate.length] ?? false;
 }
 
 function extractMarkdownRelationships(
@@ -360,7 +398,7 @@ function extractMarkdownRelationships(
   }
 
   const references =
-    /(?:https?:\/\/github\.com\/[\w.-]+\/[\w.-]+\/(issues|pull)\/(\d+)|\b([\w.-]+\/[\w.-]+)?#(\d+))\b/g;
+    /(?:https?:\/\/github\.com\/[\w.-]+\/[\w.-]+\/(issues|pull)\/(\d+)|(?<![\w.-])([\w.-]+\/[\w.-]+)?#(\d+))\b/g;
   for (const match of content.matchAll(references)) {
     const kind = match[1] === 'pull' ? 'pull' : 'issue';
     const number = match[2] ?? match[4];

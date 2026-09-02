@@ -34,6 +34,26 @@ async function ensureIndex(
   return holder.building;
 }
 
+async function waitForCaller<T>(promise: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (!signal) return promise;
+  signal.throwIfAborted();
+
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
 export function createRelatedContextTool(repository: RepositoryReader) {
   const holder: IndexHolder = { index: undefined, building: undefined };
 
@@ -51,9 +71,10 @@ export function createRelatedContextTool(repository: RepositoryReader) {
     }),
     async run({ data, signal }) {
       signal?.throwIfAborted();
-      const absolute = await repository.resolve(data.path);
+      const absolute = await waitForCaller(repository.resolve(data.path), signal);
+      signal?.throwIfAborted();
       const normalizedPath = repository.relative(absolute);
-      const index = await ensureIndex(holder, repository);
+      const index = await waitForCaller(ensureIndex(holder, repository), signal);
       const nodeIds = [`file:${normalizedPath}`, `directory:${normalizedPath}`];
       const nodeId = nodeIds.find((candidate) => index.hasNode(candidate));
       const relationships = nodeId

@@ -280,19 +280,42 @@ export function validateRelatedContextResult(output: unknown): ValidationResult<
   });
   if (!shape.ok) return shape;
 
-  const relationships = (shape.value as { relationships: unknown[] }).relationships;
+  const result = shape.value as Record<string, unknown>;
+  if (
+    !Object.hasOwn(result, 'relationship') ||
+    (result.relationship !== null && typeof result.relationship !== 'string')
+  ) {
+    return {
+      ok: false,
+      error: new InvalidToolResponseError(
+        'Tool output field "relationship" must be a string or null',
+      ),
+    };
+  }
+
+  const relationships = result.relationships as unknown[];
   for (const value of relationships) {
     const edge = value as Record<string, unknown> | undefined;
     if (
       typeof edge?.id !== 'string' ||
       typeof edge.relationship !== 'string' ||
+      !edge.source ||
       typeof edge.source !== 'object' ||
+      !edge.target ||
       typeof edge.target !== 'object' ||
+      !edge.citation ||
       typeof edge.citation !== 'object'
     ) {
       return {
         ok: false,
         error: new InvalidToolResponseError('Related-context edge has an invalid shape'),
+      };
+    }
+    const target = edge.target as Record<string, unknown>;
+    if (typeof target.label !== 'string') {
+      return {
+        ok: false,
+        error: new InvalidToolResponseError('Related-context target has an invalid shape'),
       };
     }
     const citation = edge.citation as Record<string, unknown>;
