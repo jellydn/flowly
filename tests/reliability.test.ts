@@ -421,8 +421,9 @@ describe('output validation', () => {
     };
 
     assert.equal(validateRelatedContextResult(valid).ok, true);
+    const { relationship: _relationship, ...withoutRelationship } = valid;
     for (const malformed of [
-      { ...valid, relationship: undefined },
+      withoutRelationship,
       { ...valid, relationships: [{ ...valid.relationships[0], target: null }] },
       { ...valid, relationships: [{ ...valid.relationships[0], target: {} }] },
       { ...valid, relationships: [{ ...valid.relationships[0], citation: null }] },
