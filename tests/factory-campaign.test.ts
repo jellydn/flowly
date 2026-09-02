@@ -7,6 +7,7 @@ import {
   approveMigrationCampaign,
   buildMigrationCampaignPlan,
   createMigrationCampaign,
+  matchesPath,
 } from '../factory/campaign.ts';
 import {
   campaignTask,
@@ -85,6 +86,16 @@ describe('migration campaign planning', () => {
         ),
       /cycle/,
     );
+  });
+
+  test('matches bounded scopes without regex backtracking or traversal', () => {
+    const started = performance.now();
+
+    assert.equal(matchesPath('src/**/auth.ts', 'src/auth.ts'), true);
+    assert.equal(matchesPath(`${'*'.repeat(32)}sentinel`, 'a'.repeat(500)), false);
+    assert.equal(matchesPath('../**', '../secrets.txt'), false);
+    assert.equal(matchesPath('/**', '/etc/passwd'), false);
+    assert.ok(performance.now() - started < 1_000);
   });
 
   test('uses RepositoryReader discovery and honors included/excluded paths', async () => {

@@ -161,15 +161,47 @@ function inManifestScope(filePath: string, manifest: MigrationCampaignManifest):
 
 export function matchesPath(pattern: string, filePath: string): boolean {
   const normalizedPattern = pattern.replace(/^\.\//, '').replace(/\/$/, '');
-  const source = normalizedPattern
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*\*/g, '__DOUBLE_STAR__')
-    .replace(/\*/g, '[^/]*')
-    .replace(/\?/g, '[^/]')
-    .replace(/__DOUBLE_STAR__/g, '.*');
-  const suffix =
-    /[*?]/.test(normalizedPattern) || normalizedPattern.includes('.') ? '' : '(?:/.*)?';
-  return new RegExp(`^${source}${suffix}$`).test(filePath);
+  if (!validRepositoryPath(normalizedPattern) || !validRepositoryPath(filePath)) return false;
+  if (matchesGlob(normalizedPattern, filePath)) return true;
+  if (/[*?]/.test(normalizedPattern) || normalizedPattern.includes('.')) return false;
+  return filePath.startsWith(`${normalizedPattern}/`);
+}
+
+function matchesGlob(pattern: string, candidate: string): boolean {
+  let previous = Array.from({ length: candidate.length + 1 }, (_, index) => index === 0);
+
+  for (let patternIndex = 0; patternIndex < pattern.length; patternIndex += 1) {
+    const token = pattern[patternIndex];
+    let wildcardEnd = patternIndex;
+    while (token === '*' && pattern[wildcardEnd + 1] === '*') wildcardEnd += 1;
+    const doubleStar = wildcardEnd > patternIndex;
+    const globstarDirectory = doubleStar && pattern[wildcardEnd + 1] === '/';
+    patternIndex = globstarDirectory ? wildcardEnd + 1 : wildcardEnd;
+
+    const current = Array.from({ length: candidate.length + 1 }, () => false);
+    if (token === '*') current[0] = previous[0] ?? false;
+    let canConsumeDirectory = previous[0] ?? false;
+    for (let candidateIndex = 1; candidateIndex <= candidate.length; candidateIndex += 1) {
+      const character = candidate[candidateIndex - 1];
+      if (globstarDirectory) {
+        current[candidateIndex] =
+          previous[candidateIndex] || (character === '/' && canConsumeDirectory);
+        canConsumeDirectory ||= previous[candidateIndex] ?? false;
+      } else if (token === '*') {
+        current[candidateIndex] =
+          previous[candidateIndex] ||
+          (character !== '/' && current[candidateIndex - 1]) ||
+          (doubleStar && current[candidateIndex - 1]);
+      } else if (token === '?' && character !== '/') {
+        current[candidateIndex] = previous[candidateIndex - 1];
+      } else if (token === character) {
+        current[candidateIndex] = previous[candidateIndex - 1];
+      }
+    }
+    previous = current;
+  }
+
+  return previous[candidate.length] ?? false;
 }
 
 function validRepositoryPath(filePath: string): boolean {
