@@ -13,7 +13,7 @@ export function createRestrictedSandboxFactory(): SandboxFactory {
     // Keep the complete Flue factory, including newer runtime adapter fields
     // (createSandbox on 2.0.2, createSessionEnv on 2.0.1), while removing its
     // default model-facing filesystem and shell tools. Repository access is
-    // available only through this project's five custom, bounded tools.
+    // available only through this project's six custom, bounded tools.
     ...isolatedMemorySandbox,
     createSessionEnv: isolatedMemorySandbox.createSessionEnv?.bind(isolatedMemorySandbox),
     tools: () => [],

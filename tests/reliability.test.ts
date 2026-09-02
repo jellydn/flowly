@@ -31,6 +31,7 @@ import {
 import {
   validateContentSize,
   validateReadResult,
+  validateRelatedContextResult,
   validateSearchResult,
 } from '../reliability/validation.ts';
 import { createReadFileTool } from '../tools/read-file.ts';
@@ -399,6 +400,37 @@ describe('output validation', () => {
     assert.equal(result.ok, false);
     assert.match(result.error.message, /path\/line\/excerpt/);
   });
+
+  test('validateRelatedContextResult rejects missing and malformed edge fields', () => {
+    const valid = {
+      path: 'src/auth.ts',
+      relationship: null,
+      relationships: [
+        {
+          id: 'edge',
+          relationship: 'imports',
+          source: { label: 'src/auth.ts' },
+          target: { label: 'src/config.ts' },
+          citation: { path: 'src/auth.ts', line: 1, excerpt: 'import' },
+        },
+      ],
+      resultCount: 1,
+      diagnostics: [],
+      indexStats: {},
+      inspection: {},
+    };
+
+    assert.equal(validateRelatedContextResult(valid).ok, true);
+    const { relationship: _relationship, ...withoutRelationship } = valid;
+    for (const malformed of [
+      withoutRelationship,
+      { ...valid, relationships: [{ ...valid.relationships[0], target: null }] },
+      { ...valid, relationships: [{ ...valid.relationships[0], target: {} }] },
+      { ...valid, relationships: [{ ...valid.relationships[0], citation: null }] },
+    ]) {
+      assert.equal(validateRelatedContextResult(malformed).ok, false);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -698,10 +730,7 @@ describe('withInspectionBudget', () => {
       noReliabilityLog(),
       noFailureInjection,
     );
-    assert.throws(
-      () => withInspectionBudget(reliable, budget, noDebug()),
-      /already composed/i,
-    );
+    assert.throws(() => withInspectionBudget(reliable, budget, noDebug()), /already composed/i);
   });
 
   test('runReliableAttempt rejects a sealed budgeted tool', async () => {

@@ -15,6 +15,7 @@ export type FactoryRunCommentClient = {
   owner: string;
   repo: string;
   listIssueComments(issueNumber: number): Promise<IssueComment[]>;
+  listRepositoryIssueComments?(): Promise<IssueComment[]>;
   createIssueComment(issueNumber: number, body: string): Promise<IssueCommentResult>;
   updateIssueComment(commentId: number, body: string): Promise<IssueCommentResult>;
 };
@@ -101,6 +102,21 @@ export function createGitHubFactoryRunStore(
     async findByIssue(repository: string, number: number): Promise<FactoryRun | null> {
       if (number !== issueNumber || repository !== expectedRepository) return null;
       return loadFromIssue();
+    },
+
+    async listByRepository(repository: string): Promise<FactoryRun[]> {
+      if (repository !== expectedRepository) return [];
+      if (!client.listRepositoryIssueComments) {
+        const run = await loadFromIssue();
+        return run ? [run] : [];
+      }
+      const runs = new Map<string, FactoryRun>();
+      for (const comment of await client.listRepositoryIssueComments()) {
+        if (!isBotComment(comment, expectedBotLogin)) continue;
+        const run = parseFactoryRunComment(comment.body);
+        if (run?.task.repository === expectedRepository) runs.set(run.id, run);
+      }
+      return [...runs.values()];
     },
 
     async createOrGet(run: FactoryRun): Promise<{ run: FactoryRun; created: boolean }> {

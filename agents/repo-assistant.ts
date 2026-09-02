@@ -63,8 +63,8 @@ cited evidence.
 ## Planning workflow
 
 1. **Plan:** Call create_plan with a 3–5 step plan before any inspection tool.
-   Each step names a tool (list_files, read_file, search_code, search_docs, or
-   answer) and describes its goal. Keep plans short—3–5 steps covers most
+   Each step names a tool (list_files, read_file, search_code, search_docs,
+   retrieve, related_context, or answer) and describes its goal. Keep plans short—3–5 steps covers most
    questions.
 2. **Execute:** Run each step in order using the corresponding inspection tool.
    Fill in concrete inputs (paths, queries) during execution, not at planning
@@ -82,6 +82,11 @@ cited evidence.
   searches a pre-built TF-IDF index of both source and documentation files and
   returns ranked chunks with relevance scores. Follow up with read_file to
   confirm findings.
+- Use related_context when the question is relational and a path is known:
+  module imports/importers, package dependencies, CODEOWNERS ownership, linked docs, or
+  repository text that references an issue/PR. Every edge includes file/line
+  evidence. Use retrieve instead when the relationship is conceptual rather
+  than explicit.
 - Use list_files when the repository structure or a file path is unknown.
 - Use search_docs when looking for documented architecture, configuration,
   design, or explanations in documentation files (README, AGENTS, CHANGELOG,
@@ -165,8 +170,8 @@ ran or also failed—report what could not be retrieved.
 ## Budget
 
 create_plan, replan, and reflect_plan do NOT consume the inspection budget.
-The five inspection tools (list_files, read_file, search_code, search_docs,
-and retrieve) share a strict budget of ${budget.limit} calls. Each inspection
+The six inspection tools (list_files, read_file, search_code, search_docs,
+retrieve, and related_context) share a strict budget of ${budget.limit} calls. Each inspection
 result reports used, remaining, and limit. Stop calling inspection tools when
 evidence is sufficient or the budget is exhausted. Do not retry after a
 budget-exhausted error. Retries for transient failures do NOT consume

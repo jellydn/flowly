@@ -14,13 +14,13 @@ flowly/
 ├── review/            # PR review tools, schema, filters, limits, state
 ├── factory/           # Issue intake, state orchestration, isolated mutation, independent review, draft PR
 ├── github/            # Trusted GitHub client/adapter + event router
-├── index/             # TF-IDF repository indexer (retrieval)
+├── index/             # TF-IDF and relationship repository indexes
 ├── scripts/           # CLI entrypoints (review-pr, route-event, flue-eval)
 ├── eval/              # Capstone eval + benchmark framework + fixtures
 ├── demo/              # Deterministic demos (bash + ts)
 ├── docs/              # Hand-maintained docs page + ADRs
 ├── skills/            # Flue skills (analyzing-repositories)
-├── tests/             # Node test-runner tests (46 files + helpers)
+├── tests/             # Node test-runner tests (49 files + helpers)
 ├── .planning/         # Codebase map + internal planning docs
 ├── .github/workflows/ # CI + review + example workflows
 ├── sandbox.ts         # Empty toolset replacing default FS/shell tools
@@ -40,7 +40,7 @@ flowly/
 **`tools/`:**
 
 - Purpose: Read-only inspection tools and the repository boundary
-- Contains: `list-files.ts`, `read-file.ts`, `search-code.ts`, `search-docs.ts`, `retrieve.ts`, `search.ts` (scope-parameterized search factory), `repository.ts`, `contracts.ts`, `inspection-registry.ts`, `repository-search.ts`, `search-utils.ts`, `result-stats.ts`
+- Contains: `list-files.ts`, `read-file.ts`, `search-code.ts`, `search-docs.ts`, `retrieve.ts`, `related-context.ts`, `search.ts` (scope-parameterized search factory), `repository.ts`, `contracts.ts`, `inspection-registry.ts`, `repository-search.ts`, `search-utils.ts`, `result-stats.ts`
 - Key files: `repository.ts` (`RepositoryReader`, `StepBudget`), `contracts.ts` (`TOOL_LIMITS`)
 
 **`investigation/`:**
@@ -70,7 +70,7 @@ flowly/
 **`factory/`:**
 
 - Purpose: Typed issue-to-PR run state and trusted implementation, review, and draft-PR boundaries
-- Contains: `types.ts`, `schema.ts`, `store.ts`, `run-state-store.ts`, `orchestrator.ts`, `intake.ts`, `plan.ts`, `run.ts`, `dispatch.ts`, `defaults.ts`, `model.ts`, `model-adapters.ts`, `agent-implementer.ts`, `git.ts`, `implementation.ts`, `verification.ts`, `review.ts`, `publisher.ts`, `pipeline.ts`
+- Contains: `types.ts`, `schema.ts`, `store.ts`, `run-state-store.ts`, `orchestrator.ts`, `autonomy.ts`, `campaign-types.ts`, `campaign-schema.ts`, `campaign-store.ts`, `campaign.ts`, `campaign-run.ts`, `intake.ts`, `plan.ts`, `run.ts`, `dispatch.ts`, `defaults.ts`, `model.ts`, `model-adapters.ts`, `agent-implementer.ts`, `git.ts`, `implementation.ts`, `verification.ts`, `review.ts`, `publisher.ts`, `pipeline.ts`
 - Key files: `orchestrator.ts` (monotonic run transitions), `plan.ts` (read-only analyst stage), `run.ts` (end-to-end factory pipeline), `git.ts` (isolated factory-only Git mutation), `pipeline.ts` (independent review + draft PR coordinator)
 
 **`github/`:**
@@ -81,9 +81,9 @@ flowly/
 
 **`index/`:**
 
-- Purpose: TF-IDF repository index for semantic retrieval
-- Contains: `repository-indexer.ts`
-- Key files: `repository-indexer.ts`
+- Purpose: Repository-local indexes for semantic retrieval and explicit relationships
+- Contains: `repository-indexer.ts`, `repository-relationship-index.ts`
+- Key files: both index implementations
 
 **`scripts/`:**
 
@@ -112,7 +112,7 @@ flowly/
 **`tests/`:**
 
 - Purpose: All automated tests (single directory, not co-located)
-- Contains: 46 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
+- Contains: 49 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
 - Key files: `helpers.ts`, `event-router.test.ts`, `bench-runner.test.ts`
 
 ## Key File Locations

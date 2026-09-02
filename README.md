@@ -20,8 +20,9 @@ repository's checkout and granting the workflow only the GitHub and model creden
 - An issue → plan → implementation → verification → independent review → draft PR factory
 - A factory-owned `factory/*` branch per accepted issue; never auto-merges or auto-approves
 - One general-purpose Flue repository agent
-- Five typed, read-only tools (`list_files`, `read_file`, `search_code`,
-  `search_docs`, `retrieve` — semantic TF-IDF retrieval)
+- Six typed, read-only tools (`list_files`, `read_file`, `search_code`,
+  `search_docs`, `retrieve` — semantic TF-IDF retrieval, and `related_context`
+  — cited repository relationships)
 - A PR review agent (`agents/pr-reviewer.ts`) with review-specific tools and a
   trusted GitHub adapter — never auto-approves
 - A GitHub event router (`github/events/`) that maps repository events to
@@ -213,9 +214,9 @@ defaults. Findings are validated against the PR diff before posting; findings us
 
 ## How the bound works
 
-Every `list_files`, `read_file`, `search_code`, `search_docs`, or `retrieve`
+Every `list_files`, `read_file`, `search_code`, `search_docs`, `retrieve`, or `related_context`
 call consumes one shared inspection step. Tool results include `used` and
-`remaining`; after that limit, all five inspection tools reject further calls
+`remaining`; after that limit, all six inspection tools reject further calls
 and the instructions
 require the agent to answer from collected evidence. Each tool result carries an
 `inspection` object of the shape `{ used, remaining, limit }` so the model can see whether
@@ -232,14 +233,14 @@ nonexistent setting.
 
 ## Read-only guarantees
 
-The agent's only application-data capabilities are five custom inspection
+The agent's only application-data capabilities are six custom inspection
 tools. They use Node's read-only filesystem APIs and expose no shell, write,
 Git, or network operation. A restricted in-memory sandbox removes Flue's default
 model-facing filesystem and shell tools.
 
 Flue still appends its framework-owned `activate_skill` and `task` tools. This
 project has no declared subagent profiles and explicitly instructs the agent not
-to delegate. An implicit task would inherit the same five inspection tool
+to delegate. An implicit task would inherit the same six inspection tool
 instances and shared budget; it cannot reset the inspection limit or access the
 host checkout through the sandbox.
 
@@ -453,6 +454,94 @@ selects a local JSON directory for development only. The job can push
 Classifier, planner, implementer, and reviewer use `FACTORY_MODEL` (falling
 back to `REPO_ASSISTANT_MODEL`); the workflow supplies its provider key.
 
+### Graduated factory autonomy
+
+Flowly applies a repository policy before the two trusted boundaries that can
+increase side effects. With no `FACTORY_AUTONOMY_POLICY`, every repository
+cold-starts at **Plan only** and no isolated workspace mutation begins. The
+three maximum levels are:
+
+1. **Plan only** — classify and persist a repository-grounded plan.
+2. **Implement and verify** — mutate only the isolated factory workspace,
+   push the factory branch after checks pass, and stop before independent review
+   or PR publication.
+3. **Publish draft PR** — run independent review and create or reuse the same
+   draft-only PR as the existing trusted publisher.
+
+`factory-autonomy.example.json` documents the validated policy shape. Set
+`promotionEnabled` to opt into deterministic history-based promotion; it is
+disabled by default. `defaultLevel` is always bounded by `maximumLevel`, sample
+minimums prevent promotion from sparse history, and each threshold is a 0–1
+rate. Configured verification, review, security, or publication events lower
+the effective level immediately. Operators can recover after investigating a
+demotion by supplying a clean bounded outcome window in persistent history or
+by lowering/adjusting a versioned policy; every new run records the exact policy
+version, evidence snapshot, explanation, and gate decisions it used.
+
+Evidence comes only from persisted Flowly run snapshots: verification command
+outcomes, independent-review readiness, draft publication, and enumerated
+failure events. GitHub issue comments provide bounded repository-wide history;
+local development uses the file store. PR disposition is counted only when it
+is present in Flowly's persisted state, so manually closed or merged PRs may be
+unknown and never increase trust. No opaque model score contributes to a level.
+
+`FACTORY_CONFIRM_BOUNDARY=implementation` or `publication` confirms exactly one
+otherwise-blocked boundary for the current persisted run. It does not change
+the repository policy or effective level, and retries reuse the recorded gate
+decision without repeating implementation or publication. None of the levels
+adds approval, merge, deployment, production writes, network access inside the
+implementer, or broader credentials. The top level still publishes **drafts
+only** for human review.
+
+### Migration campaigns
+
+Migration campaigns decompose a repository-local mechanical migration into a
+deterministic inventory and bounded batches above the existing factory. A
+version-1 manifest records the goal, repository constraints, included/excluded
+path scopes, maximum files per batch, path-ordering dependencies, and required
+verification commands:
+
+```json
+{
+  "version": "1",
+  "id": "node-test-migration",
+  "repository": "owner/repo",
+  "issueNumber": 119,
+  "goal": "Replace the legacy test API with node:test",
+  "constraints": ["Preserve test behavior", "Do not edit generated files"],
+  "includePaths": ["src/**", "tests/**"],
+  "excludePaths": ["src/generated/**"],
+  "maxFilesPerBatch": 20,
+  "orderingDependencies": [{ "before": "src/**", "after": "tests/**" }],
+  "verificationCommands": ["npm test", "npm run typecheck"]
+}
+```
+
+`createMigrationCampaign` inventories through `RepositoryReader`, so ignored
+directories, symlinks, oversized files, and repository escapes follow the same
+rules as inspection tools. `buildMigrationCampaignPlan` sorts and deduplicates
+that inventory, applies declared ordering, enforces the batch limit, and emits
+a SHA-256 plan digest. Mutation remains impossible until a human calls
+`approveMigrationCampaign(store, id, planDigest, actor)` against that exact
+digest.
+
+After approval, `runMigrationCampaign` schedules ready batches and persists
+each status, failure, nested factory run, and draft PR number. The
+`createFactoryMigrationBatchExecutor` adapter sends every batch through the
+existing classifier → planner → isolated implementer → required verification →
+independent review → trusted draft-publisher path. It replaces the planner's
+file scope and verification list with the approved batch values. Completed
+batches and draft PRs are reused on retry. A failed batch blocks only dependent
+batches with the failure evidence; independent batches continue and remain
+resumable after operational errors.
+
+`MemoryMigrationCampaignStore` supports embedding/tests, while
+`FileMigrationCampaignStore` atomically persists resumable local campaigns.
+Campaign execution remains subject to the repository autonomy policy and never
+approves, merges, deploys, performs production/database migrations, or expands
+the implementer's credentials. Cross-repository campaigns and free-form task
+decomposition are intentionally outside the MVP.
+
 ## GitHub event router
 
 `github/events/` is a dependency-light router that maps GitHub events to
@@ -626,13 +715,14 @@ the agent loop.**
 
 ### When to select each tool
 
-| Tool          | Select when                                                                                   |
-| ------------- | --------------------------------------------------------------------------------------------- |
-| `list_files`  | The repository structure or a file path is unknown.                                           |
-| `search_docs` | You are looking for documented architecture, configuration, or design context.                |
-| `search_code` | You are looking for a symbol, phrase, configuration, or implementation whose path is unknown. |
-| `read_file`   | An exact file path is already known and surrounding context is needed.                        |
-| `retrieve`    | You need conceptual retrieval over indexed source and docs, not a literal match.              |
+| Tool              | Select when                                                                                        |
+| ----------------- | -------------------------------------------------------------------------------------------------- |
+| `list_files`      | The repository structure or a file path is unknown.                                                |
+| `search_docs`     | You are looking for documented architecture, configuration, or design context.                     |
+| `search_code`     | You are looking for a symbol, phrase, configuration, or implementation whose path is unknown.      |
+| `read_file`       | An exact file path is already known and surrounding context is needed.                             |
+| `retrieve`        | You need conceptual retrieval over indexed source and docs, not a literal match.                   |
+| `related_context` | You know a path and need explicit imports, owners, dependencies, linked docs, or issue references. |
 
 Selection rules baked into the agent instructions and the
 `analyzing-repositories` skill:
@@ -752,8 +842,8 @@ continuing—the stretch-goal dynamic replanning loop.
 | `replan`       | No               | Revise the plan when a step returns no results    |
 | `reflect_plan` | No               | State whether steps could be simplified or merged |
 
-The five inspection tools (`list_files`, `read_file`, `search_code`,
-`search_docs`, `retrieve`) still consume the shared budget as before. Planning
+The six inspection tools (`list_files`, `read_file`, `search_code`,
+`search_docs`, `retrieve`, `related_context`) still consume the shared budget as before. Planning
 tools are
 meta-tools that structure the agent's reasoning without inspecting the
 repository.
@@ -985,21 +1075,31 @@ Grounded answer with citations + confidence
 
 ### Available tools
 
-| Tool           | Consumes budget? | Purpose                                         |
-| -------------- | ---------------- | ----------------------------------------------- |
-| `search_docs`  | Yes              | Search documentation files for a literal string |
-| `search_code`  | Yes              | Search source files for a literal string        |
-| `read_file`    | Yes              | Read a bounded line range from a known file     |
-| `list_files`   | Yes              | List files and directories under a path         |
-| `retrieve`     | Yes              | Semantic retrieval over the repository index    |
-| `create_plan`  | No               | Declare a 3–5 step plan before executing        |
-| `replan`       | No               | Revise the plan when a step returns no results  |
-| `reflect_plan` | No               | Reflect on whether steps could be simplified    |
+| Tool              | Consumes budget? | Purpose                                         |
+| ----------------- | ---------------- | ----------------------------------------------- |
+| `search_docs`     | Yes              | Search documentation files for a literal string |
+| `search_code`     | Yes              | Search source files for a literal string        |
+| `read_file`       | Yes              | Read a bounded line range from a known file     |
+| `list_files`      | Yes              | List files and directories under a path         |
+| `retrieve`        | Yes              | Semantic retrieval over the repository index    |
+| `related_context` | Yes              | Cited repository relationship lookup            |
+| `create_plan`     | No               | Declare a 3–5 step plan before executing        |
+| `replan`          | No               | Revise the plan when a step returns no results  |
+| `reflect_plan`    | No               | Reflect on whether steps could be simplified    |
 
 `search_docs` searches files with documentation extensions (`.md`, `.markdown`,
 `.txt`) and documentation basenames (README, AGENTS, SOUL, CHANGELOG,
 CONTRIBUTING, LICENSE). It excludes the same ignored directories as
 `search_code` (node_modules, dist, .git, etc.).
+
+`related_context` builds a repository-local in-memory relationship index lazily
+and performs no network or write operations. It extracts relative JavaScript/
+TypeScript imports and exports, package-manifest dependencies, `CODEOWNERS`
+rules, Markdown links, and explicit GitHub issue/PR references. Every returned
+edge identifies its relationship, source, target, and repository-relative
+file/line citation. Unsupported or malformed inputs are skipped and surfaced
+as bounded diagnostics. Use `retrieve` for textual or conceptual similarity;
+use `related_context` only for explicit relationships involving a known path.
 
 ### Planning-loop limits
 
@@ -1145,7 +1245,8 @@ flowly/
 │   ├── loop.ts
 │   └── types.ts
 ├── index/
-│   └── repository-indexer.ts   # lazy TF-IDF index backing `retrieve`
+│   ├── repository-indexer.ts   # lazy TF-IDF index backing `retrieve`
+│   └── repository-relationship-index.ts # cited relationship graph
 ├── planner/
 │   ├── plan-run.ts             # plan lifecycle + programmatic executor + replan
 │   ├── plan-store.ts
@@ -1164,7 +1265,7 @@ flowly/
 │   └── validation.ts
 ├── tools/
 │   ├── contracts.ts            # tool names + shared limits
-│   ├── inspection-registry.ts  # ordered composition of the five tools
+│   ├── inspection-registry.ts  # ordered composition of inspection tools
 │   ├── list-files.ts
 │   ├── read-file.ts
 │   ├── repository-search.ts    # bounded literal search

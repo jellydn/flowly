@@ -9,6 +9,9 @@ import {
   type ImplementationPlan,
   type ReviewVerdict,
   type TaskClassification,
+  type FactoryAutonomyAudit,
+  type FactoryAutonomyBoundary,
+  type FactoryAutonomyEvent,
 } from './types.ts';
 
 /**
@@ -37,6 +40,38 @@ export class FactoryOrchestrator {
     };
     const created = await this.store.createOrGet(run);
     return { run: created.run, duplicate: !created.created };
+  }
+
+  async history(repository: string, excludingRunId?: string): Promise<FactoryRun[]> {
+    return (await this.store.listByRepository(repository)).filter(
+      (run) => run.id !== excludingRunId,
+    );
+  }
+
+  async recordAutonomyAudit(id: string, audit: FactoryAutonomyAudit): Promise<FactoryRun> {
+    const run = await this.get(id);
+    if (run.autonomy) return run;
+    return this.save({ ...run, autonomy: audit });
+  }
+
+  async recordAutonomyGate(
+    id: string,
+    boundary: FactoryAutonomyBoundary,
+    decision: { allowed: boolean; manualConfirmation: boolean; reason: string },
+  ): Promise<FactoryRun> {
+    const run = await this.get(id);
+    if (!run.autonomy) throw new Error(`Factory run ${id} has no autonomy audit.`);
+    const existing = run.autonomy.gateDecisions.find((item) => item.boundary === boundary);
+    if (existing?.allowed || (existing && !decision.allowed)) return run;
+    const gateDecisions = run.autonomy.gateDecisions.filter((item) => item.boundary !== boundary);
+    gateDecisions.push({ ...decision, boundary, decidedAt: Date.now() });
+    return this.save({ ...run, autonomy: { ...run.autonomy, gateDecisions } });
+  }
+
+  async recordAutonomyEvent(id: string, event: FactoryAutonomyEvent): Promise<FactoryRun> {
+    const run = await this.get(id);
+    if (run.autonomyEvents?.includes(event)) return run;
+    return this.save({ ...run, autonomyEvents: [...(run.autonomyEvents ?? []), event] });
   }
 
   async classify(id: string, classification: TaskClassification): Promise<FactoryRun> {
@@ -89,7 +124,7 @@ export class FactoryOrchestrator {
     return this.save({
       ...run,
       state: 'implementing',
-      branch: factoryBranch(run.task.issueNumber, run.task.title),
+      branch: factoryBranch(run.task.issueNumber, run.task.title, run.task.campaign),
     });
   }
 

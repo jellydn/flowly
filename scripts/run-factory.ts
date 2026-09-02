@@ -16,6 +16,8 @@
  *   FACTORY_WORKSPACE_ROOT – isolated clone root (defaults to <cwd>/.factory-workspaces)
  *   FACTORY_RUN_STORE      – local JSON directory (dev only; Actions uses an issue comment)
  *   REVIEW_BOT_LOGIN       – expected author of the factory-run comment (default github-actions[bot])
+ *   FACTORY_AUTONOMY_POLICY – path to a repository autonomy-policy JSON file
+ *   FACTORY_CONFIRM_BOUNDARY – one-run confirmation: implementation or publication
  */
 
 import { readFile } from 'node:fs/promises';
@@ -42,6 +44,8 @@ import { FileFactoryRunStore, type FactoryRunStore } from '../factory/store.ts';
 import { FactoryVerificationRunner } from '../factory/verification.ts';
 import { GitHubClient } from '../github/client.ts';
 import { createRepositoryReader } from '../tools/repository.ts';
+import { parseFactoryAutonomyPolicy } from '../factory/autonomy.ts';
+import type { FactoryManualConfirmation } from '../factory/types.ts';
 
 function fail(message: string): never {
   console.error(`[flue-factory] ${message}`);
@@ -89,6 +93,12 @@ async function main(): Promise<void> {
   });
   const task = factoryTaskFromIssuesEvent(eventName, payload);
   const store = createFactoryRunStore(client, task.issueNumber);
+  const autonomyPolicy = process.env.FACTORY_AUTONOMY_POLICY
+    ? parseFactoryAutonomyPolicy(
+        JSON.parse(await readFile(process.env.FACTORY_AUTONOMY_POLICY, 'utf8')) as unknown,
+      )
+    : undefined;
+  const manualConfirmation = parseManualConfirmation(process.env.FACTORY_CONFIRM_BOUNDARY);
 
   const run = await dispatchFactoryLabeledIssue(eventName, payload, {
     orchestrator: new FactoryOrchestrator(store),
@@ -112,12 +122,20 @@ async function main(): Promise<void> {
       });
     },
     judgmentsFrom: review.judgmentsFrom,
+    autonomyPolicy,
+    manualConfirmation,
   });
 
   console.error(`[flue-factory] run ${run.id} ended in state ${run.state}`);
   if (run.state === 'failed' || run.state === 'needs-input') {
     process.exitCode = 1;
   }
+}
+
+function parseManualConfirmation(value: string | undefined): FactoryManualConfirmation | undefined {
+  if (value === undefined || value === '') return undefined;
+  if (value === 'implementation' || value === 'publication') return value;
+  throw new Error('FACTORY_CONFIRM_BOUNDARY must be implementation or publication.');
 }
 
 function createFactoryRunStore(client: GitHubClient, issueNumber: number): FactoryRunStore {

@@ -1,0 +1,21 @@
+{
+  "version": "example-v1",
+  "promotionEnabled": false,
+  "defaultLevel": "plan-only",
+  "maximumLevel": "publish-draft-pr",
+  "minimumSamples": {
+    "implementAndVerify": 5,
+    "publishDraftPr": 10
+  },
+  "promotionThresholds": {
+    "verificationSuccessRate": 0.95,
+    "reviewReadyRate": 0.9,
+    "publicationSuccessRate": 0.95
+  },
+  "demotions": {
+    "verification-failure": "plan-only",
+    "review-failure": "implement-and-verify",
+    "security-failure": "plan-only",
+    "publication-failure": "implement-and-verify"
+  }
+}

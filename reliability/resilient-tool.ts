@@ -11,6 +11,7 @@ import { countToolResult } from '../tools/result-stats.ts';
 import {
   validateListResult,
   validateReadResult,
+  validateRelatedContextResult,
   validateRetrieveResult,
   validateSearchResult,
   type ValidationResult,
@@ -48,6 +49,7 @@ const validators: Record<string, ToolValidator<unknown>> = {
   search_code: validateSearchResult,
   search_docs: validateSearchResult,
   retrieve: validateRetrieveResult,
+  related_context: validateRelatedContextResult,
 };
 
 /** Factory for a raw inspection tool. Raw tools are pure repository operations. */
@@ -279,7 +281,11 @@ export function wrapToolWithReliability(
           });
 
           const classified = classifyError(error);
-          throw wrapWithBudget(new SafeToolError(rawTool.name, classified), rawTool.name, inspection);
+          throw wrapWithBudget(
+            new SafeToolError(rawTool.name, classified),
+            rawTool.name,
+            inspection,
+          );
         }
       },
     }),
@@ -310,4 +316,3 @@ function attachInspection(result: unknown, inspection: InspectionMetadata): unkn
   }
   return result;
 }
-

@@ -48,6 +48,8 @@ export type IssueComment = {
   created_at: string;
   updated_at: string;
   user: { login: string } | null;
+  /** Present on repository-wide issue-comment listings. */
+  issue_url?: string;
 };
 
 /** Result of creating or updating an issue comment. */
@@ -143,6 +145,21 @@ export class GitHubClient {
       all.push(...batch);
       if (batch.length < perPage) break;
       page += 1;
+    }
+    return all;
+  }
+
+  /** GET /repos/{owner}/{repo}/issues/comments — bounded repository outcome history. */
+  async listRepositoryIssueComments(): Promise<IssueComment[]> {
+    const all: IssueComment[] = [];
+    const perPage = 100;
+    for (let page = 1; page <= 20; page += 1) {
+      const batch = await this.requestJson<IssueComment[]>(
+        'GET',
+        `/repos/${this.owner}/${this.repo}/issues/comments?per_page=${perPage}&page=${page}`,
+      );
+      all.push(...batch);
+      if (batch.length < perPage) break;
     }
     return all;
   }
