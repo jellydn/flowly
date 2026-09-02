@@ -1,6 +1,6 @@
-import { createHash } from 'node:crypto';
 import type { RepositoryReader } from '../tools/repository.ts';
 import { TOOL_LIMITS } from '../tools/contracts.ts';
+import { digestMigrationCampaignPlan } from './campaign-digest.ts';
 import { parseMigrationCampaignManifest } from './campaign-schema.ts';
 import type { MigrationCampaignStore } from './campaign-store.ts';
 import type {
@@ -55,7 +55,7 @@ export function buildMigrationCampaignPlan(
     });
   }
   applyBatchDependencies(batches, manifest);
-  const planDigest = digestPlan(manifest, inventory, batches);
+  const planDigest = digestMigrationCampaignPlan(manifest, inventory, batches);
   return {
     id: manifest.id,
     manifest,
@@ -174,27 +174,6 @@ export function matchesPath(pattern: string, filePath: string): boolean {
 
 function validRepositoryPath(filePath: string): boolean {
   return Boolean(filePath && !filePath.startsWith('/') && !filePath.split('/').includes('..'));
-}
-
-function digestPlan(
-  manifest: MigrationCampaignManifest,
-  inventory: string[],
-  batches: MigrationCampaignBatch[],
-): string {
-  return createHash('sha256')
-    .update(
-      JSON.stringify({
-        manifest,
-        inventory,
-        batches: batches.map(({ id, sequence, files, dependsOn }) => ({
-          id,
-          sequence,
-          files,
-          dependsOn,
-        })),
-      }),
-    )
-    .digest('hex');
 }
 
 async function requireCampaign(

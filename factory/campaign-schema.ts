@@ -1,4 +1,5 @@
 import * as v from 'valibot';
+import { digestMigrationCampaignPlan } from './campaign-digest.ts';
 import { factoryRunSchema } from './schema.ts';
 import { MIGRATION_CAMPAIGN_VERSION, type MigrationCampaign } from './campaign-types.ts';
 
@@ -69,5 +70,12 @@ export function parseMigrationCampaignManifest(value: unknown) {
 }
 
 export function parseMigrationCampaign(value: unknown): MigrationCampaign {
-  return v.parse(migrationCampaignSchema, value);
+  const campaign = v.parse(migrationCampaignSchema, value);
+  if (
+    campaign.planDigest !==
+    digestMigrationCampaignPlan(campaign.manifest, campaign.inventory, campaign.batches)
+  ) {
+    throw new Error('Migration campaign plan digest does not match its persisted batch plan.');
+  }
+  return campaign;
 }

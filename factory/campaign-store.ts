@@ -34,6 +34,8 @@ export class MemoryMigrationCampaignStore implements MigrationCampaignStore {
 }
 
 export class FileMigrationCampaignStore implements MigrationCampaignStore {
+  private readonly campaignOperations = new Map<string, Promise<void>>();
+
   constructor(private readonly directory: string) {}
 
   async load(id: string): Promise<MigrationCampaign | null> {
@@ -61,21 +63,39 @@ export class FileMigrationCampaignStore implements MigrationCampaignStore {
   }
 
   async save(campaign: MigrationCampaign, expectedVersion: number): Promise<void> {
-    const current = await this.load(campaign.id);
-    assertCampaignVersion(campaign, expectedVersion, current?.version ?? 0);
-    const temporary = `${this.filePath(campaign.id)}.tmp`;
-    await mkdir(this.directory, { recursive: true });
-    try {
-      await writeFile(temporary, `${JSON.stringify(campaign, null, 2)}\n`);
-      await rename(temporary, this.filePath(campaign.id));
-    } catch (error) {
-      await rm(temporary, { force: true });
-      throw error;
-    }
+    await this.withCampaignOperation(campaign.id, async () => {
+      const current = await this.load(campaign.id);
+      assertCampaignVersion(campaign, expectedVersion, current?.version ?? 0);
+      const temporary = `${this.filePath(campaign.id)}.tmp`;
+      await mkdir(this.directory, { recursive: true });
+      try {
+        await writeFile(temporary, `${JSON.stringify(campaign, null, 2)}\n`);
+        await rename(temporary, this.filePath(campaign.id));
+      } catch (error) {
+        await rm(temporary, { force: true });
+        throw error;
+      }
+    });
   }
 
   private filePath(id: string): string {
     return path.join(this.directory, `${encodeURIComponent(id)}.json`);
+  }
+
+  private async withCampaignOperation<T>(id: string, operation: () => Promise<T>): Promise<T> {
+    const previous = this.campaignOperations.get(id) ?? Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    this.campaignOperations.set(id, current);
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      release();
+      if (this.campaignOperations.get(id) === current) this.campaignOperations.delete(id);
+    }
   }
 }
 

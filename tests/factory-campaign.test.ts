@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
@@ -203,6 +203,44 @@ describe('migration campaign approval and execution', () => {
       const loaded = await secondStore.load(campaign.id);
       assert.equal(loaded?.approvedBy, 'operator');
       assert.ok(loaded?.batches.every((batch) => batch.state === 'ready'));
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  test('rejects persisted campaign state whose plan no longer matches its digest', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'flowly-campaign-'));
+    try {
+      const store = new FileMigrationCampaignStore(directory);
+      const campaign = buildMigrationCampaignPlan(manifest, inventory);
+      await store.createOrGet(campaign);
+      await writeFile(
+        path.join(directory, `${encodeURIComponent(campaign.id)}.json`),
+        JSON.stringify({ ...campaign, inventory: ['src/unreviewed.ts'] }),
+      );
+
+      await assert.rejects(() => store.load(campaign.id), /plan digest does not match/);
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  test('serializes parallel file-store saves for one campaign', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'flowly-campaign-'));
+    try {
+      const store = new FileMigrationCampaignStore(directory);
+      const campaign = buildMigrationCampaignPlan(manifest, inventory);
+      await store.createOrGet(campaign);
+      const first = { ...campaign, version: 2, updatedAt: campaign.updatedAt + 1 };
+      const second = { ...campaign, version: 2, updatedAt: campaign.updatedAt + 2 };
+
+      const results = await Promise.allSettled([
+        store.save(first, campaign.version),
+        store.save(second, campaign.version),
+      ]);
+
+      assert.deepEqual(results.map(({ status }) => status).sort(), ['fulfilled', 'rejected']);
+      assert.equal((await store.load(campaign.id))?.version, 2);
     } finally {
       await rm(directory, { force: true, recursive: true });
     }
