@@ -10,11 +10,7 @@ import { createReliabilityLogger } from '../reliability/observability.ts';
 import { noFailureInjection } from '../reliability/failure-injection.ts';
 import { createReadFileTool } from '../tools/read-file.ts';
 import { createSearchCodeTool } from '../tools/search-code.ts';
-import { createSearchDocsTool } from '../tools/search-docs.ts';
-import {
-  deriveKnownPath,
-  withSearchReadFallback,
-} from '../reliability/fallback-tool.ts';
+import { deriveKnownPath, withSearchReadFallback } from '../reliability/fallback-tool.ts';
 import { wrapToolWithReliability } from '../reliability/resilient-tool.ts';
 import type { RetryConfig, SleepFn } from '../reliability/retry.ts';
 import { createSampleRepo, removeRepo, runTool } from './helpers.ts';
