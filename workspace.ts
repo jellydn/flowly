@@ -23,7 +23,7 @@ export class WorkspaceConflictError extends Error {
     readonly actualVersion: number,
   ) {
     super(
-      `Workspace \"${workspaceId}\" changed concurrently (expected version ${expectedVersion}, found ${actualVersion}).`,
+      `Workspace "${workspaceId}" changed concurrently (expected version ${expectedVersion}, found ${actualVersion}).`,
     );
     this.name = 'WorkspaceConflictError';
   }
@@ -34,7 +34,7 @@ export class WorkspaceNotFoundError extends Error {
     readonly workspaceId: string,
     readonly filePath: string,
   ) {
-    super(`Workspace \"${workspaceId}\" does not contain \"${filePath}\".`);
+    super(`Workspace "${workspaceId}" does not contain "${filePath}".`);
     this.name = 'WorkspaceNotFoundError';
   }
 }
@@ -179,9 +179,7 @@ export class Workspace {
   ): Promise<number> {
     this.assertVersion(expectedVersion);
     if (snapshot.workspaceId !== this.id) {
-      throw new Error(
-        `Snapshot belongs to workspace \"${snapshot.workspaceId}\", not \"${this.id}\".`,
-      );
+      throw new Error(`Snapshot belongs to workspace "${snapshot.workspaceId}", not "${this.id}".`);
     }
     return this.replaceFiles(snapshot.files, expectedVersion);
   }
@@ -234,7 +232,7 @@ function normalizeFiles(files: WorkspaceFiles): WorkspaceFiles {
   }
   const normalized: WorkspaceFiles = {};
   for (const [filePath, content] of Object.entries(files)) {
-    if (typeof content !== 'string') throw new Error(`Workspace file \"${filePath}\" is not text.`);
+    if (typeof content !== 'string') throw new Error(`Workspace file "${filePath}" is not text.`);
     normalized[normalizeWorkspacePath(filePath)] = content;
   }
   return normalized;
@@ -242,7 +240,7 @@ function normalizeFiles(files: WorkspaceFiles): WorkspaceFiles {
 
 function parseSnapshot(value: unknown, workspaceId: string): WorkspaceSnapshot {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`Invalid snapshot for workspace \"${workspaceId}\".`);
+    throw new Error(`Invalid snapshot for workspace "${workspaceId}".`);
   }
   const snapshot = value as Partial<WorkspaceSnapshot>;
   const version = snapshot.version;
@@ -256,7 +254,7 @@ function parseSnapshot(value: unknown, workspaceId: string): WorkspaceSnapshot {
     typeof files !== 'object' ||
     Array.isArray(files)
   ) {
-    throw new Error(`Invalid snapshot for workspace \"${workspaceId}\".`);
+    throw new Error(`Invalid snapshot for workspace "${workspaceId}".`);
   }
   return {
     workspaceId,
@@ -283,7 +281,7 @@ function assertStoreVersion(
   }
   if (snapshot.version !== expectedVersion + 1) {
     throw new Error(
-      `Workspace \"${snapshot.workspaceId}\" must advance from version ${expectedVersion} to ${expectedVersion + 1}.`,
+      `Workspace "${snapshot.workspaceId}" must advance from version ${expectedVersion} to ${expectedVersion + 1}.`,
     );
   }
 }
@@ -312,7 +310,7 @@ async function acquireLock(lockPath: string): Promise<string> {
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
   }
-  throw new Error(`Timed out acquiring workspace lock \"${lockPath}\".`);
+  throw new Error(`Timed out acquiring workspace lock "${lockPath}".`);
 }
 
 async function releaseLock(lockPath: string, token: string): Promise<void> {
@@ -337,7 +335,7 @@ function parseLockOwner(raw: string, lockPath: string): { pid: number; token: st
   } catch (error) {
     if (!(error instanceof SyntaxError)) throw error;
   }
-  throw new Error(`Workspace lock \"${lockPath}\" is malformed and must be removed safely.`);
+  throw new Error(`Workspace lock "${lockPath}" is malformed and must be removed safely.`);
 }
 
 async function writeDurableFile(filePath: string, content: string): Promise<void> {
