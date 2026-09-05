@@ -114,12 +114,7 @@ function normalizeIssues(payload: Record<string, unknown>): NormalizedEvent | nu
   const issue = asRecord(payload['issue']);
   if (!common || !issue) return null;
   return {
-    id: buildEventId(
-      'issues',
-      common.action,
-      common.repository,
-      asStringId(issue['number']),
-    ),
+    id: buildEventId('issues', common.action, common.repository, asStringId(issue['number'])),
     type: 'issues',
     action: common.action,
     repository: common.repository,
@@ -135,12 +130,7 @@ function normalizeIssueComment(payload: Record<string, unknown>): NormalizedEven
   const comment = asRecord(payload['comment']);
   if (!common || !issue || !comment) return null;
   return {
-    id: buildEventId(
-      'issue_comment',
-      common.action,
-      common.repository,
-      asStringId(comment['id']),
-    ),
+    id: buildEventId('issue_comment', common.action, common.repository, asStringId(comment['id'])),
     type: 'issue_comment',
     action: common.action,
     repository: common.repository,
@@ -150,9 +140,7 @@ function normalizeIssueComment(payload: Record<string, unknown>): NormalizedEven
   };
 }
 
-function normalizePullRequestReview(
-  payload: Record<string, unknown>,
-): NormalizedEvent | null {
+function normalizePullRequestReview(payload: Record<string, unknown>): NormalizedEvent | null {
   const common = readCommon(payload);
   const pr = asRecord(payload['pull_request']);
   const review = asRecord(payload['review']);

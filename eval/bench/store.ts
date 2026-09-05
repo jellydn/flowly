@@ -63,8 +63,9 @@ export function createFileBenchmarkStore(resultsDir: string): BenchmarkStore {
     async list(): Promise<BenchmarkReport[]> {
       let suiteDirs: string[] = [];
       try {
-        suiteDirs = await readdir(resultsDir, { withFileTypes: true })
-          .then((entries) => entries.filter((e) => e.isDirectory()).map((e) => e.name));
+        suiteDirs = await readdir(resultsDir, { withFileTypes: true }).then((entries) =>
+          entries.filter((e) => e.isDirectory()).map((e) => e.name),
+        );
       } catch {
         return []; // Missing results dir: no reports yet.
       }

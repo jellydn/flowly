@@ -61,7 +61,11 @@ export function createKeywordJudge(): Judge {
 }
 
 /** Build the rubric prompt passed to an LLM judge. */
-export function formatJudgePrompt(scenario: BenchmarkScenario, answer: string, evidenceText: string): string {
+export function formatJudgePrompt(
+  scenario: BenchmarkScenario,
+  answer: string,
+  evidenceText: string,
+): string {
   return [
     'You are a strict benchmark judge. Score the answer on a 0..1 scale.',
     '',
@@ -74,7 +78,9 @@ export function formatJudgePrompt(scenario: BenchmarkScenario, answer: string, e
     scenario.expectedKeywords?.length
       ? `Expected keywords: ${scenario.expectedKeywords.join(', ')}`
       : 'Expected keywords: none',
-    scenario.requiresCitation === false ? 'Citations not required.' : 'Citations required when sources are available.',
+    scenario.requiresCitation === false
+      ? 'Citations not required.'
+      : 'Citations required when sources are available.',
     '',
     'Answer:',
     answer,

@@ -10,7 +10,10 @@ import type { BenchmarkSuite, ModelSpec } from './types.ts';
 
 export type LoadResult<T> = { ok: true; value: T } | { ok: false; issues: string[] };
 
-function parseJson(text: string, label: string): { ok: true; value: unknown } | { ok: false; issues: string[] } {
+function parseJson(
+  text: string,
+  label: string,
+): { ok: true; value: unknown } | { ok: false; issues: string[] } {
   try {
     return { ok: true, value: JSON.parse(text) as unknown };
   } catch {
@@ -26,7 +29,9 @@ export async function loadSuiteFromFile(filePath: string): Promise<LoadResult<Be
   } catch (error) {
     return {
       ok: false,
-      issues: [`Cannot read "${filePath}": ${error instanceof Error ? error.message : String(error)}`],
+      issues: [
+        `Cannot read "${filePath}": ${error instanceof Error ? error.message : String(error)}`,
+      ],
     };
   }
   const parsed = parseJson(text, filePath);
@@ -44,7 +49,9 @@ export async function loadModelFromFile(filePath: string): Promise<LoadResult<Mo
   } catch (error) {
     return {
       ok: false,
-      issues: [`Cannot read "${filePath}": ${error instanceof Error ? error.message : String(error)}`],
+      issues: [
+        `Cannot read "${filePath}": ${error instanceof Error ? error.message : String(error)}`,
+      ],
     };
   }
   const parsed = parseJson(text, filePath);
@@ -60,14 +67,18 @@ export async function loadModelFromFile(filePath: string): Promise<LoadResult<Mo
  */
 export async function loadBenchmarkConfigFromFile(
   filePath: string,
-): Promise<{ ok: true; suite: BenchmarkSuite; models: ModelSpec[] } | { ok: false; issues: string[] }> {
+): Promise<
+  { ok: true; suite: BenchmarkSuite; models: ModelSpec[] } | { ok: false; issues: string[] }
+> {
   let text: string;
   try {
     text = await readFile(filePath, 'utf8');
   } catch (error) {
     return {
       ok: false,
-      issues: [`Cannot read "${filePath}": ${error instanceof Error ? error.message : String(error)}`],
+      issues: [
+        `Cannot read "${filePath}": ${error instanceof Error ? error.message : String(error)}`,
+      ],
     };
   }
   const parsed = parseJson(text, filePath);

@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import * as v from 'valibot';
-import { createModelDecider, formatDeciderPrompt, parseModelAction } from '../eval/bench/model-loop.ts';
+import {
+  createModelDecider,
+  formatDeciderPrompt,
+  parseModelAction,
+} from '../eval/bench/model-loop.ts';
 import type { InvestigationState } from '../investigation/types.ts';
 import type { ModelCallFn } from '../eval/bench/providers.ts';
 import { runInvestigation, buildToolMap } from '../investigation/loop.ts';
@@ -68,7 +72,15 @@ describe('formatDeciderPrompt', () => {
   test('includes question, budget, tool list, and evidence', () => {
     const prompt = formatDeciderPrompt(
       state({
-        evidence: [{ filePath: 'README.md', lineStart: 1, lineEnd: 3, excerpt: 'auth docs', sourceType: 'documentation' }],
+        evidence: [
+          {
+            filePath: 'README.md',
+            lineStart: 1,
+            lineEnd: 3,
+            excerpt: 'auth docs',
+            sourceType: 'documentation',
+          },
+        ],
       }),
       toolNames,
     );
@@ -105,7 +117,10 @@ describe('parseModelAction', () => {
 
   test('rejects non-JSON and wrong shapes', () => {
     assert.equal(parseModelAction('just text', new Set(['search_code'])), null);
-    assert.equal(parseModelAction('{"action":"call","tool":"search_code"}', new Set(['search_code'])), null);
+    assert.equal(
+      parseModelAction('{"action":"call","tool":"search_code"}', new Set(['search_code'])),
+      null,
+    );
     assert.equal(parseModelAction('{"action":"dance"}', new Set(['search_code'])), null);
   });
 
@@ -170,7 +185,9 @@ describe('model-driven live investigation loop', () => {
       '{"action":"stop","reason":"enough"}',
     ];
     let idx = 0;
-    const modelCall: ModelCallFn = async () => ({ content: script[Math.min(idx++, script.length - 1)] });
+    const modelCall: ModelCallFn = async () => ({
+      content: script[Math.min(idx++, script.length - 1)],
+    });
 
     const decide = createModelDecider({ modelCall, toolNames });
     const budget = createStepBudget(8);

@@ -14,7 +14,10 @@ const fixture = path.resolve(__dirname, '..', 'eval', 'fixtures', 'sample-repo')
 
 describe('capstone evaluation scenarios', () => {
   test('defines at least 5 evaluation scenarios', () => {
-    assert.ok(capstoneScenarios.length >= 5, `expected ≥5 scenarios, got ${capstoneScenarios.length}`);
+    assert.ok(
+      capstoneScenarios.length >= 5,
+      `expected ≥5 scenarios, got ${capstoneScenarios.length}`,
+    );
   });
 
   test('every scenario has required fields', () => {
@@ -95,7 +98,10 @@ describe('capstone evaluation run', () => {
     const report = await runCapstoneEval([conceptual], fixture);
     const result = report.results[0];
     assert.equal(result.toolsUsed.length, 0, 'conceptual question should not call tools');
-    assert.ok(result.metrics.toolSuccess.passed, 'tool success should pass for conceptual question');
+    assert.ok(
+      result.metrics.toolSuccess.passed,
+      'tool success should pass for conceptual question',
+    );
   });
 
   test('failures are visible (not silently ignored)', async () => {

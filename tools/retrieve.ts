@@ -20,7 +20,10 @@ type IndexHolder = {
   building: Promise<RepositoryIndex> | undefined;
 };
 
-async function ensureIndex(holder: IndexHolder, repository: RepositoryReader): Promise<RepositoryIndex> {
+async function ensureIndex(
+  holder: IndexHolder,
+  repository: RepositoryReader,
+): Promise<RepositoryIndex> {
   if (holder.index) return holder.index;
   if (holder.building) return holder.building;
   // On failure, clear the memoized promise so a later call retries the build

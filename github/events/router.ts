@@ -47,10 +47,7 @@ function filterMatches(rule: RouteRule, event: NormalizedEvent): boolean {
   }
   if (filter.actor && !filter.actor.includes(event.actor)) return false;
   if (filter.repository && !filter.repository.includes(event.repository)) return false;
-  if (
-    filter.conclusion &&
-    !(event.conclusion && filter.conclusion.includes(event.conclusion))
-  ) {
+  if (filter.conclusion && !(event.conclusion && filter.conclusion.includes(event.conclusion))) {
     return false;
   }
   return true;
