@@ -1,57 +1,69 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0a0a0b" />
-  <title>Flowly: Factory software for GitHub repositories</title>
-  <meta name="description" content="Flowly turns GitHub issues into verified, independently reviewed draft pull requests on the repository you configure it against." />
-  <meta property="og:title" content="Flowly: Factory software for GitHub repositories" />
-  <meta property="og:description" content="Issue in. Verified draft pull request out. Never auto-merged or auto-approved." />
-  <meta property="og:type" content="website" />
-  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-  <a class="skip-link" href="#main">Skip to content</a>
-  <nav>
-    <div class="container">
-      <a href="index.html" class="nav-brand"><span class="nav-brand-dot"></span>Flowly</a>
-      <ul class="nav-links">
-        <li><a href="index.html" class="active" aria-current="page">Home</a></li>
-        <li><a href="features.html">Features</a></li>
-        <li><a href="how-it-works.html">How it works</a></li>
-      </ul>
-      <a href="https://github.com/jellydn/flowly" class="nav-cta">GitHub</a>
-    </div>
-  </nav>
-
-  <main id="main">
-    <section class="hero">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0a0a0b" />
+    <title>Flowly: Factory software for GitHub repositories</title>
+    <meta
+      name="description"
+      content="Flowly turns GitHub issues into verified, independently reviewed draft pull requests on the repository you configure it against."
+    />
+    <meta property="og:title" content="Flowly: Factory software for GitHub repositories" />
+    <meta
+      property="og:description"
+      content="Issue in. Verified draft pull request out. Never auto-merged or auto-approved."
+    />
+    <meta property="og:type" content="website" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <nav>
       <div class="container">
-        <div class="hero-grid">
-          <div class="reveal">
-            <div class="hero-badge"><span class="hero-badge-dot"></span>Factory software · Flue 2.0</div>
-            <h1>Turn GitHub issues into <span class="grad">reviewed draft PRs</span>.</h1>
-            <p class="hero-desc">
-              Run Flowly against any GitHub repository you configure. It grounds a plan in the
-              repository, implements in an isolated clone, runs native checks, and opens a
-              <strong class="accent">draft pull request</strong> after independent review.
-            </p>
-            <div class="hero-meta">
-              <span><span class="tick">✓</span> isolated factory-owned branches</span>
-              <span><span class="tick">✓</span> repository-native verification</span>
-              <span><span class="tick">✓</span> never auto-merges or auto-approves</span>
-            </div>
-            <div class="hero-actions">
-              <a href="https://github.com/jellydn/flowly" class="btn btn-primary">View on GitHub</a>
-              <a href="how-it-works.html" class="btn btn-secondary">See how it works</a>
-            </div>
-          </div>
+        <a href="index.html" class="nav-brand"><span class="nav-brand-dot"></span>Flowly</a>
+        <ul class="nav-links">
+          <li><a href="index.html" class="active" aria-current="page">Home</a></li>
+          <li><a href="features.html">Features</a></li>
+          <li><a href="how-it-works.html">How it works</a></li>
+        </ul>
+        <a href="https://github.com/jellydn/flowly" class="nav-cta">GitHub</a>
+      </div>
+    </nav>
 
-          <div class="terminal hero-terminal">
-            <div class="terminal-bar"><span class="terminal-title">flowly · repo-assistant</span></div>
-            <pre><span class="prompt">$</span> <span class="cmd">npx tsx demo/doc-aware-demo.ts</span>
+    <main id="main">
+      <section class="hero">
+        <div class="container">
+          <div class="hero-grid">
+            <div class="reveal">
+              <div class="hero-badge">
+                <span class="hero-badge-dot"></span>Factory software · Flue 2.0
+              </div>
+              <h1>Turn GitHub issues into <span class="grad">reviewed draft PRs</span>.</h1>
+              <p class="hero-desc">
+                Run Flowly against any GitHub repository you configure. It grounds a plan in the
+                repository, implements in an isolated clone, runs native checks, and opens a
+                <strong class="accent">draft pull request</strong> after independent review.
+              </p>
+              <div class="hero-meta">
+                <span><span class="tick">✓</span> isolated factory-owned branches</span>
+                <span><span class="tick">✓</span> repository-native verification</span>
+                <span><span class="tick">✓</span> never auto-merges or auto-approves</span>
+              </div>
+              <div class="hero-actions">
+                <a href="https://github.com/jellydn/flowly" class="btn btn-primary"
+                  >View on GitHub</a
+                >
+                <a href="how-it-works.html" class="btn btn-secondary">See how it works</a>
+              </div>
+            </div>
+
+            <div class="terminal hero-terminal">
+              <div class="terminal-bar">
+                <span class="terminal-title">flowly · repo-assistant</span>
+              </div>
+              <pre><span class="prompt">$</span> <span class="cmd">npx tsx demo/doc-aware-demo.ts</span>
 
 Scenario: Authentication flow (docs + code)
   <span class="output">Question:</span>   How does authentication work here?
@@ -68,104 +80,141 @@ Scenario: Authentication flow (docs + code)
       the user service. (docs/architecture.md:7)
     - 4. User service (src/services/user-service.ts): issues
       authentication tokens. (docs/architecture.md:8)</pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="stats">
+        <div class="container">
+          <div class="stats-grid">
+            <div>
+              <div class="stat-value"><em>5</em></div>
+              <div class="stat-label">read-only tools</div>
+            </div>
+            <div>
+              <div class="stat-value"><em>3</em></div>
+              <div class="stat-label">planning meta-tools</div>
+            </div>
+            <div>
+              <div class="stat-value"><em>7</em></div>
+              <div class="stat-label">benchmark scenarios</div>
+            </div>
+            <div>
+              <div class="stat-value"><em>1</em></div>
+              <div class="stat-label">shared inspection budget</div>
+            </div>
           </div>
         </div>
       </div>
-    </section>
 
-    <div class="stats">
+      <section id="features">
+        <div class="container">
+          <p class="section-label">Why Flowly</p>
+          <h2 class="section-title">An agent you can verify, not blindly trust.</h2>
+          <p class="section-desc">
+            Every claim traces to a file the agent actually read. When the evidence isn't there, it
+            says so.
+          </p>
+
+          <div class="grid grid-2 section-body">
+            <div class="card reveal">
+              <div class="icon">📄</div>
+              <h3>Grounded answers, always cited</h3>
+              <p>
+                No free-association. Each answer names the exact file and line range it read, so you
+                can confirm the claim in seconds.
+              </p>
+              <span class="tag">file-and-line citations</span>
+            </div>
+            <div class="card reveal">
+              <div class="icon">🙅</div>
+              <h3>Honest about what it doesn't know</h3>
+              <p>
+                Asked about payment processing in a repo that has none, it reports insufficient
+                evidence instead of inventing one.
+              </p>
+              <span class="tag teal">no hallucinated answers</span>
+            </div>
+            <div class="card reveal">
+              <div class="icon">🔒</div>
+              <h3>Read-only by construction</h3>
+              <p>
+                The model holds no shell, no write, no network. Access exists only through five
+                confined inspection tools.
+              </p>
+              <span class="tag">path-confined</span>
+            </div>
+            <div class="card reveal">
+              <div class="icon">🧪</div>
+              <h3>Proven without an API key</h3>
+              <p>
+                Deterministic demos and a 7-scenario benchmark run the whole loop without a provider
+                key, fully reproducible in CI.
+              </p>
+              <span class="tag teal">deterministic</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="how">
+        <div class="container">
+          <p class="section-label">How it works</p>
+          <h2 class="section-title">Plan. Observe. Reflect. Answer.</h2>
+          <p class="section-desc">
+            Three meta-tools structure the loop; five read-only tools do the work, all within one
+            shared budget.
+          </p>
+
+          <div class="grid grid-3 section-body">
+            <div class="card reveal">
+              <div class="icon">🧭</div>
+              <h3>1 · Plan</h3>
+              <p>Declare a 3–5 step plan before touching a single tool. Budget-free.</p>
+            </div>
+            <div class="card reveal">
+              <div class="icon">🔎</div>
+              <h3>2 · Observe</h3>
+              <p>Search docs, search code, retrieve, then read the strongest candidates.</p>
+            </div>
+            <div class="card reveal">
+              <div class="icon">✅</div>
+              <h3>3 · Reflect &amp; answer</h3>
+              <p>Enough evidence? Answer with citations. Otherwise replan and dig once more.</p>
+            </div>
+          </div>
+
+          <p class="see-all"><a href="how-it-works.html">See the full workflow →</a></p>
+        </div>
+      </section>
+
+      <section>
+        <div class="container">
+          <div class="cta-banner reveal">
+            <h2>Bring factory software to your repository.</h2>
+            <p>
+              Run Flowly alongside the target checkout in GitHub Actions, then label an actionable
+              issue <code>factory</code>. Integration, the repository's toolchain, and adapting the
+              current <code>origin/main</code> base-ref assumption remain under your control.
+            </p>
+            <div class="hero-actions">
+              <a href="https://github.com/jellydn/flowly" class="btn btn-primary">Get Flowly</a>
+              <a href="features.html" class="btn btn-secondary">Explore the features</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
       <div class="container">
-        <div class="stats-grid">
-          <div><div class="stat-value"><em>5</em></div><div class="stat-label">read-only tools</div></div>
-          <div><div class="stat-value"><em>3</em></div><div class="stat-label">planning meta-tools</div></div>
-          <div><div class="stat-value"><em>7</em></div><div class="stat-label">benchmark scenarios</div></div>
-          <div><div class="stat-value"><em>1</em></div><div class="stat-label">shared inspection budget</div></div>
-        </div>
+        <p>Built with <a href="https://flueframework.com/">Flue</a> · MIT licensed</p>
+        <p>
+          <a href="https://github.com/jellydn/flowly">GitHub</a> ·
+          <a href="https://github.com/jellydn/flowly/discussions">Questions &amp; feedback</a>
+        </p>
       </div>
-    </div>
-
-    <section id="features">
-      <div class="container">
-        <p class="section-label">Why Flowly</p>
-        <h2 class="section-title">An agent you can verify, not blindly trust.</h2>
-        <p class="section-desc">Every claim traces to a file the agent actually read. When the evidence isn't there, it says so.</p>
-
-        <div class="grid grid-2 section-body">
-          <div class="card reveal">
-            <div class="icon">📄</div>
-            <h3>Grounded answers, always cited</h3>
-            <p>No free-association. Each answer names the exact file and line range it read, so you can confirm the claim in seconds.</p>
-            <span class="tag">file-and-line citations</span>
-          </div>
-          <div class="card reveal">
-            <div class="icon">🙅</div>
-            <h3>Honest about what it doesn't know</h3>
-            <p>Asked about payment processing in a repo that has none, it reports insufficient evidence instead of inventing one.</p>
-            <span class="tag teal">no hallucinated answers</span>
-          </div>
-          <div class="card reveal">
-            <div class="icon">🔒</div>
-            <h3>Read-only by construction</h3>
-            <p>The model holds no shell, no write, no network. Access exists only through five confined inspection tools.</p>
-            <span class="tag">path-confined</span>
-          </div>
-          <div class="card reveal">
-            <div class="icon">🧪</div>
-            <h3>Proven without an API key</h3>
-            <p>Deterministic demos and a 7-scenario benchmark run the whole loop without a provider key, fully reproducible in CI.</p>
-            <span class="tag teal">deterministic</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="how">
-      <div class="container">
-        <p class="section-label">How it works</p>
-        <h2 class="section-title">Plan. Observe. Reflect. Answer.</h2>
-        <p class="section-desc">Three meta-tools structure the loop; five read-only tools do the work, all within one shared budget.</p>
-
-        <div class="grid grid-3 section-body">
-          <div class="card reveal">
-            <div class="icon">🧭</div>
-            <h3>1 · Plan</h3>
-            <p>Declare a 3–5 step plan before touching a single tool. Budget-free.</p>
-          </div>
-          <div class="card reveal">
-            <div class="icon">🔎</div>
-            <h3>2 · Observe</h3>
-            <p>Search docs, search code, retrieve, then read the strongest candidates.</p>
-          </div>
-          <div class="card reveal">
-            <div class="icon">✅</div>
-            <h3>3 · Reflect &amp; answer</h3>
-            <p>Enough evidence? Answer with citations. Otherwise replan and dig once more.</p>
-          </div>
-        </div>
-
-        <p class="see-all"><a href="how-it-works.html">See the full workflow →</a></p>
-      </div>
-    </section>
-
-    <section>
-      <div class="container">
-        <div class="cta-banner reveal">
-          <h2>Bring factory software to your repository.</h2>
-          <p>Run Flowly alongside the target checkout in GitHub Actions, then label an actionable issue <code>factory</code>. Integration, the repository's toolchain, and adapting the current <code>origin/main</code> base-ref assumption remain under your control.</p>
-          <div class="hero-actions">
-            <a href="https://github.com/jellydn/flowly" class="btn btn-primary">Get Flowly</a>
-            <a href="features.html" class="btn btn-secondary">Explore the features</a>
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <footer>
-    <div class="container">
-      <p>Built with <a href="https://flueframework.com/">Flue</a> · MIT licensed</p>
-      <p><a href="https://github.com/jellydn/flowly">GitHub</a> · <a href="https://github.com/jellydn/flowly/discussions">Questions &amp; feedback</a></p>
-    </div>
-  </footer>
-</body>
+    </footer>
+  </body>
 </html>

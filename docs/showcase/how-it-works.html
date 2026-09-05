@@ -1,50 +1,61 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0a0a0b" />
-  <title>How it works: Flowly</title>
-  <meta name="description" content="Flowly in action: point it at a repository, index it, ask a question, watch it retrieve, execute tools, and answer with citations, then measure the run." />
-  <meta property="og:title" content="How Flowly works" />
-  <meta property="og:type" content="website" />
-  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-  <a class="skip-link" href="#main">Skip to content</a>
-  <nav>
-    <div class="container">
-      <a href="index.html" class="nav-brand"><span class="nav-brand-dot"></span>Flowly</a>
-      <ul class="nav-links">
-        <li><a href="index.html">Home</a></li>
-        <li><a href="features.html">Features</a></li>
-        <li><a href="how-it-works.html" class="active" aria-current="page">How it works</a></li>
-      </ul>
-      <a href="https://github.com/jellydn/flowly" class="nav-cta">GitHub</a>
-    </div>
-  </nav>
-
-  <main id="main">
-    <section class="page-intro">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0a0a0b" />
+    <title>How it works: Flowly</title>
+    <meta
+      name="description"
+      content="Flowly in action: point it at a repository, index it, ask a question, watch it retrieve, execute tools, and answer with citations, then measure the run."
+    />
+    <meta property="og:title" content="How Flowly works" />
+    <meta property="og:type" content="website" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <nav>
       <div class="container">
-        <p class="section-label">How it works</p>
-        <h1 class="section-title section-title-xl">What using Flowly actually looks like.</h1>
-        <p class="section-desc">This is the real, deterministic output of the bundled demo with no API key or editing. The agent runs the whole loop against a fixture repository and prints every step.</p>
+        <a href="index.html" class="nav-brand"><span class="nav-brand-dot"></span>Flowly</a>
+        <ul class="nav-links">
+          <li><a href="index.html">Home</a></li>
+          <li><a href="features.html">Features</a></li>
+          <li><a href="how-it-works.html" class="active" aria-current="page">How it works</a></li>
+        </ul>
+        <a href="https://github.com/jellydn/flowly" class="nav-cta">GitHub</a>
       </div>
-    </section>
+    </nav>
 
-    <section class="page-body">
-      <div class="container">
+    <main id="main">
+      <section class="page-intro">
+        <div class="container">
+          <p class="section-label">How it works</p>
+          <h1 class="section-title section-title-xl">What using Flowly actually looks like.</h1>
+          <p class="section-desc">
+            This is the real, deterministic output of the bundled demo with no API key or editing.
+            The agent runs the whole loop against a fixture repository and prints every step.
+          </p>
+        </div>
+      </section>
 
-        <div class="step">
-          <div class="step-num">1</div>
-          <div>
-            <h2>Point it at a repository, then index it</h2>
-            <p>Flowly reads one local checkout. On first <code>retrieve</code>, a lazy TF-IDF index chunks source and docs into ~50-line segments, with no embeddings or vector database.</p>
-            <div class="terminal">
-              <div class="terminal-bar"><span class="terminal-title">repository → index</span></div>
-              <pre><span class="output">Step 1: Repository Selection</span>
+      <section class="page-body">
+        <div class="container">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h2>Point it at a repository, then index it</h2>
+              <p>
+                Flowly reads one local checkout. On first <code>retrieve</code>, a lazy TF-IDF index
+                chunks source and docs into ~50-line segments, with no embeddings or vector
+                database.
+              </p>
+              <div class="terminal">
+                <div class="terminal-bar">
+                  <span class="terminal-title">repository → index</span>
+                </div>
+                <pre><span class="output">Step 1: Repository Selection</span>
   <span class="output">Repository:</span> eval/fixtures/sample-repo
 
 <span class="output">Step 2: Indexing (TF-IDF)</span>
@@ -52,61 +63,73 @@
   <span class="output">Chunks indexed:</span> 8
   <span class="output">Unique terms:</span>   72
   <span class="output">Build time:</span>     14ms</pre>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div class="step">
-          <div class="step-num">2</div>
-          <div>
-            <h2>Ask a question</h2>
-            <p>One natural-language question. The agent declares a short plan first. Planning costs no budget.</p>
-            <div class="terminal">
-              <div class="terminal-bar"><span class="terminal-title">chat question</span></div>
-              <pre><span class="prompt">$</span> <span class="cmd">"Review this repository, explain its architecture,
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h2>Ask a question</h2>
+              <p>
+                One natural-language question. The agent declares a short plan first. Planning costs
+                no budget.
+              </p>
+              <div class="terminal">
+                <div class="terminal-bar"><span class="terminal-title">chat question</span></div>
+                <pre><span class="prompt">$</span> <span class="cmd">"Review this repository, explain its architecture,
  identify the highest-risk issue, and suggest an
  implementation plan."</span></pre>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div class="step">
-          <div class="step-num teal">3</div>
-          <div>
-            <h2>Retrieve the relevant evidence</h2>
-            <p>Semantic retrieval scores candidate chunks and returns the strongest leads. Search results are leads, not proof. The next step reads the files to confirm.</p>
-            <div class="terminal">
-              <div class="terminal-bar"><span class="terminal-title">RAG retrieval</span></div>
-              <pre>[<span class="highlight">score: 0.369</span>] README.md:1-19 (documentation)
+          <div class="step">
+            <div class="step-num teal">3</div>
+            <div>
+              <h2>Retrieve the relevant evidence</h2>
+              <p>
+                Semantic retrieval scores candidate chunks and returns the strongest leads. Search
+                results are leads, not proof. The next step reads the files to confirm.
+              </p>
+              <div class="terminal">
+                <div class="terminal-bar"><span class="terminal-title">RAG retrieval</span></div>
+                <pre>[<span class="highlight">score: 0.369</span>] README.md:1-19 (documentation)
 [<span class="highlight">score: 0.222</span>] src/utils/notes.md:1-4 (documentation)
 [<span class="highlight">score: 0.068</span>] docs/architecture.md:1-12 (documentation)</pre>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div class="step">
-          <div class="step-num teal">4</div>
-          <div>
-            <h2>Execute tools inside the budget</h2>
-            <p>Each inspection call spends one step of the shared budget. The loop stops early when the evidence is sufficient. In this run, two calls were enough.</p>
-            <div class="terminal">
-              <div class="terminal-bar"><span class="terminal-title">tool execution</span></div>
-              <pre><span class="output">Tools used:</span>     retrieve <span class="highlight">→</span> read_file
+          <div class="step">
+            <div class="step-num teal">4</div>
+            <div>
+              <h2>Execute tools inside the budget</h2>
+              <p>
+                Each inspection call spends one step of the shared budget. The loop stops early when
+                the evidence is sufficient. In this run, two calls were enough.
+              </p>
+              <div class="terminal">
+                <div class="terminal-bar"><span class="terminal-title">tool execution</span></div>
+                <pre><span class="output">Tools used:</span>     retrieve <span class="highlight">→</span> read_file
 <span class="output">Iterations:</span>     2
 <span class="output">Stop reason:</span>    sufficient evidence for architecture review
 <span class="output">Evidence items:</span> 3</pre>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div class="step">
-          <div class="step-num">5</div>
-          <div>
-            <h2>Answer with citations and confidence</h2>
-            <p>The answer names the exact files and lines it read. Confidence reflects what was actually retrieved, and the answer states low confidence instead of hiding it.</p>
-            <div class="terminal">
-              <div class="terminal-bar"><span class="terminal-title">cited answer</span></div>
-              <pre><span class="output">Confidence:</span> Low
+          <div class="step">
+            <div class="step-num">5</div>
+            <div>
+              <h2>Answer with citations and confidence</h2>
+              <p>
+                The answer names the exact files and lines it read. Confidence reflects what was
+                actually retrieved, and the answer states low confidence instead of hiding it.
+              </p>
+              <div class="terminal">
+                <div class="terminal-bar"><span class="terminal-title">cited answer</span></div>
+                <pre><span class="output">Confidence:</span> Low
 <span class="output">Sources:</span>    README.md:1-19, docs/architecture.md:1-12,
            AGENTS.md:1-7
 
@@ -119,18 +142,23 @@
 
     Confidence is Low because the evidence is incomplete
     (only search leads, no file reads to confirm).</pre>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div class="step">
-          <div class="step-num">6</div>
-          <div>
-            <h2>Measure the run</h2>
-            <p>The benchmark scores the same loop across seven scenarios (tool success, citation accuracy, retrieval relevance, and answer completeness) and reports the outcome.</p>
-            <div class="terminal">
-              <div class="terminal-bar"><span class="terminal-title">evaluation report</span></div>
-              <pre><span class="output">Scenarios: 7  |  Passed: 7  |  Failed: 0</span>
+          <div class="step">
+            <div class="step-num">6</div>
+            <div>
+              <h2>Measure the run</h2>
+              <p>
+                The benchmark scores the same loop across seven scenarios (tool success, citation
+                accuracy, retrieval relevance, and answer completeness) and reports the outcome.
+              </p>
+              <div class="terminal">
+                <div class="terminal-bar">
+                  <span class="terminal-title">evaluation report</span>
+                </div>
+                <pre><span class="output">Scenarios: 7  |  Passed: 7  |  Failed: 0</span>
 
   <span class="ok">Citation Accuracy:    7/7</span>
   <span class="ok">Retrieval Relevance:  7/7</span>
@@ -140,32 +168,34 @@
   ✅ [cap-1] What is the purpose of this repository?
   ✅ [cap-2] Where is authentication implemented?
   ✅ [cap-3] What happens when a GitHub API request times out?</pre>
+              </div>
             </div>
           </div>
         </div>
+      </section>
 
-      </div>
-    </section>
-
-    <section>
-      <div class="container">
-        <div class="cta-banner reveal">
-          <h2>That's the whole loop.</h2>
-          <p>Deterministic, key-free, and reproducible: run it yourself in one command.</p>
-          <div class="hero-actions">
-            <a href="https://github.com/jellydn/flowly" class="btn btn-primary">Get Flowly</a>
-            <a href="features.html" class="btn btn-secondary">Back to features</a>
+      <section>
+        <div class="container">
+          <div class="cta-banner reveal">
+            <h2>That's the whole loop.</h2>
+            <p>Deterministic, key-free, and reproducible: run it yourself in one command.</p>
+            <div class="hero-actions">
+              <a href="https://github.com/jellydn/flowly" class="btn btn-primary">Get Flowly</a>
+              <a href="features.html" class="btn btn-secondary">Back to features</a>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
-  </main>
+      </section>
+    </main>
 
-  <footer>
-    <div class="container">
-      <p>Built with <a href="https://flueframework.com/">Flue</a> · MIT licensed</p>
-      <p><a href="https://github.com/jellydn/flowly">GitHub</a> · <a href="https://github.com/jellydn/flowly/discussions">Questions &amp; feedback</a></p>
-    </div>
-  </footer>
-</body>
+    <footer>
+      <div class="container">
+        <p>Built with <a href="https://flueframework.com/">Flue</a> · MIT licensed</p>
+        <p>
+          <a href="https://github.com/jellydn/flowly">GitHub</a> ·
+          <a href="https://github.com/jellydn/flowly/discussions">Questions &amp; feedback</a>
+        </p>
+      </div>
+    </footer>
+  </body>
 </html>

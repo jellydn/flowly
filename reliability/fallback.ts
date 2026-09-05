@@ -53,10 +53,14 @@ export async function executeWithFallback(
 ): Promise<FallbackResult> {
   options.signal?.throwIfAborted();
   if (isSealedTool(primaryTool)) {
-    throw new Error('Primary fallback tool must be a raw inspection tool (not composed with a budget or reliability).');
+    throw new Error(
+      'Primary fallback tool must be a raw inspection tool (not composed with a budget or reliability).',
+    );
   }
   if (fallbackTool && isSealedTool(fallbackTool)) {
-    throw new Error('Fallback tool must be a raw inspection tool (not composed with a budget or reliability).');
+    throw new Error(
+      'Fallback tool must be a raw inspection tool (not composed with a budget or reliability).',
+    );
   }
   const rawPrimaryTool = primaryTool;
   const rawFallbackTool = fallbackTool;
