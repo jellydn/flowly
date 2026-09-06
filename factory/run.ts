@@ -19,7 +19,11 @@ import {
 import type { FactoryDraftPrPublisher } from './publisher.ts';
 import type { FactoryRun, FactoryTask } from './types.ts';
 import type { FactoryAutonomyPolicy, FactoryManualConfirmation } from './types.ts';
-import { decideFactoryAutonomyGate, evaluateFactoryAutonomy } from './autonomy.ts';
+import {
+  decideFactoryAutonomyGate,
+  evaluateFactoryAutonomy,
+  factoryAutonomyGateAllowed,
+} from './autonomy.ts';
 
 export type FactoryPipelineDependencies = {
   orchestrator: FactoryOrchestrator;
@@ -91,10 +95,7 @@ export async function advanceFactoryRun(
     current.state === 'verifying'
   ) {
     current = await decideAndRecordGate(current, 'implementation', dependencies);
-    const implementationAllowed = current.autonomy?.gateDecisions.some(
-      (decision) => decision.boundary === 'implementation' && decision.allowed,
-    );
-    if (!implementationAllowed) return current;
+    if (!factoryAutonomyGateAllowed(current, 'implementation')) return current;
     current = await runControlledImplementation(current, implementationDependencies(dependencies));
   }
   if (current.state === 'failed') {
@@ -107,10 +108,7 @@ export async function advanceFactoryRun(
   }
   if (current.state === 'reviewing') {
     current = await decideAndRecordGate(current, 'publication', dependencies);
-    const publicationAllowed = current.autonomy?.gateDecisions.some(
-      (decision) => decision.boundary === 'publication' && decision.allowed,
-    );
-    if (!publicationAllowed) return current;
+    if (!factoryAutonomyGateAllowed(current, 'publication')) return current;
     current = await runIndependentReviewAndPublish(current, {
       orchestrator: dependencies.orchestrator,
       reviewer: dependencies.reviewer,

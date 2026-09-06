@@ -71,12 +71,6 @@ export class FactoryOrchestrator {
     return this.save({ ...run, autonomy: { ...run.autonomy, gateDecisions } });
   }
 
-  async recordAutonomyEvent(id: string, event: FactoryAutonomyEvent): Promise<FactoryRun> {
-    const run = await this.get(id);
-    if (run.autonomyEvents?.includes(event)) return run;
-    return this.save({ ...run, autonomyEvents: [...(run.autonomyEvents ?? []), event] });
-  }
-
   async applyAutonomyEvent(
     id: string,
     event: FactoryAutonomyEvent,
@@ -90,7 +84,7 @@ export class FactoryOrchestrator {
       return run;
     }
 
-    const autonomy = applyFactoryAutonomyEvent(run.autonomy, policy, event);
+    let autonomy = applyFactoryAutonomyEvent(run.autonomy, policy, event);
     if (boundary) {
       const decision = decideFactoryAutonomyGate(autonomy, boundary, confirmation);
       const existing = autonomy.gateDecisions.find((item) => item.boundary === boundary);
@@ -101,10 +95,13 @@ export class FactoryOrchestrator {
         existing.reason === decision.reason
           ? existing.decidedAt
           : Date.now();
-      autonomy.gateDecisions = [
-        ...autonomy.gateDecisions.filter((item) => item.boundary !== boundary),
-        { ...decision, boundary, decidedAt },
-      ];
+      autonomy = {
+        ...autonomy,
+        gateDecisions: [
+          ...autonomy.gateDecisions.filter((item) => item.boundary !== boundary),
+          { ...decision, boundary, decidedAt },
+        ],
+      };
     }
     return this.save({
       ...run,
