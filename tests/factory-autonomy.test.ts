@@ -99,6 +99,33 @@ describe('factory autonomy policy', () => {
     assert.deepEqual(currentRun.evidence.events, ['review-failure']);
   });
 
+  test('validates events and preserves gate decisions across idempotent demotion', () => {
+    const audit = {
+      ...evaluateFactoryAutonomy(
+        { ...policy, promotionEnabled: false, defaultLevel: 'publish-draft-pr' },
+        [],
+      ),
+      gateDecisions: [
+        {
+          boundary: 'implementation' as const,
+          allowed: true,
+          manualConfirmation: false,
+          reason: 'Policy allows implementation.',
+          decidedAt: 1,
+        },
+      ],
+    };
+
+    const demoted = applyFactoryAutonomyEvent(audit, policy, 'review-failure');
+
+    assert.deepEqual(demoted.gateDecisions, audit.gateDecisions);
+    assert.strictEqual(applyFactoryAutonomyEvent(demoted, policy, 'review-failure'), demoted);
+    assert.throws(
+      () => applyFactoryAutonomyEvent(audit, policy, 'invalid-event'),
+      /Invalid type|Expected/i,
+    );
+  });
+
   test('manual confirmation advances exactly its one requested boundary', () => {
     const audit = evaluateFactoryAutonomy(undefined, []);
     assert.deepEqual(decideFactoryAutonomyGate(audit, 'implementation', 'implementation'), {

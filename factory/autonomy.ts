@@ -5,7 +5,6 @@ import {
   type FactoryAutonomyAudit,
   type FactoryAutonomyBoundary,
   type FactoryAutonomyEvidence,
-  type FactoryAutonomyEvent,
   type FactoryAutonomyLevel,
   type FactoryAutonomyPolicy,
   type FactoryManualConfirmation,
@@ -13,6 +12,7 @@ import {
 } from './types.ts';
 
 const autonomyLevelSchema = v.picklist(FACTORY_AUTONOMY_LEVELS);
+const autonomyEventSchema = v.picklist(FACTORY_AUTONOMY_EVENTS);
 const rateSchema = v.pipe(v.number(), v.minValue(0), v.maxValue(1));
 
 export const factoryAutonomyPolicySchema = v.object({
@@ -127,8 +127,9 @@ export function evaluateFactoryAutonomy(
 export function applyFactoryAutonomyEvent(
   audit: FactoryAutonomyAudit,
   policyValue: FactoryAutonomyPolicy | undefined,
-  event: FactoryAutonomyEvent,
+  eventValue: unknown,
 ): FactoryAutonomyAudit {
+  const event = v.parse(autonomyEventSchema, eventValue);
   if (audit.evidence.events.includes(event)) return audit;
   const evidence = {
     ...audit.evidence,
@@ -146,6 +147,7 @@ export function applyFactoryAutonomyEvent(
       ...audit.explanation,
       `${event} immediately demoted the run to at most ${demotedLevel}.`,
     ],
+    gateDecisions: audit.gateDecisions,
   };
 }
 

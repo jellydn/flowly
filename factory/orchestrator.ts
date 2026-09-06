@@ -65,6 +65,7 @@ export class FactoryOrchestrator {
     const run = await this.get(id);
     if (!run.autonomy) throw new Error(`Factory run ${id} has no autonomy audit.`);
     const existing = run.autonomy.gateDecisions.find((item) => item.boundary === boundary);
+    // One-run confirmation remains valid on retry. Failure events revoke it through applyAutonomyEvent.
     if (existing?.allowed || (existing && !decision.allowed)) return run;
     const gateDecisions = run.autonomy.gateDecisions.filter((item) => item.boundary !== boundary);
     gateDecisions.push({ ...decision, boundary, decidedAt: Date.now() });
