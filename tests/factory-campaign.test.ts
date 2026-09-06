@@ -202,25 +202,11 @@ describe('migration campaign approval and execution', () => {
 
   test('persists a review failure when autonomy stops publication', async () => {
     const store = await approvedCampaignStore();
-    const result = await runMigrationCampaign(store, manifest.id, async (campaign, batch) => {
-      if (!batch.files.includes('src/models/a.ts')) {
-        return completedRun(batch.id, 300 + batch.sequence);
-      }
-      const current = (await store.load(campaign.id))!;
-      const factoryRun = reviewFailedRun(batch.id);
-      await store.save(
-        {
-          ...current,
-          batches: current.batches.map((candidate) =>
-            candidate.id === batch.id ? { ...candidate, factoryRun } : candidate,
-          ),
-          version: current.version + 1,
-          updatedAt: current.updatedAt + 1,
-        },
-        current.version,
-      );
-      throw new Error('Factory run has no allowed publication autonomy gate.');
-    });
+    const result = await runMigrationCampaign(store, manifest.id, async (_campaign, batch) =>
+      batch.files.includes('src/models/a.ts')
+        ? reviewFailedRun(batch.id)
+        : completedRun(batch.id, 300 + batch.sequence),
+    );
 
     const failedBatch = result.batches.find((batch) => batch.files.includes('src/models/a.ts'))!;
     assert.equal(failedBatch.state, 'failed');

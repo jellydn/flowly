@@ -57,56 +57,13 @@ export async function runMigrationCampaign(
     try {
       const run = await executeBatch(campaign, runningBatch);
       campaign = await requireCampaign(store, campaignId);
-      const reviewFailure = reviewFailureEvidence(run);
-      if (reviewFailure) {
-        campaign = await updateBatch(store, campaign, batch.id, {
-          state: 'failed',
-          factoryRun: run,
-          prNumber: run.prNumber,
-          failureEvidence: reviewFailure,
-        });
-      } else if (run.state === 'completed') {
-        campaign = await updateBatch(store, campaign, batch.id, {
-          state: 'completed',
-          factoryRun: run,
-          prNumber: run.prNumber,
-          failureEvidence: undefined,
-        });
-      } else if (run.state === 'failed') {
-        campaign = await updateBatch(store, campaign, batch.id, {
-          state: 'failed',
-          factoryRun: run,
-          failureEvidence: run.failure ?? 'Factory batch failed.',
-        });
-      } else {
-        campaign = await updateBatch(store, campaign, batch.id, {
-          state: 'ready',
-          factoryRun: run,
-          lastError: `Factory run stopped at ${run.state}; satisfy its trusted gate and retry.`,
-        });
-      }
+      campaign = await updateBatch(store, campaign, batch.id, batchUpdateForRun(run));
     } catch (error) {
       campaign = await requireCampaign(store, campaignId);
-      const currentRun = campaign.batches.find(
-        (candidate) => candidate.id === batch.id,
-      )?.factoryRun;
-      const reviewFailure = currentRun && reviewFailureEvidence(currentRun);
-      campaign = await updateBatch(
-        store,
-        campaign,
-        batch.id,
-        reviewFailure
-          ? {
-              state: 'failed',
-              factoryRun: currentRun,
-              prNumber: currentRun.prNumber,
-              failureEvidence: reviewFailure,
-            }
-          : {
-              state: 'ready',
-              lastError: error instanceof Error ? error.message : String(error),
-            },
-      );
+      campaign = await updateBatch(store, campaign, batch.id, {
+        state: 'ready',
+        lastError: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -121,6 +78,38 @@ export async function runMigrationCampaign(
       ? 'completed'
       : 'completed-with-failures',
   });
+}
+
+function batchUpdateForRun(run: FactoryRun): Partial<MigrationCampaignBatch> {
+  const reviewFailure = reviewFailureEvidence(run);
+  if (reviewFailure) {
+    return {
+      state: 'failed',
+      factoryRun: run,
+      prNumber: run.prNumber,
+      failureEvidence: reviewFailure,
+    };
+  }
+  if (run.state === 'completed') {
+    return {
+      state: 'completed',
+      factoryRun: run,
+      prNumber: run.prNumber,
+      failureEvidence: undefined,
+    };
+  }
+  if (run.state === 'failed') {
+    return {
+      state: 'failed',
+      factoryRun: run,
+      failureEvidence: run.failure ?? 'Factory batch failed.',
+    };
+  }
+  return {
+    state: 'ready',
+    factoryRun: run,
+    lastError: `Factory run stopped at ${run.state}; satisfy its trusted gate and retry.`,
+  };
 }
 
 function reviewFailureEvidence(run: FactoryRun): string | undefined {
