@@ -216,7 +216,11 @@ function shouldIgnore(name: string): boolean {
 }
 
 export class RepositoryReader {
-  constructor(readonly root: string) {}
+  readonly root: string;
+
+  constructor(root: string) {
+    this.root = realpathSync(path.resolve(root));
+  }
 
   async resolve(relativePath = '.'): Promise<string> {
     if (relativePath.includes('\0') || path.isAbsolute(relativePath)) {

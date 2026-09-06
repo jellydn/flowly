@@ -3,7 +3,12 @@ import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, test } from 'node:test';
-import { createRepositoryReader, createStepBudget, parseMaxSteps } from '../tools/repository.ts';
+import {
+  createRepositoryReader,
+  createStepBudget,
+  parseMaxSteps,
+  RepositoryReader,
+} from '../tools/repository.ts';
 
 let fixture: string;
 
@@ -45,6 +50,21 @@ test('rejects symlinks that leave the repository', async () => {
   await symlink(tmpdir(), link);
   await assert.rejects(repository.resolve('outside-link'), /Symbolic link escapes/);
   await rm(link);
+});
+
+test('accepts a repository reached through a symlinked parent path', async (t) => {
+  const parent = await mkdtemp(path.join(tmpdir(), 'flowly-symlinked-root-'));
+  t.after(() => rm(parent, { force: true, recursive: true }));
+  const repositoryPath = path.join(parent, 'repository');
+  const linkedPath = path.join(parent, 'linked-repository');
+  await mkdir(repositoryPath);
+  await writeFile(path.join(repositoryPath, 'README.md'), '# Linked repository\n');
+  await symlink(repositoryPath, linkedPath, 'dir');
+
+  const repository = new RepositoryReader(linkedPath);
+
+  assert.match(await repository.readText('README.md'), /Linked repository/);
+  assert.equal(repository.relative(await repository.resolve('README.md')), 'README.md');
 });
 
 test('bounds inspection steps', () => {
