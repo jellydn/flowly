@@ -1,6 +1,6 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-08-04
+**Analysis Date:** 2026-09-06
 
 ## Directory Layout
 
@@ -12,7 +12,7 @@ flowly/
 ├── planner/           # Plan → execute → reflect meta-tools
 ├── reliability/       # Retry / timeout / validation / failure-injection wrappers
 ├── review/            # PR review tools, schema, filters, limits, state
-├── factory/           # Issue intake, state orchestration, isolated mutation, independent review, draft PR
+├── factory/           # Gated issue-to-PR runs, autonomy policy, and migration campaigns
 ├── github/            # Trusted GitHub client/adapter + event router
 ├── index/             # TF-IDF and relationship repository indexes
 ├── scripts/           # CLI entrypoints (review-pr, route-event, flue-eval)
@@ -22,7 +22,7 @@ flowly/
 ├── skills/            # Flue skills (analyzing-repositories)
 ├── tests/             # Node test-runner tests (49 files + helpers)
 ├── .planning/         # Codebase map + internal planning docs
-├── .github/workflows/ # CI + review + example workflows
+├── .github/workflows/ # CI + event-router/review/factory workflow + examples
 ├── sandbox.ts         # Empty toolset replacing default FS/shell tools
 ├── app.ts             # Flue 2 route map
 ├── flue.config.ts     # Flue config (target: node)
@@ -69,9 +69,9 @@ flowly/
 
 **`factory/`:**
 
-- Purpose: Typed issue-to-PR run state and trusted implementation, review, and draft-PR boundaries
+- Purpose: Typed issue-to-PR state, trusted implementation/review/publication boundaries, autonomy policy, and multi-batch migration campaigns
 - Contains: `types.ts`, `schema.ts`, `store.ts`, `run-state-store.ts`, `orchestrator.ts`, `autonomy.ts`, `campaign-types.ts`, `campaign-schema.ts`, `campaign-store.ts`, `campaign.ts`, `campaign-run.ts`, `intake.ts`, `plan.ts`, `run.ts`, `dispatch.ts`, `defaults.ts`, `model.ts`, `model-adapters.ts`, `agent-implementer.ts`, `git.ts`, `implementation.ts`, `verification.ts`, `review.ts`, `publisher.ts`, `pipeline.ts`
-- Key files: `orchestrator.ts` (monotonic run transitions), `plan.ts` (read-only analyst stage), `run.ts` (end-to-end factory pipeline), `git.ts` (isolated factory-only Git mutation), `pipeline.ts` (independent review + draft PR coordinator)
+- Key files: `orchestrator.ts` (monotonic run transitions), `autonomy.ts` (evidence-based policy gates), `run.ts` (end-to-end factory pipeline), `agent-implementer.ts` (Flue implementer adapter), `git.ts` (isolated trusted Git mutation), `campaign.ts` and `campaign-run.ts` (approved migration batches)
 
 **`github/`:**
 
@@ -89,7 +89,7 @@ flowly/
 
 - Purpose: CI entrypoints
 - Contains: `review-pr.ts`, `run-factory.ts`, `route-event.ts`, `flue-eval.ts`, `check-doc-tree.ts`
-- Key files: all three
+- Key files: `review-pr.ts`, `route-event.ts`, `run-factory.ts`, `flue-eval.ts`
 
 **`eval/`:**
 
@@ -124,6 +124,7 @@ flowly/
 - `agents/factory-implementer.ts`: isolated writable factory implementation agent
 - `scripts/review-pr.ts`: CI review entrypoint
 - `scripts/route-event.ts`: CI event-router entrypoint
+- `scripts/run-factory.ts`: production issue-to-draft-PR pipeline entrypoint
 - `scripts/flue-eval.ts`: benchmark CLI
 - `eval/capstone-eval.ts`: capstone suite entrypoint
 - `app.ts`: Flue route map
@@ -143,6 +144,9 @@ flowly/
 - `investigation/loop.ts`: investigation loop
 - `reliability/resilient-tool.ts`: resilience wrapper
 - `factory/implementation.ts`: controlled implementation stage
+- `factory/autonomy.ts`: implementation and publication policy gates
+- `factory/campaign.ts`: migration inventory, ordering, batching, and plan approval
+- `factory/campaign-run.ts`: resumable batch execution through the factory pipeline
 - `factory/git.ts`: trusted factory Git mutation boundary
 - `factory/pipeline.ts`: independent review + draft PR stage
 - `github/adapter.ts`: trusted review publisher
@@ -199,12 +203,12 @@ flowly/
 - Generated: Yes
 - Committed: No (gitignored)
 
-**`.github/workflows/*.example`:**
+**`.github/workflows/`:**
 
-- Purpose: Example workflows (`event-router.example`, `eval.example`) deliberately not `.yml` so Actions does not run them
+- Purpose: `ci.yml` runs the complete check; `event-router.yml` routes events and runs review/factory jobs. `event-router.example` and `eval.example` are inactive examples.
 - Generated: No
 - Committed: Yes
 
 ---
 
-_Structure analysis: 2026-08-04_
+_Structure analysis: 2026-09-06_

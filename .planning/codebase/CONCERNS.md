@@ -1,129 +1,156 @@
 # Codebase Concerns
 
-**Analysis Date:** 2026-08-04
+**Analysis Date:** 2026-09-06
 
 ## Tech Debt
 
-**Retrieve/indexer coupling — PARTIALLY RESOLVED:**
-- Issue: `tools/retrieve.ts` depends on `index/repository-indexer.ts`, and `eval/bench/runner.ts` hardcodes `retrieve` as the first live-mode tool call — a model-driven tool strategy would be more flexible
-- Files: `tools/retrieve.ts`, `index/repository-indexer.ts`, `eval/bench/runner.ts`
-- Impact: live-mode scenarios with `requiresToolCall: false` must be handled specially; custom live suites can't choose their own first tool
-- Fix approach: make the live-mode tool strategy configurable per suite/scenario
-- Status: tool-set duplication RESOLVED — `eval/bench/runner.ts` (and `eval/capstone-eval.ts`) now build their tool maps from `createBudgetedInspectionTools` in `tools/inspection-registry.ts`, so the five-tool set is listed in exactly one place; the retrieve-first live-mode decider remains open
+**Documentation has several manual sources of truth:**
 
-**`eval/bench/providers.ts` pricing table is approximate — RESOLVED:**
-- ~~Issue: static per-1K pricing is a convenience table, not exhaustive or billed~~
-- ~~Impact: cost estimates drift from real provider billing for unlisted models~~
-- Status: fixed — live mode now consumes real usage reported by the provider (`usage` on `ModelCallResult`; `prompt_tokens`/`completion_tokens`/`total_cost` parsed from OpenAI-compatible responses in `createOpenAiCompatibleClient`). Reports record `metrics.usageSource: 'provider' | 'estimated'` and use provider `billedCostUsd` when present; the pricing table remains only the fallback for providers that report no usage (deterministic mode, unlisted models). Covered by `tests/bench-runner.test.ts` (provider-usage parsing + billed-cost precedence).
+- Issue: `README.md`, `AGENTS.md`, `.planning/codebase/`, `.env.example`, and the static pages in `docs/` repeat architecture and operating details.
+- Files: `README.md`, `AGENTS.md`, `.planning/codebase/*.md`, `.env.example`, `docs/index.html`
+- Impact: workflow names, tool counts, environment variables, and current factory behavior can drift after a feature merge.
+- Direction: keep `npm run check:docs` for structural checks and refresh this map after architecture changes. Generate repeated command and environment-variable tables if drift becomes frequent.
 
-**Manually maintained docs duplication:**
-- Issue: README, AGENTS.md, `.planning/codebase/`, and `docs/index.html` overlap and must be kept in sync by hand
-- Files: `README.md`, `AGENTS.md`, `.planning/codebase/*.md`, `docs/index.html`
-- Impact: drift risk; stale sections (the codebase map predates the event router and eval benchmark until this refresh)
-- Fix approach: keep the map refresh in the release loop (or generate portions of README from AGENTS.md)
+**Large orchestration and parsing modules:**
+
+- Issue: several modules combine many policies or parsing cases.
+- Files: `eval/capstone-eval.ts`, `index/repository-relationship-index.ts`, `eval/bench/runner.ts`, `scripts/flue-eval.ts`, `review/pr-data.ts`, `reliability/validation.ts`
+- Impact: changes have a wide review surface and can couple unrelated behavior.
+- Direction: split only at stable domain seams. Good candidates are relationship extractors by source type and benchmark CLI subcommands by command.
+
+**Migration campaigns are a library surface only:**
+
+- Issue: campaign planning, approval, storage, and execution exist, but no npm script or GitHub workflow invokes them.
+- Files: `factory/campaign.ts`, `factory/campaign-run.ts`, `factory/campaign-store.ts`, `package.json`, `.github/workflows/event-router.yml`
+- Impact: operators need custom code to use the feature.
+- Direction: add a small validated CLI only when an operating workflow is defined; keep explicit plan-digest approval.
 
 ## Known Bugs
 
-**No open known bugs** — the suite is green (374 tests) and both recent review cycles (event router, eval benchmark) had their findings fixed before merge. One historical issue fixed in-thread: live mode originally never invoked `modelCall` (dead code); a spy test now guards it.
+**Repository roots through a parent symlink fail confinement on macOS:**
+
+- Behavior: `RepositoryReader` keeps the configured root spelling but compares resolved child paths against it. On macOS, `os.tmpdir()` commonly returns `/var/...`, whose real path is `/private/var/...`; the child is incorrectly reported as a symlink escape.
+- Files: `tools/repository.ts`, `tests/factory-model-adapters.test.ts`
+- Evidence: `npx tsx --test tests/factory-model-adapters.test.ts` fails in `plans from selected repository files and native commands` with `Symbolic link escapes the configured repository`.
+- Impact: repository inspection can fail for a valid repository reached through a symlinked parent path. The full test run currently passes 568 of 569 tests on macOS because of this case.
+- Direction: canonicalize the repository root once in the constructor/factory and use that canonical root for all containment checks. Retain explicit tests for real child symlink escapes.
+
+**The local lint gate is not green on current `main`:**
+
+- Behavior: `prek run --all-files` reports 22 oxlint errors.
+- Files: primarily `workspace.ts`, plus `eval/capstone-eval.ts` and `tests/fallback-tool.test.ts`
+- Impact: contributors cannot pass the documented pre-commit command without unrelated cleanup.
+- Direction: fix the reported unused bindings and unnecessary escapes in a separate source change, then keep `prek run --all-files` green in CI or in a required pre-commit check.
+
+## Operational Constraints
+
+**Production factory defaults to plan-only:**
+
+- Behavior: without `FACTORY_AUTONOMY_POLICY` or a one-run confirmation, the factory stops before implementation. The checked-in workflow does not set either variable.
+- Files: `factory/autonomy.ts`, `scripts/run-factory.ts`, `.github/workflows/event-router.yml`, `.env.example`
+- Impact: a `factory` label does not, by itself, create a draft PR. This is a safe default but can surprise an operator who expects full automation.
+- Direction: document and configure the intended repository policy in the workflow after the team approves its thresholds and maximum autonomy.
+
+**Live services are outside deterministic CI:**
+
+- Behavior: CI does not call a real LLM provider or GitHub API and does not run the actual Flue agent loop.
+- Files: `agents/*.ts`, `factory/model-adapters.ts`, `eval/bench/providers.ts`, `github/client.ts`
+- Impact: provider response changes, authentication, rate limits, and runtime integration can fail only in live use.
+- Direction: retain deterministic contract tests and add a scheduled, low-cost smoke workflow if production usage requires stronger detection.
 
 ## Security Considerations
 
-**Repository path confinement:**
-- Risk: tools must never escape the configured repo (path traversal, symlink escape)
-- Files: `tools/repository.ts`
-- Current mitigation: realpath + symlink resolution, `..` and absolute-path rejection, canonical path checks, ignored dirs, 1 MB file cap
-- Recommendations: keep the "concurrently-modified checkout" caveat documented (path checks assume a stable tree); no change needed
+**Two different capability boundaries must stay separate:**
 
-**Secrets handling:**
-- Risk: `GITHUB_TOKEN` / `OPENROUTER_API_KEY` leaking to the model or logs
-- Files: `github/client.ts`, `github/adapter.ts`, `scripts/review-pr.ts`, `eval/bench/providers.ts`
-- Current mitigation: sandbox removes FS/shell tools; token held only by trusted app code; debug logs never include secrets; `.env` gitignored
-- Recommendations: keep env-only injection; never add a config file path for keys
+- Risk: the repository assistant is read-only, while the factory implementer can edit and execute commands in an isolated clone.
+- Files: `sandbox.ts`, `agents/factory-implementer.ts`, `factory/agent-implementer.ts`, `factory/git.ts`
+- Current mitigation: the assistant receives no filesystem or shell tools; the implementer uses root-confined `ReadWriteFs`, no network tools, and cannot publish. Trusted orchestration commits, pushes, and opens only draft PRs after verification and review.
+- Recommendation: do not reuse the writable sandbox in the assistant or reviewer. Keep GitHub credentials out of model-facing tools.
 
-**Event payload trust:**
-- Risk: routing decisions driven by untrusted webhook payload fields
-- Files: `github/events/payloads.ts`
-- Current mitigation: payloads normalized and validated; unknown/malformed events ignored safely; dispatch is decision-only (workflows wire the agent)
-- Recommendations: keep agent execution out of the router
+**Repository and event content is untrusted:**
 
-## Performance Bottlenecks
+- Risk: source files, issue bodies, PR text, and event payloads can contain prompt-injection instructions or malformed paths.
+- Files: `agents/factory-implementer.ts`, `review/pr-data.ts`, `github/events/payloads.ts`, `tools/repository.ts`
+- Current mitigation: prompts identify repository content as untrusted; payloads and schemas validate edges; realpath and symlink checks confine reads; publication is trusted code.
+- Recommendation: keep authorization in code and policy state. Never make a model statement sufficient to pass an autonomy or publication gate.
 
-**File-store leaderboard scans:**
-- Problem: `createFileBenchmarkStore.list()` reads every report JSON under `eval/results/` on each `leaderboard`/`report`/`load` call
+**Persistent GitHub comments require author filtering:**
+
+- Risk: an untrusted participant could post text that looks like hidden review or factory state.
+- Files: `review/review-state-store.ts`, `factory/run-state-store.ts`
+- Current mitigation: stores accept state only from the configured bot identity.
+- Recommendation: preserve the author check whenever state formats change.
+
+## Performance and Scaling
+
+**Repository indexes scan the tree on first use:**
+
+- Problem: `retrieve` builds a TF-IDF chunk index and `related_context` builds a separate relationship graph. Each scans repository files and caches only for the process lifetime.
+- Files: `index/repository-indexer.ts`, `index/repository-relationship-index.ts`, `tools/retrieve.ts`, `tools/related-context.ts`
+- Impact: first-call latency and memory grow with repository size; two tools duplicate file reads.
+- Direction: acceptable for current bounded use. For large repositories, share an inventory/cache or persist content digests before raising current limits.
+
+**Relationship extraction is intentionally heuristic:**
+
+- Problem: regular expressions parse JavaScript/TypeScript imports, Markdown links, package manifests, CODEOWNERS, and issue references.
+- Files: `index/repository-relationship-index.ts`
+- Impact: dynamic imports, aliases, non-JavaScript manifests, and complex syntax can be missed. Diagnostics are capped at 50.
+- Direction: keep results evidence-cited and best-effort. Add language-aware extractors only for demonstrated repository needs.
+
+**File-backed report listing is linear:**
+
+- Problem: benchmark leaderboard/report operations parse saved result files on demand.
 - Files: `eval/bench/store.ts`
-- Cause: no index; directory walk + parse per call
-- Improvement path: cache per-process, or maintain an index file per suite
-
-**TF-IDF index build:**
-- Problem: `retrieve` builds the repository index lazily on first call (chunking ~50-line segments up to 2,000 chunks)
-- Files: `index/repository-indexer.ts`
-- Cause: full-file scan of source + docs on first retrieval
-- Improvement path: already mitigated by lazy build + per-process caching; acceptable for the bounded fixture/oak scale
-
-## Fragile Areas
-
-**Capstone decider coupling:**
-- Files: `eval/capstone-eval.ts`, `eval/bench/runner.ts`, `eval/benchmarks/sample.json`
-- Why fragile: the sample suite's scenario ids must match capstone decider ids, or deterministic `run` throws "No decision function for scenario"
-- Safe modification: add scenarios with new ids AND a matching decider; a test (`flue-eval-cli.test.ts`) asserts id parity
-- Test coverage: covered for the bundled suite; custom suites are the user's responsibility
-
-**Entrypoint side effects:**
-- Files: `eval/capstone-eval.ts`
-- Why fragile: module-level `main()` would run on import; guarded by an is-main check (`process.argv[1]` vs `pathToFileURL`)
-- Safe modification: keep the guard; add tests if importing other modules for their exports
-- Test coverage: the CLI import path is covered by `flue-eval-cli.test.ts`
-
-## Scaling Limits
-
-**Inspection budget:**
-- Current capacity: 1–20 tool calls per run (default 8), enforced by `StepBudget`
-- Limit: hard ceiling of 20 by design (educational, bounded agent)
-- Scaling path: raise `REPO_ASSISTANT_MAX_STEPS` within 1–20; more ambitious workloads need a different budget model
-
-**Search/read bounds:**
-- Current capacity: ≤50 search matches, ≤400 read lines, 1 MB files, ≤50 search-result matches
-- Limit: fixed by `TOOL_LIMITS` in `tools/contracts.ts`
-- Scaling path: these are deliberate safety bounds, not to be raised casually
+- Impact: command latency grows with retained benchmark runs.
+- Direction: add a suite index or retention policy if result volume becomes material.
 
 ## Dependencies at Risk
 
-**`@flue/*` v2 (prerelease-style):**
-- Risk: Flue 2.0 has no public `maxSteps`/`maxTurns` option; tool-context shape is v2-specific (`data`, `toolCallId`, `log`, `{ output }` envelopes)
-- Impact: framework upgrades may change the tool contract; the project already works around missing options by bounding calls itself
-- Migration plan: pin to ^2.0.0; on upgrade, re-verify tool invocation (`reliability/tool-invocation.ts`) and agent durability settings
+**The current lockfile has two fixable transitive advisories:**
 
-**oxlint/oxfmt via PATH:**
-- Risk: not npm devDependencies; resolved from PATH (mise) — a fresh machine without them fails `prek` hooks
-- Impact: local lint/format unavailable until installed
-- Migration plan: documented in AGENTS.md; no change needed
+- `hono@4.12.33`, through `@flue/runtime@2.0.2`, has moderate denial-of-service and request-handling advisories fixed in `4.12.34`.
+- `nanoid@3.3.16`, through Vite → PostCSS, has a high-severity infinite-loop advisory for custom generators with a zero size, fixed in `3.3.18`.
+- Files: `package-lock.json`, `package.json`
+- Evidence: `npm audit` reports one moderate and one high vulnerability, both with fixes available.
+- Direction: update the owning direct dependencies or refresh the lockfile through supported semver ranges, then run `npm run check`. Do not apply a forced major upgrade without review.
 
-## Missing Critical Features
+## Fragile Areas
 
-**Human acceptance rate — RESOLVED:**
-- ~~Problem: `humanAcceptanceRate` is stored as NaN — no manual-approval flow exists yet~~
-- Status: fixed — `recordHumanAcceptance(report, verdicts)` (in `eval/bench/metrics.ts`) records per-scenario accept/reject verdicts and recomputes `humanAcceptanceRate`; the `flue eval review <runId> --accept <id,...> [--reject <id,...>]` subcommand wires it to saved reports. Unreviewed runs still report NaN; `printReport` shows per-scenario reviewed status and the rate. Covered by `tests/bench-runner.test.ts` and smoke-tested via the CLI.
+**Factory state transitions and retries:**
 
-**Live dispatch of agents:**
-- Problem: the event router decides (`agent=<id>`) but nothing executes the agent yet
-- Blocks: end-to-end event-driven agent workflows
-- Files: `github/events/router.ts`, `scripts/route-event.ts`
+- Why fragile: GitHub Actions retries can resume `queued` or expired `planning` runs; later side effects must remain idempotent.
+- Files: `factory/orchestrator.ts`, `factory/run.ts`, `factory/store.ts`, `factory/run-state-store.ts`, `factory/publisher.ts`
+- Safe change rule: add transitions through the orchestrator, retain optimistic versions, and reuse branches/PRs instead of creating duplicates.
+- Test coverage: `factory-orchestrator.test.ts`, `factory-run.test.ts`, `factory-store.test.ts`, `factory-publisher.test.ts`
+
+**Campaign ordering and plan approval:**
+
+- Why fragile: file selection, glob matching, topological ordering, batch dependencies, and the plan digest define what a human approved.
+- Files: `factory/campaign.ts`, `factory/campaign-digest.ts`, `factory/campaign-run.ts`
+- Safe change rule: any semantic plan change must change the digest; execution must reject unapproved plans and block batches after failed dependencies.
+- Test coverage: `factory-campaign.test.ts`
+
+**Benchmark scenario lineage:**
+
+- Why fragile: deterministic scenarios need matching deciders, and gate reports depend on suite and corpus digests.
+- Files: `eval/capstone-eval.ts`, `eval/bench/runner.ts`, `eval/benchmarks/sample.json`
+- Safe change rule: update deciders and expected lineage together; do not bypass the deterministic gate.
+- Test coverage: `capstone-eval.test.ts`, `bench-runner.test.ts`, `flue-eval-cli.test.ts`
 
 ## Test Coverage Gaps
 
-**Live provider paths:**
-- What's not tested: real network calls to `createOpenAiCompatibleClient` (CI has no key); real `git apply` patch applicability
-- Files: `eval/bench/providers.ts`, `eval/bench/patch.ts`
-- Risk: provider-response parsing changes could break `--live` without CI notice
-- Status: partially closed — response parsing (content + usage + billed cost) is now covered by mocked-`fetch` unit tests in `tests/bench-runner.test.ts`; a real keyed call and `git apply` remain opt-in manual checks
-- Priority: Low (live runs are opt-in)
+**No enforced coverage percentage:**
 
-**Flue framework integration:**
-- What's not tested: the actual `flue run` agent loop with a real model (requires a key)
-- Files: `agents/*.ts`
-- Risk: harness-specific regressions only surface in live demo runs
-- Priority: Low (deterministic tests cover the underlying contracts)
+- Files: `package.json`, `tests/`
+- Risk: 49 test files cover core behavior, but no statement or branch threshold detects untested additions.
+- Priority: Medium. Add coverage only with reviewed exclusions so generated fixtures and integration adapters do not distort the signal.
+
+**No real provider, GitHub, or hosted Actions E2E test:**
+
+- Files: `agents/*.ts`, `factory/agent-implementer.ts`, `factory/model-adapters.ts`, `github/client.ts`
+- Risk: local contracts can pass while credentials, network behavior, or workflow permissions fail.
+- Priority: Medium for production factory use; low for local deterministic evaluation.
 
 ---
 
-*Concerns audit: 2026-08-04*
+_Concerns audit: 2026-09-06_
