@@ -5,6 +5,7 @@ import {
   type FactoryAutonomyAudit,
   type FactoryAutonomyBoundary,
   type FactoryAutonomyEvidence,
+  type FactoryAutonomyEvent,
   type FactoryAutonomyLevel,
   type FactoryAutonomyPolicy,
   type FactoryManualConfirmation,
@@ -68,9 +69,13 @@ export function evaluateFactoryAutonomy(
   }
 
   const policy = parseFactoryAutonomyPolicy(policyValue);
-  let effectiveLevel = minLevel(policy.defaultLevel, policy.maximumLevel);
+  let effectiveLevel = policy.promotionEnabled
+    ? 'plan-only'
+    : minLevel(policy.defaultLevel, policy.maximumLevel);
   const explanation = [
-    `Policy ${policy.version} starts at ${policy.defaultLevel} and caps at ${policy.maximumLevel}.`,
+    policy.promotionEnabled
+      ? `Policy ${policy.version} starts history-based promotion at plan-only and caps at ${policy.maximumLevel}.`
+      : `Policy ${policy.version} uses static level ${policy.defaultLevel} and caps at ${policy.maximumLevel}.`,
     `Verification: ${evidence.verificationSuccesses}/${evidence.verificationSamples} (${formatRate(evidence.verificationSuccessRate)}).`,
     `Review readiness: ${evidence.reviewReady}/${evidence.reviewSamples} (${formatRate(evidence.reviewReadyRate)}).`,
     `Draft publication: ${evidence.publicationSuccesses}/${evidence.publicationSamples} (${formatRate(evidence.publicationSuccessRate)}).`,
@@ -116,6 +121,31 @@ export function evaluateFactoryAutonomy(
     effectiveLevel,
     explanation,
     gateDecisions: [],
+  };
+}
+
+export function applyFactoryAutonomyEvent(
+  audit: FactoryAutonomyAudit,
+  policyValue: FactoryAutonomyPolicy | undefined,
+  event: FactoryAutonomyEvent,
+): FactoryAutonomyAudit {
+  if (audit.evidence.events.includes(event)) return audit;
+  const evidence = {
+    ...audit.evidence,
+    events: [...audit.evidence.events, event].sort(),
+  };
+  if (!policyValue) return { ...audit, evidence };
+
+  const demotedLevel = parseFactoryAutonomyPolicy(policyValue).demotions[event];
+  if (!demotedLevel) return { ...audit, evidence };
+  return {
+    ...audit,
+    evidence,
+    effectiveLevel: minLevel(audit.effectiveLevel, demotedLevel),
+    explanation: [
+      ...audit.explanation,
+      `${event} immediately demoted the run to at most ${demotedLevel}.`,
+    ],
   };
 }
 

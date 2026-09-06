@@ -14,7 +14,7 @@ import {
   type IsolatedFactoryReviewEvidence,
   reviewFactoryImplementation,
 } from './review.ts';
-import type { FactoryRun } from './types.ts';
+import type { FactoryAutonomyEvent, FactoryRun } from './types.ts';
 import { assertFactoryAutonomyGate } from './autonomy.ts';
 
 export type IndependentReviewPipelineDependencies = {
@@ -26,6 +26,7 @@ export type IndependentReviewPipelineDependencies = {
     evidence: IsolatedFactoryReviewEvidence,
     output: IndependentReviewOutput,
   ) => CriterionJudgment[];
+  recordAutonomyEvent?: (run: FactoryRun, event: FactoryAutonomyEvent) => Promise<FactoryRun>;
   progress?: FactoryProgressPublisher;
 };
 
@@ -48,15 +49,16 @@ export async function runIndependentReviewAndPublish(
   }
   assertFactoryAutonomyGate(current, 'publication');
 
-  const reviewed = current.review ? current : await recordIndependentReview(current, dependencies);
+  let reviewed = current.review ? current : await recordIndependentReview(current, dependencies);
   if (!reviewed.review?.readyForHumanReview) {
-    await dependencies.orchestrator.recordAutonomyEvent(reviewed.id, 'review-failure');
+    reviewed = await recordAutonomyEvent(reviewed, 'review-failure', dependencies);
+    assertFactoryAutonomyGate(reviewed, 'publication');
   }
   let pullRequest;
   try {
     pullRequest = await dependencies.publisher.publish(reviewed);
   } catch (error) {
-    await dependencies.orchestrator.recordAutonomyEvent(reviewed.id, 'publication-failure');
+    await recordAutonomyEvent(reviewed, 'publication-failure', dependencies);
     throw error;
   }
   if (pullRequest.state !== 'open' || !pullRequest.draft) {
@@ -68,6 +70,16 @@ export async function runIndependentReviewAndPublish(
     `Factory draft PR #${pullRequest.number} created. Flowly will not merge or approve it.`,
   );
   return dependencies.orchestrator.complete(published.id);
+}
+
+function recordAutonomyEvent(
+  run: FactoryRun,
+  event: FactoryAutonomyEvent,
+  dependencies: IndependentReviewPipelineDependencies,
+): Promise<FactoryRun> {
+  return dependencies.recordAutonomyEvent
+    ? dependencies.recordAutonomyEvent(run, event)
+    : dependencies.orchestrator.recordAutonomyEvent(run.id, event);
 }
 
 async function recordIndependentReview(

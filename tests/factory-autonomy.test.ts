@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import {
+  applyFactoryAutonomyEvent,
   decideFactoryAutonomyGate,
   evaluateFactoryAutonomy,
   parseFactoryAutonomyPolicy,
 } from '../factory/autonomy.ts';
-import type { FactoryAutonomyPolicy, FactoryRun } from '../factory/types.ts';
+import {
+  FACTORY_AUTONOMY_LEVELS,
+  type FactoryAutonomyPolicy,
+  type FactoryRun,
+} from '../factory/types.ts';
 
 const policy: FactoryAutonomyPolicy = {
   version: 'repo-policy-v1',
@@ -51,6 +56,15 @@ describe('factory autonomy policy', () => {
     assert.equal(decideFactoryAutonomyGate(audit, 'implementation', undefined).allowed, false);
   });
 
+  test('stays at plan only when promotion history is insufficient', () => {
+    const audit = evaluateFactoryAutonomy({ ...policy, defaultLevel: 'publish-draft-pr' }, [
+      successfulRun(1),
+    ]);
+
+    assert.equal(audit.effectiveLevel, 'plan-only');
+    assert.match(audit.explanation.join(' '), /promotion threshold not met/);
+  });
+
   test('promotes deterministically after sufficient successful history', () => {
     const audit = evaluateFactoryAutonomy(policy, [successfulRun(1), successfulRun(2)]);
     assert.equal(audit.effectiveLevel, 'publish-draft-pr');
@@ -72,6 +86,17 @@ describe('factory autonomy policy', () => {
     const demoted = evaluateFactoryAutonomy(policy, [successfulRun(1), successfulRun(2), failed]);
     assert.equal(demoted.effectiveLevel, 'plan-only');
     assert.match(demoted.explanation.join(' '), /security-failure immediately demoted/);
+
+    const currentRun = applyFactoryAutonomyEvent(
+      evaluateFactoryAutonomy(
+        { ...policy, promotionEnabled: false, defaultLevel: 'publish-draft-pr' },
+        [],
+      ),
+      policy,
+      'review-failure',
+    );
+    assert.equal(currentRun.effectiveLevel, 'implement-and-verify');
+    assert.deepEqual(currentRun.evidence.events, ['review-failure']);
   });
 
   test('manual confirmation advances exactly its one requested boundary', () => {
@@ -85,8 +110,11 @@ describe('factory autonomy policy', () => {
   });
 
   test('the policy contract exposes no approve, merge, deploy, or production level', () => {
-    const serialized = JSON.stringify(policy);
-    assert.equal(/approve|merge|deploy|production/i.test(serialized), false);
+    assert.deepEqual(FACTORY_AUTONOMY_LEVELS, [
+      'plan-only',
+      'implement-and-verify',
+      'publish-draft-pr',
+    ]);
     assert.throws(
       () => parseFactoryAutonomyPolicy({ ...policy, maximumLevel: 'merge' }),
       /Invalid type|Expected/i,

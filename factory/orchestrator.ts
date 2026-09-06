@@ -54,6 +54,12 @@ export class FactoryOrchestrator {
     return this.save({ ...run, autonomy: audit });
   }
 
+  async updateAutonomyAudit(id: string, audit: FactoryAutonomyAudit): Promise<FactoryRun> {
+    const run = await this.get(id);
+    if (isDeepStrictEqual(run.autonomy, audit)) return run;
+    return this.save({ ...run, autonomy: audit });
+  }
+
   async recordAutonomyGate(
     id: string,
     boundary: FactoryAutonomyBoundary,

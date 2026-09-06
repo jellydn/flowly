@@ -18,8 +18,16 @@ import {
 } from './pipeline.ts';
 import type { FactoryDraftPrPublisher } from './publisher.ts';
 import type { FactoryRun, FactoryTask } from './types.ts';
-import type { FactoryAutonomyPolicy, FactoryManualConfirmation } from './types.ts';
-import { decideFactoryAutonomyGate, evaluateFactoryAutonomy } from './autonomy.ts';
+import type {
+  FactoryAutonomyEvent,
+  FactoryAutonomyPolicy,
+  FactoryManualConfirmation,
+} from './types.ts';
+import {
+  applyFactoryAutonomyEvent,
+  decideFactoryAutonomyGate,
+  evaluateFactoryAutonomy,
+} from './autonomy.ts';
 
 export type FactoryPipelineDependencies = {
   orchestrator: FactoryOrchestrator;
@@ -97,7 +105,11 @@ export async function advanceFactoryRun(
     if (!implementationAllowed) return current;
     current = await runControlledImplementation(current, implementationDependencies(dependencies));
   }
-  if (current.state === 'failed') return current;
+  if (current.state === 'failed') {
+    return current.autonomyEvents?.includes('verification-failure')
+      ? recordAndApplyAutonomyEvent(current, 'verification-failure', dependencies)
+      : current;
+  }
   if (current.state === 'reviewing') {
     current = await decideAndRecordGate(current, 'publication', dependencies);
     const publicationAllowed = current.autonomy?.gateDecisions.some(
@@ -110,6 +122,8 @@ export async function advanceFactoryRun(
       publisher: dependencies.publisher,
       readDiff: dependencies.readDiff,
       judgmentsFrom: dependencies.judgmentsFrom,
+      recordAutonomyEvent: (eventRun, event) =>
+        recordAndApplyAutonomyEvent(eventRun, event, dependencies, true),
       progress: dependencies.progress,
     });
   }
@@ -135,6 +149,36 @@ async function decideAndRecordGate(
     );
   }
   return updated;
+}
+
+async function recordAndApplyAutonomyEvent(
+  run: FactoryRun,
+  event: FactoryAutonomyEvent,
+  dependencies: FactoryPipelineDependencies,
+  recheckPublication = false,
+): Promise<FactoryRun> {
+  const withEvent = await dependencies.orchestrator.recordAutonomyEvent(run.id, event);
+  if (!withEvent.autonomy) throw new Error(`Factory run ${run.id} has no autonomy audit.`);
+  const audit = applyFactoryAutonomyEvent(withEvent.autonomy, dependencies.autonomyPolicy, event);
+  if (!recheckPublication) return dependencies.orchestrator.updateAutonomyAudit(run.id, audit);
+
+  const gate = decideFactoryAutonomyGate(audit, 'publication', dependencies.manualConfirmation);
+  const existing = audit.gateDecisions.find((decision) => decision.boundary === 'publication');
+  const gateDecisions = audit.gateDecisions.filter(
+    (decision) => decision.boundary !== 'publication',
+  );
+  gateDecisions.push({
+    ...gate,
+    boundary: 'publication',
+    decidedAt:
+      existing &&
+      existing.allowed === gate.allowed &&
+      existing.manualConfirmation === gate.manualConfirmation &&
+      existing.reason === gate.reason
+        ? existing.decidedAt
+        : Date.now(),
+  });
+  return dependencies.orchestrator.updateAutonomyAudit(run.id, { ...audit, gateDecisions });
 }
 
 function implementationDependencies(
