@@ -14,8 +14,8 @@ import {
   type IsolatedFactoryReviewEvidence,
   reviewFactoryImplementation,
 } from './review.ts';
-import type { FactoryAutonomyEvent, FactoryRun } from './types.ts';
-import { assertFactoryAutonomyGate } from './autonomy.ts';
+import type { FactoryAutonomyPolicy, FactoryManualConfirmation, FactoryRun } from './types.ts';
+import { assertFactoryAutonomyGate, factoryAutonomyGateAllowed } from './autonomy.ts';
 
 export type IndependentReviewPipelineDependencies = {
   orchestrator: FactoryOrchestrator;
@@ -26,7 +26,8 @@ export type IndependentReviewPipelineDependencies = {
     evidence: IsolatedFactoryReviewEvidence,
     output: IndependentReviewOutput,
   ) => CriterionJudgment[];
-  recordAutonomyEvent?: (run: FactoryRun, event: FactoryAutonomyEvent) => Promise<FactoryRun>;
+  autonomyPolicy?: FactoryAutonomyPolicy;
+  manualConfirmation?: FactoryManualConfirmation;
   progress?: FactoryProgressPublisher;
 };
 
@@ -51,14 +52,26 @@ export async function runIndependentReviewAndPublish(
 
   let reviewed = current.review ? current : await recordIndependentReview(current, dependencies);
   if (!reviewed.review?.readyForHumanReview) {
-    reviewed = await recordAutonomyEvent(reviewed, 'review-failure', dependencies);
-    assertFactoryAutonomyGate(reviewed, 'publication');
+    reviewed = await dependencies.orchestrator.applyAutonomyEvent(
+      reviewed.id,
+      'review-failure',
+      dependencies.autonomyPolicy,
+      dependencies.manualConfirmation,
+      'publication',
+    );
+    if (!factoryAutonomyGateAllowed(reviewed, 'publication')) return reviewed;
   }
   let pullRequest;
   try {
     pullRequest = await dependencies.publisher.publish(reviewed);
   } catch (error) {
-    await recordAutonomyEvent(reviewed, 'publication-failure', dependencies);
+    await dependencies.orchestrator.applyAutonomyEvent(
+      reviewed.id,
+      'publication-failure',
+      dependencies.autonomyPolicy,
+      dependencies.manualConfirmation,
+      'publication',
+    );
     throw error;
   }
   if (pullRequest.state !== 'open' || !pullRequest.draft) {
@@ -70,16 +83,6 @@ export async function runIndependentReviewAndPublish(
     `Factory draft PR #${pullRequest.number} created. Flowly will not merge or approve it.`,
   );
   return dependencies.orchestrator.complete(published.id);
-}
-
-function recordAutonomyEvent(
-  run: FactoryRun,
-  event: FactoryAutonomyEvent,
-  dependencies: IndependentReviewPipelineDependencies,
-): Promise<FactoryRun> {
-  return dependencies.recordAutonomyEvent
-    ? dependencies.recordAutonomyEvent(run, event)
-    : dependencies.orchestrator.recordAutonomyEvent(run.id, event);
 }
 
 async function recordIndependentReview(

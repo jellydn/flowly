@@ -241,9 +241,10 @@ describe('runFactoryPipeline', () => {
     };
     dependencies.judgmentsFrom = () => [];
 
-    await assert.rejects(() => runFactoryPipeline(task, dependencies), /no allowed publication/);
+    const stopped = await runFactoryPipeline(task, dependencies);
     const retried = await runFactoryPipeline(task, dependencies);
 
+    assert.equal(stopped.state, 'reviewing');
     assert.equal(retried.state, 'reviewing');
     assert.equal(retried.autonomy?.effectiveLevel, 'implement-and-verify');
     assert.deepEqual(retried.autonomyEvents, ['review-failure']);

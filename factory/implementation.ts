@@ -113,8 +113,5 @@ async function resumeVerification(
     failure === undefined,
     failure,
   );
-  if (failure !== undefined) {
-    return dependencies.orchestrator.recordAutonomyEvent(result.id, 'verification-failure');
-  }
   return result;
 }

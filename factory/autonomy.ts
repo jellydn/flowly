@@ -202,12 +202,20 @@ export function assertFactoryAutonomyGate(
   run: FactoryRun,
   boundary: FactoryAutonomyBoundary,
 ): void {
-  const decision = run.autonomy?.gateDecisions.find(
-    (candidate) => candidate.boundary === boundary && candidate.allowed,
-  );
-  if (!decision) {
+  if (!factoryAutonomyGateAllowed(run, boundary)) {
     throw new Error(`Factory run ${run.id} has no allowed ${boundary} autonomy gate.`);
   }
+}
+
+export function factoryAutonomyGateAllowed(
+  run: FactoryRun,
+  boundary: FactoryAutonomyBoundary,
+): boolean {
+  return (
+    run.autonomy?.gateDecisions.some(
+      (candidate) => candidate.boundary === boundary && candidate.allowed,
+    ) ?? false
+  );
 }
 
 function rate(successes: number, samples: number): number {
