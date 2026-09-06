@@ -56,7 +56,7 @@ export async function runIndependentReviewAndPublish(
       reviewed.id,
       'review-failure',
       dependencies.autonomyPolicy,
-      dependencies.manualConfirmation,
+      undefined,
       'publication',
     );
     if (!factoryAutonomyGateAllowed(reviewed, 'publication')) return reviewed;
@@ -69,7 +69,7 @@ export async function runIndependentReviewAndPublish(
       reviewed.id,
       'publication-failure',
       dependencies.autonomyPolicy,
-      dependencies.manualConfirmation,
+      undefined,
       'publication',
     );
     throw error;

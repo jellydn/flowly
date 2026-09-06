@@ -103,7 +103,8 @@ export async function advanceFactoryRun(
       current.id,
       'verification-failure',
       dependencies.autonomyPolicy,
-      dependencies.manualConfirmation,
+      undefined,
+      'implementation',
     );
   }
   if (current.state === 'reviewing') {
@@ -132,7 +133,11 @@ async function decideAndRecordGate(
   const updated = await dependencies.orchestrator.recordAutonomyGate(
     run.id,
     boundary,
-    decideFactoryAutonomyGate(run.autonomy, boundary, dependencies.manualConfirmation),
+    decideFactoryAutonomyGate(
+      run.autonomy,
+      boundary,
+      run.autonomyEvents?.length ? undefined : dependencies.manualConfirmation,
+    ),
   );
   const decision = updated.autonomy?.gateDecisions.find((item) => item.boundary === boundary);
   if (decision && !decision.allowed) {

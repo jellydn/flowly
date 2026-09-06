@@ -209,6 +209,11 @@ describe('runFactoryPipeline', () => {
     assert.equal(result.state, 'failed');
     assert.equal(result.autonomy?.effectiveLevel, 'plan-only');
     assert.deepEqual(result.autonomy?.evidence.events, ['verification-failure']);
+    assert.equal(
+      result.autonomy?.gateDecisions.find((decision) => decision.boundary === 'implementation')
+        ?.allowed,
+      false,
+    );
     assert.equal(result.prNumber, undefined);
     assert.equal(
       calls.some((call) => call.startsWith('create:')),
@@ -225,8 +230,10 @@ describe('runFactoryPipeline', () => {
     const dependencies = pipelineDependencies(calls);
     dependencies.autonomyPolicy = {
       ...publishPolicy,
+      defaultLevel: 'implement-and-verify',
       demotions: { 'review-failure': 'implement-and-verify' },
     };
+    dependencies.manualConfirmation = 'publication';
     dependencies.reviewer = {
       async review() {
         calls.push('review:changes-requested');
@@ -248,6 +255,11 @@ describe('runFactoryPipeline', () => {
     assert.equal(retried.state, 'reviewing');
     assert.equal(retried.autonomy?.effectiveLevel, 'implement-and-verify');
     assert.deepEqual(retried.autonomyEvents, ['review-failure']);
+    assert.equal(
+      retried.autonomy?.gateDecisions.find((decision) => decision.boundary === 'publication')
+        ?.allowed,
+      false,
+    );
     assert.equal(calls.filter((call) => call === 'review:changes-requested').length, 1);
     assert.equal(
       calls.some((call) => call.startsWith('create:')),
@@ -260,8 +272,10 @@ describe('runFactoryPipeline', () => {
     const dependencies = pipelineDependencies(calls);
     dependencies.autonomyPolicy = {
       ...publishPolicy,
+      defaultLevel: 'implement-and-verify',
       demotions: { 'publication-failure': 'implement-and-verify' },
     };
+    dependencies.manualConfirmation = 'publication';
     let publishAttempts = 0;
     dependencies.publisher.publish = async () => {
       publishAttempts += 1;

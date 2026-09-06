@@ -137,7 +137,13 @@ export function applyFactoryAutonomyEvent(
   };
   if (!policyValue) return { ...audit, evidence };
 
-  const demotedLevel = parseFactoryAutonomyPolicy(policyValue).demotions[event];
+  const policy = parseFactoryAutonomyPolicy(policyValue);
+  if (policy.version !== audit.policyVersion) {
+    throw new Error(
+      `Factory autonomy policy ${policy.version} does not match audit policy ${audit.policyVersion}.`,
+    );
+  }
+  const demotedLevel = policy.demotions[event];
   if (!demotedLevel) return { ...audit, evidence };
   return {
     ...audit,

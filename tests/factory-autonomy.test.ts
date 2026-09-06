@@ -124,6 +124,15 @@ describe('factory autonomy policy', () => {
       () => applyFactoryAutonomyEvent(audit, policy, 'invalid-event'),
       /Invalid type|Expected/i,
     );
+    assert.throws(
+      () =>
+        applyFactoryAutonomyEvent(
+          audit,
+          { ...policy, version: 'repo-policy-v2' },
+          'review-failure',
+        ),
+      /does not match audit policy/,
+    );
   });
 
   test('manual confirmation advances exactly its one requested boundary', () => {
