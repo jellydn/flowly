@@ -533,9 +533,10 @@ each status, failure, nested factory run, and draft PR number. The
 existing classifier → planner → isolated implementer → required verification →
 independent review → trusted draft-publisher path. It replaces the planner's
 file scope and verification list with the approved batch values. Completed
-batches and draft PRs are reused on retry. A failed batch blocks only dependent
-batches with the failure evidence; independent batches continue and remain
-resumable after operational errors.
+batches and draft PRs are reused on retry. An unsuccessful independent review is
+persisted as a failed batch with its summary and unresolved findings. A failed
+batch blocks only dependent batches with the failure evidence; independent
+batches continue and remain resumable after operational errors.
 
 `MemoryMigrationCampaignStore` supports embedding/tests, while
 `FileMigrationCampaignStore` atomically persists resumable local campaigns.
