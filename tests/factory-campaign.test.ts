@@ -176,6 +176,48 @@ describe('migration campaign approval and execution', () => {
     );
   });
 
+  test('treats an unsuccessful independent review as a failed batch', async () => {
+    const store = await approvedCampaignStore();
+    const result = await runMigrationCampaign(store, manifest.id, async (_campaign, batch) =>
+      batch.files.includes('src/models/a.ts')
+        ? reviewFailedRun(batch.id, 250 + batch.sequence)
+        : completedRun(batch.id, 200 + batch.sequence),
+    );
+
+    const failedBatch = result.batches.find((batch) => batch.files.includes('src/models/a.ts'))!;
+    assert.equal(result.state, 'completed-with-failures');
+    assert.equal(failedBatch.state, 'failed');
+    assert.equal(failedBatch.prNumber, 250 + failedBatch.sequence);
+    assert.match(failedBatch.failureEvidence ?? '', /Independent review failed.*Unsafe change/);
+    assert.ok(
+      result.batches
+        .filter((batch) => batch.files[0]?.startsWith('src/api/'))
+        .every((batch) => batch.state === 'blocked'),
+    );
+    assert.equal(
+      result.batches.find((batch) => batch.files.includes('src/independent.ts'))?.state,
+      'completed',
+    );
+  });
+
+  test('persists a review failure when autonomy stops publication', async () => {
+    const store = await approvedCampaignStore();
+    const result = await runMigrationCampaign(store, manifest.id, async (_campaign, batch) =>
+      batch.files.includes('src/models/a.ts')
+        ? reviewFailedRun(batch.id)
+        : completedRun(batch.id, 300 + batch.sequence),
+    );
+
+    const failedBatch = result.batches.find((batch) => batch.files.includes('src/models/a.ts'))!;
+    assert.equal(failedBatch.state, 'failed');
+    assert.match(failedBatch.failureEvidence ?? '', /Independent review failed/);
+    assert.ok(
+      result.batches
+        .filter((batch) => batch.files[0]?.startsWith('src/api/'))
+        .every((batch) => batch.state === 'blocked'),
+    );
+  });
+
   test('retries resumable batches without duplicating completed work or PR records', async () => {
     const store = await approvedCampaignStore();
     const attempts = new Map<string, number>();
@@ -431,7 +473,29 @@ function failedRun(batchId: string, failure: string): FactoryRun {
   return { ...run(batchId, 'failed'), failure };
 }
 
-function run(batchId: string, state: 'completed' | 'failed', prNumber?: number): FactoryRun {
+function reviewFailedRun(batchId: string, prNumber?: number): FactoryRun {
+  return {
+    ...run(batchId, prNumber ? 'completed' : 'reviewing', prNumber),
+    review: {
+      readyForHumanReview: false,
+      acceptanceCriteria: [
+        {
+          description: 'The migration is safe.',
+          satisfied: false,
+          evidence: 'Unsafe change remains.',
+        },
+      ],
+      summary: 'Unsafe change requires correction.',
+      unresolvedFindings: ['Unsafe change'],
+    },
+  };
+}
+
+function run(
+  batchId: string,
+  state: 'completed' | 'failed' | 'reviewing',
+  prNumber?: number,
+): FactoryRun {
   return {
     id: `run-${batchId}`,
     task: {

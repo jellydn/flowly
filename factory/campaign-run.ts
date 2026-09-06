@@ -57,26 +57,7 @@ export async function runMigrationCampaign(
     try {
       const run = await executeBatch(campaign, runningBatch);
       campaign = await requireCampaign(store, campaignId);
-      if (run.state === 'completed') {
-        campaign = await updateBatch(store, campaign, batch.id, {
-          state: 'completed',
-          factoryRun: run,
-          prNumber: run.prNumber,
-          failureEvidence: undefined,
-        });
-      } else if (run.state === 'failed') {
-        campaign = await updateBatch(store, campaign, batch.id, {
-          state: 'failed',
-          factoryRun: run,
-          failureEvidence: run.failure ?? 'Factory batch failed.',
-        });
-      } else {
-        campaign = await updateBatch(store, campaign, batch.id, {
-          state: 'ready',
-          factoryRun: run,
-          lastError: `Factory run stopped at ${run.state}; satisfy its trusted gate and retry.`,
-        });
-      }
+      campaign = await updateBatch(store, campaign, batch.id, batchUpdateForRun(run));
     } catch (error) {
       campaign = await requireCampaign(store, campaignId);
       campaign = await updateBatch(store, campaign, batch.id, {
@@ -97,6 +78,49 @@ export async function runMigrationCampaign(
       ? 'completed'
       : 'completed-with-failures',
   });
+}
+
+function batchUpdateForRun(run: FactoryRun): Partial<MigrationCampaignBatch> {
+  const reviewFailure = reviewFailureEvidence(run);
+  if (reviewFailure) {
+    return {
+      state: 'failed',
+      factoryRun: run,
+      prNumber: run.prNumber,
+      failureEvidence: reviewFailure,
+    };
+  }
+  if (run.state === 'completed') {
+    return {
+      state: 'completed',
+      factoryRun: run,
+      prNumber: run.prNumber,
+      failureEvidence: undefined,
+    };
+  }
+  if (run.state === 'failed') {
+    return {
+      state: 'failed',
+      factoryRun: run,
+      failureEvidence: run.failure ?? 'Factory batch failed.',
+    };
+  }
+  return {
+    state: 'ready',
+    factoryRun: run,
+    lastError: `Factory run stopped at ${run.state}; satisfy its trusted gate and retry.`,
+  };
+}
+
+function reviewFailureEvidence(run: FactoryRun): string | undefined {
+  if (!run.review || run.review.readyForHumanReview) return undefined;
+  return [
+    `Independent review failed: ${run.review.summary}`,
+    ...run.review.unresolvedFindings,
+    ...run.review.acceptanceCriteria
+      .filter((criterion) => !criterion.satisfied)
+      .map((criterion) => `${criterion.description}: ${criterion.evidence}`),
+  ].join(' ');
 }
 
 export function createFactoryMigrationBatchExecutor(
