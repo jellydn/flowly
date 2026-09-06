@@ -32,7 +32,6 @@ import {
 import { createBudgetedInspectionTools } from '../tools/inspection-registry.ts';
 import { buildToolMap, runInvestigation } from '../investigation/loop.ts';
 import type { DecisionFn, InvestigationResult } from '../investigation/types.ts';
-import { buildRepositoryIndex } from '../index/repository-indexer.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const fixture = path.resolve(__dirname, 'fixtures', 'sample-repo');
@@ -200,7 +199,8 @@ export const capstoneScenarios: EvalScenario[] = [
   },
   {
     id: 'cap-6',
-    question: 'Review this repository, explain its architecture, identify the highest-risk issue, and suggest an implementation plan.',
+    question:
+      'Review this repository, explain its architecture, identify the highest-risk issue, and suggest an implementation plan.',
     expectedSources: ['docs/architecture.md', 'src/index.ts', 'src/auth.ts'],
     expectedKeywords: ['architecture', 'auth', 'risk', 'plan'],
     requiresCitation: true,
@@ -330,7 +330,9 @@ function checkRetrievalRelevance(
   }
   const retrievedFiles = new Set(result.evidence.map((e) => e.filePath));
   const matched = scenario.expectedSources.filter((expected) =>
-    [...retrievedFiles].some((retrieved) => retrieved === expected || retrieved.startsWith(expected)),
+    [...retrievedFiles].some(
+      (retrieved) => retrieved === expected || retrieved.startsWith(expected),
+    ),
   );
   return {
     passed: matched.length > 0,
@@ -487,13 +489,19 @@ function formatReport(report: EvalReport): string {
   lines.push('║           Day 30 Capstone Evaluation Report                           ║');
   lines.push('╚══════════════════════════════════════════════════════════════════════╝');
   lines.push('');
-  lines.push(`Scenarios: ${report.totalScenarios}  |  Passed: ${report.passed}  |  Failed: ${report.failed}`);
+  lines.push(
+    `Scenarios: ${report.totalScenarios}  |  Passed: ${report.passed}  |  Failed: ${report.failed}`,
+  );
   lines.push('');
   lines.push('Metric Summary:');
   lines.push(`  Citation Accuracy:    ${report.summary.citationAccuracy}/${report.totalScenarios}`);
-  lines.push(`  Retrieval Relevance:  ${report.summary.retrievalRelevance}/${report.totalScenarios}`);
+  lines.push(
+    `  Retrieval Relevance:  ${report.summary.retrievalRelevance}/${report.totalScenarios}`,
+  );
   lines.push(`  Tool Success:         ${report.summary.toolSuccess}/${report.totalScenarios}`);
-  lines.push(`  Answer Completeness:  ${report.summary.answerCompleteness}/${report.totalScenarios}`);
+  lines.push(
+    `  Answer Completeness:  ${report.summary.answerCompleteness}/${report.totalScenarios}`,
+  );
   lines.push(`  Avg Latency:          ${report.summary.avgLatencyMs}ms`);
   lines.push('');
   lines.push('────────────────────────────────────────────────────────────────────────');
@@ -503,10 +511,18 @@ function formatReport(report: EvalReport): string {
     lines.push(`[${r.id}] ${r.passed ? '✅ PASS' : '❌ FAIL'} — ${r.question.slice(0, 70)}`);
     lines.push(`  Latency: ${r.latencyMs}ms  |  Tools: ${r.toolsUsed.join(' → ') || '(none)'}`);
     lines.push(`  Confidence: ${r.confidence}`);
-    lines.push(`  Citation Accuracy:    ${r.metrics.citationAccuracy.passed ? '✅' : '❌'} ${r.metrics.citationAccuracy.detail}`);
-    lines.push(`  Retrieval Relevance:  ${r.metrics.retrievalRelevance.passed ? '✅' : '❌'} ${r.metrics.retrievalRelevance.detail}`);
-    lines.push(`  Tool Success:         ${r.metrics.toolSuccess.passed ? '✅' : '❌'} ${r.metrics.toolSuccess.detail}`);
-    lines.push(`  Answer Completeness:  ${r.metrics.answerCompleteness.passed ? '✅' : '❌'} ${r.metrics.answerCompleteness.detail}`);
+    lines.push(
+      `  Citation Accuracy:    ${r.metrics.citationAccuracy.passed ? '✅' : '❌'} ${r.metrics.citationAccuracy.detail}`,
+    );
+    lines.push(
+      `  Retrieval Relevance:  ${r.metrics.retrievalRelevance.passed ? '✅' : '❌'} ${r.metrics.retrievalRelevance.detail}`,
+    );
+    lines.push(
+      `  Tool Success:         ${r.metrics.toolSuccess.passed ? '✅' : '❌'} ${r.metrics.toolSuccess.detail}`,
+    );
+    lines.push(
+      `  Answer Completeness:  ${r.metrics.answerCompleteness.passed ? '✅' : '❌'} ${r.metrics.answerCompleteness.detail}`,
+    );
     if (r.errors.length > 0) {
       lines.push(`  Errors: ${r.errors.length} — ${r.errors[0]}`);
     }
@@ -538,8 +554,8 @@ async function main() {
 // `eval/run-capstone-eval.sh` or `npm run capstone:eval`). Importing the
 // module (as the benchmark framework does for capstoneScenarios) must not
 // execute main().
-const isMain = process.argv[1] !== undefined &&
-  import.meta.url === pathToFileURL(process.argv[1]).href;
+const isMain =
+  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
   main().catch((err) => {
     console.error('Capstone evaluation failed:', err);
