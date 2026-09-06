@@ -25,22 +25,28 @@
 - Impact: operators need custom code to use the feature.
 - Direction: add a small validated CLI only when an operating workflow is defined; keep explicit plan-digest approval.
 
-## Known Bugs
+## Resolved in This Stack
 
-**Repository roots through a parent symlink fail confinement on macOS:**
+**Repository roots through a parent symlink — RESOLVED:**
 
-- Behavior: `RepositoryReader` keeps the configured root spelling but compares resolved child paths against it. On macOS, `os.tmpdir()` commonly returns `/var/...`, whose real path is `/private/var/...`; the child is incorrectly reported as a symlink escape.
-- Files: `tools/repository.ts`, `tests/factory-model-adapters.test.ts`
-- Evidence: `npx tsx --test tests/factory-model-adapters.test.ts` fails in `plans from selected repository files and native commands` with `Symbolic link escapes the configured repository`.
-- Impact: repository inspection can fail for a valid repository reached through a symlinked parent path. The full test run currently passes 568 of 569 tests on macOS because of this case.
-- Direction: canonicalize the repository root once in the constructor/factory and use that canonical root for all containment checks. Retain explicit tests for real child symlink escapes.
+- Previous behavior: a valid repository reached through a symlinked parent path could fail with `Symbolic link escapes the configured repository`.
+- Resolution: `RepositoryReader` now canonicalizes its root before containment checks and retains child symlink-escape protection.
+- Files: `tools/repository.ts`, `tests/repository.test.ts`
+- Verification: the macOS regression and the complete 570-test suite pass.
 
-**The local lint gate is not green on current `main`:**
+**Local format and lint gate — RESOLVED:**
 
-- Behavior: `prek run --all-files` reports 22 oxlint errors.
-- Files: primarily `workspace.ts`, plus `eval/capstone-eval.ts` and `tests/fallback-tool.test.ts`
-- Impact: contributors cannot pass the documented pre-commit command without unrelated cleanup.
-- Direction: fix the reported unused bindings and unnecessary escapes in a separate source change, then keep `prek run --all-files` green in CI or in a required pre-commit check.
+- Previous behavior: `prek run --all-files` reported unused imports, unnecessary escapes, and repository-wide format differences.
+- Resolution: remove the stale imports and escapes, then normalize every file reported by oxfmt.
+- Files: `workspace.ts`, `eval/capstone-eval.ts`, `tests/fallback-tool.test.ts`, and the files in the dedicated format commit
+- Verification: both `oxfmt` and `oxlint` hooks pass.
+
+**Transitive dependency advisories — RESOLVED:**
+
+- Previous behavior: `npm audit` reported moderate Hono advisories and a high-severity nanoid advisory.
+- Resolution: update `hono` from 4.12.33 to 4.13.7 and `nanoid` from 3.3.16 to 3.3.18 within the existing dependency ranges.
+- Files: `package-lock.json`
+- Verification: `npm audit` reports zero vulnerabilities.
 
 ## Operational Constraints
 
@@ -103,16 +109,6 @@
 - Files: `eval/bench/store.ts`
 - Impact: command latency grows with retained benchmark runs.
 - Direction: add a suite index or retention policy if result volume becomes material.
-
-## Dependencies at Risk
-
-**The current lockfile has two fixable transitive advisories:**
-
-- `hono@4.12.33`, through `@flue/runtime@2.0.2`, has moderate denial-of-service and request-handling advisories fixed in `4.12.34`.
-- `nanoid@3.3.16`, through Vite → PostCSS, has a high-severity infinite-loop advisory for custom generators with a zero size, fixed in `3.3.18`.
-- Files: `package-lock.json`, `package.json`
-- Evidence: `npm audit` reports one moderate and one high vulnerability, both with fixes available.
-- Direction: update the owning direct dependencies or refresh the lockfile through supported semver ranges, then run `npm run check`. Do not apply a forced major upgrade without review.
 
 ## Fragile Areas
 
