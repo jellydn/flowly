@@ -57,7 +57,15 @@ export async function runMigrationCampaign(
     try {
       const run = await executeBatch(campaign, runningBatch);
       campaign = await requireCampaign(store, campaignId);
-      if (run.state === 'completed') {
+      const reviewFailure = reviewFailureEvidence(run);
+      if (reviewFailure) {
+        campaign = await updateBatch(store, campaign, batch.id, {
+          state: 'failed',
+          factoryRun: run,
+          prNumber: run.prNumber,
+          failureEvidence: reviewFailure,
+        });
+      } else if (run.state === 'completed') {
         campaign = await updateBatch(store, campaign, batch.id, {
           state: 'completed',
           factoryRun: run,
@@ -79,10 +87,26 @@ export async function runMigrationCampaign(
       }
     } catch (error) {
       campaign = await requireCampaign(store, campaignId);
-      campaign = await updateBatch(store, campaign, batch.id, {
-        state: 'ready',
-        lastError: error instanceof Error ? error.message : String(error),
-      });
+      const currentRun = campaign.batches.find(
+        (candidate) => candidate.id === batch.id,
+      )?.factoryRun;
+      const reviewFailure = currentRun && reviewFailureEvidence(currentRun);
+      campaign = await updateBatch(
+        store,
+        campaign,
+        batch.id,
+        reviewFailure
+          ? {
+              state: 'failed',
+              factoryRun: currentRun,
+              prNumber: currentRun.prNumber,
+              failureEvidence: reviewFailure,
+            }
+          : {
+              state: 'ready',
+              lastError: error instanceof Error ? error.message : String(error),
+            },
+      );
     }
   }
 
@@ -97,6 +121,17 @@ export async function runMigrationCampaign(
       ? 'completed'
       : 'completed-with-failures',
   });
+}
+
+function reviewFailureEvidence(run: FactoryRun): string | undefined {
+  if (!run.review || run.review.readyForHumanReview) return undefined;
+  return [
+    `Independent review failed: ${run.review.summary}`,
+    ...run.review.unresolvedFindings,
+    ...run.review.acceptanceCriteria
+      .filter((criterion) => !criterion.satisfied)
+      .map((criterion) => `${criterion.description}: ${criterion.evidence}`),
+  ].join(' ');
 }
 
 export function createFactoryMigrationBatchExecutor(
