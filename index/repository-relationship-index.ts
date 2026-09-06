@@ -113,10 +113,14 @@ export async function buildRepositoryRelationshipIndex(
   };
 
   const entries = await repository.list('.', 100);
-  const filePaths = entries
-    .filter(
-      (entry) => entry.type === 'file' && (entry.size ?? Infinity) <= TOOL_LIMITS.maxFileBytes,
-    )
+  const fileEntries = entries.filter((entry) => entry.type === 'file');
+  for (const entry of fileEntries) {
+    if ((entry.size ?? Infinity) > TOOL_LIMITS.maxFileBytes) {
+      report(entry.path, `Skipped file larger than ${TOOL_LIMITS.maxFileBytes} bytes.`);
+    }
+  }
+  const filePaths = fileEntries
+    .filter((entry) => (entry.size ?? Infinity) <= TOOL_LIMITS.maxFileBytes)
     .map((entry) => entry.path)
     .sort();
   const files = new Set(filePaths);
@@ -144,17 +148,25 @@ export async function buildRepositoryRelationshipIndex(
     }
     index.stats.filesScanned += 1;
 
-    if (CODE_EXTENSIONS.has(path.posix.extname(filePath).toLowerCase())) {
+    const extension = path.posix.extname(filePath).toLowerCase();
+    const codeFile = CODE_EXTENSIONS.has(extension);
+    const manifest = MANIFEST_NAMES.has(path.posix.basename(filePath));
+    const ownershipFile = /^(?:\.github\/|docs\/)?CODEOWNERS$/i.test(filePath);
+    const documentationFile = /\.(?:md|markdown|txt)$/i.test(filePath);
+    if (codeFile) {
       extractImports(index, files, filePath, content, report);
     }
-    if (MANIFEST_NAMES.has(path.posix.basename(filePath))) {
+    if (manifest) {
       extractManifestDependencies(index, filePath, content, report);
     }
-    if (/^(?:\.github\/|docs\/)?CODEOWNERS$/i.test(filePath)) {
+    if (ownershipFile) {
       codeowners.push(...parseCodeowners(filePath, content, report));
     }
-    if (/\.(?:md|markdown|txt)$/i.test(filePath)) {
+    if (documentationFile) {
       extractMarkdownRelationships(index, files, filePath, content, report);
+    }
+    if (!codeFile && !manifest && !ownershipFile && !documentationFile) {
+      report(filePath, `Skipped unsupported ${extension || 'extensionless'} file type.`);
     }
   }
 
