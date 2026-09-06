@@ -32,12 +32,13 @@ export function extractFencedBlocks(answer: string): string[] {
  * change referencing the expected file paths. Suites can supply a stricter
  * validator (e.g. `git apply --check` on a real diff) via `validate`.
  */
-export function createPatchCheck(input: {
-  validate?: PatchValidator;
-} = {}): (scenario: BenchmarkScenario, answer: string) => Promise<MetricPass | null> {
+export function createPatchCheck(
+  input: {
+    validate?: PatchValidator;
+  } = {},
+): (scenario: BenchmarkScenario, answer: string) => Promise<MetricPass | null> {
   const validate: PatchValidator =
-    input.validate ??
-    (async (_patch, expectedPaths) => expectedPaths.length > 0);
+    input.validate ?? (async (_patch, expectedPaths) => expectedPaths.length > 0);
 
   return async (scenario, answer) => {
     const expectedPaths = scenario.expectedSources ?? [];

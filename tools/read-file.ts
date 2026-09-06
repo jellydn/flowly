@@ -27,11 +27,7 @@ export function createReadFileTool(repository: RepositoryReader) {
       const content = await repository.readText(data.path);
       const lines = content.split(/\r?\n/);
       const requestedEnd = data.endLine ?? data.startLine + MAX_RETURNED_LINES - 1;
-      const endLine = Math.min(
-        requestedEnd,
-        data.startLine + MAX_RETURNED_LINES - 1,
-        lines.length,
-      );
+      const endLine = Math.min(requestedEnd, data.startLine + MAX_RETURNED_LINES - 1, lines.length);
       const selected = lines
         .slice(data.startLine - 1, endLine)
         .map((line, index) => `${data.startLine + index}: ${line}`)

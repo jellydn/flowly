@@ -80,7 +80,11 @@ describe('list_files', () => {
 
   test('skips ignored dependency directories', async () => {
     const repository = await createRepositoryReader(root);
-    const tool = withInspectionBudget(createListFilesTool(repository), createStepBudget(8), noDebug());
+    const tool = withInspectionBudget(
+      createListFilesTool(repository),
+      createStepBudget(8),
+      noDebug(),
+    );
     const result = (
       (await tool.run({
         toolCallId: 'test',
@@ -96,7 +100,11 @@ describe('list_files', () => {
     await symlink(path.join(root, 'src', 'config.ts'), link);
     try {
       const repository = await createRepositoryReader(root);
-      const tool = withInspectionBudget(createListFilesTool(repository), createStepBudget(8), noDebug());
+      const tool = withInspectionBudget(
+        createListFilesTool(repository),
+        createStepBudget(8),
+        noDebug(),
+      );
       const result = (
         (await tool.run({
           toolCallId: 'test',
@@ -157,7 +165,11 @@ describe('read_file', () => {
 
   test('rejects traversal and absolute paths', async () => {
     const repository = await createRepositoryReader(root);
-    const tool = withInspectionBudget(createReadFileTool(repository), createStepBudget(8), noDebug());
+    const tool = withInspectionBudget(
+      createReadFileTool(repository),
+      createStepBudget(8),
+      noDebug(),
+    );
     await assert.rejects(
       async () =>
         tool.run({
@@ -183,7 +195,11 @@ describe('read_file', () => {
     await writeFile(big, Buffer.alloc(1_000_001, 'a'));
     try {
       const repository = await createRepositoryReader(root);
-      const tool = withInspectionBudget(createReadFileTool(repository), createStepBudget(8), noDebug());
+      const tool = withInspectionBudget(
+        createReadFileTool(repository),
+        createStepBudget(8),
+        noDebug(),
+      );
       await assert.rejects(
         async () =>
           tool.run({
@@ -203,7 +219,11 @@ describe('read_file', () => {
     await writeFile(longFile, `${Array.from({ length: 500 }, (_, i) => `line ${i}`).join('\n')}\n`);
     try {
       const repository = await createRepositoryReader(root);
-      const tool = withInspectionBudget(createReadFileTool(repository), createStepBudget(8), noDebug());
+      const tool = withInspectionBudget(
+        createReadFileTool(repository),
+        createStepBudget(8),
+        noDebug(),
+      );
       const result = (
         (await tool.run({
           toolCallId: 'test',
@@ -254,7 +274,11 @@ describe('search_code', () => {
 
   test('returns file paths and line numbers', async () => {
     const repository = await createRepositoryReader(root);
-    const tool = withInspectionBudget(createSearchCodeTool(repository), createStepBudget(8), noDebug());
+    const tool = withInspectionBudget(
+      createSearchCodeTool(repository),
+      createStepBudget(8),
+      noDebug(),
+    );
     const result = (
       (await tool.run({
         toolCallId: 'test',
@@ -272,7 +296,11 @@ describe('search_code', () => {
     await writeFile(many, `${Array.from({ length: 60 }, () => 'uniquemarker').join('\n')}\n`);
     try {
       const repository = await createRepositoryReader(root);
-      const tool = withInspectionBudget(createSearchCodeTool(repository), createStepBudget(8), noDebug());
+      const tool = withInspectionBudget(
+        createSearchCodeTool(repository),
+        createStepBudget(8),
+        noDebug(),
+      );
       const result = (
         (await tool.run({
           toolCallId: 'test',
@@ -293,7 +321,11 @@ describe('search_code', () => {
     await writeFile(big, Buffer.alloc(1_000_001, 'a'));
     try {
       const repository = await createRepositoryReader(root);
-      const tool = withInspectionBudget(createSearchCodeTool(repository), createStepBudget(8), noDebug());
+      const tool = withInspectionBudget(
+        createSearchCodeTool(repository),
+        createStepBudget(8),
+        noDebug(),
+      );
       const result = (
         (await tool.run({
           toolCallId: 'test',
@@ -310,7 +342,11 @@ describe('search_code', () => {
 
   test('handles zero matches clearly', async () => {
     const repository = await createRepositoryReader(root);
-    const tool = withInspectionBudget(createSearchCodeTool(repository), createStepBudget(8), noDebug());
+    const tool = withInspectionBudget(
+      createSearchCodeTool(repository),
+      createStepBudget(8),
+      noDebug(),
+    );
     const result = (
       (await tool.run({
         toolCallId: 'test',
@@ -330,7 +366,11 @@ describe('search_code', () => {
         throw new Error('permission denied');
       },
     } as any;
-    const tool = withInspectionBudget(createSearchCodeTool(repository), createStepBudget(8), noDebug());
+    const tool = withInspectionBudget(
+      createSearchCodeTool(repository),
+      createStepBudget(8),
+      noDebug(),
+    );
     await assert.rejects(
       async () =>
         tool.run({
@@ -446,7 +486,11 @@ describe('debug logging', () => {
       lines.push(args.join(' '));
     };
     try {
-      const read = withInspectionBudget(createReadFileTool(repository), budget, createDebugLogger(true));
+      const read = withInspectionBudget(
+        createReadFileTool(repository),
+        budget,
+        createDebugLogger(true),
+      );
       await read.run({
         toolCallId: 'test',
         log: { info() {}, warn() {}, error() {} },

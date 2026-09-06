@@ -22,10 +22,16 @@ const MAX_EVIDENCE_CHARS = 4000;
 const MAX_HISTORY_ITEMS = 10;
 
 /** Format the current investigation state into a decider prompt. */
-export function formatDeciderPrompt(state: InvestigationState, toolNames: readonly string[]): string {
+export function formatDeciderPrompt(
+  state: InvestigationState,
+  toolNames: readonly string[],
+): string {
   const evidence = state.evidence
     .slice(0, MAX_HISTORY_ITEMS)
-    .map((e) => `${e.filePath}${e.lineStart ? `:${e.lineStart}-${e.lineEnd ?? ''}` : ''}: ${e.excerpt}`)
+    .map(
+      (e) =>
+        `${e.filePath}${e.lineStart ? `:${e.lineStart}-${e.lineEnd ?? ''}` : ''}: ${e.excerpt}`,
+    )
     .join('\n')
     .slice(0, MAX_EVIDENCE_CHARS);
   const history = state.callHistory

@@ -7,7 +7,11 @@ import {
 } from '../tools/repository.ts';
 import { createRetrieveTool } from '../tools/retrieve.ts';
 import { withInspectionBudget } from '../reliability/resilient-tool.ts';
-import { buildRepositoryIndex, tokenize, type RepositoryIndex } from '../index/repository-indexer.ts';
+import {
+  buildRepositoryIndex,
+  tokenize,
+  type RepositoryIndex,
+} from '../index/repository-indexer.ts';
 import { createSampleRepo, removeRepo, runTool } from './helpers.ts';
 
 let root: string;
@@ -61,7 +65,10 @@ describe('tokenize', () => {
 describe('RepositoryIndex', () => {
   test('indexes source and documentation files', () => {
     assert.ok(index.stats.filesIndexed >= 5, `expected ≥5 files, got ${index.stats.filesIndexed}`);
-    assert.ok(index.stats.chunksIndexed >= 5, `expected ≥5 chunks, got ${index.stats.chunksIndexed}`);
+    assert.ok(
+      index.stats.chunksIndexed >= 5,
+      `expected ≥5 chunks, got ${index.stats.chunksIndexed}`,
+    );
     assert.ok(index.stats.uniqueTerms > 10, `expected >10 terms, got ${index.stats.uniqueTerms}`);
   });
 
@@ -199,7 +206,10 @@ describe('retrieve tool', () => {
     const tool = withInspectionBudget(createRetrieveTool(flaky), budget, debug);
 
     // First call fails while building the lazy index.
-    await assert.rejects(() => runTool(tool, { query: 'auth' }), /simulated transient walk failure/);
+    await assert.rejects(
+      () => runTool(tool, { query: 'auth' }),
+      /simulated transient walk failure/,
+    );
 
     // The failure must not be memoized: a later call rebuilds the index and
     // succeeds, instead of returning the same rejected promise forever.
@@ -222,6 +232,9 @@ describe('retrieve tool', () => {
     const time2 = Date.now() - start2;
 
     // Second call should be faster (index already built).
-    assert.ok(time2 <= time1 + 50, `second call (${time2}ms) should not be much slower than first (${time1}ms)`);
+    assert.ok(
+      time2 <= time1 + 50,
+      `second call (${time2}ms) should not be much slower than first (${time1}ms)`,
+    );
   });
 });

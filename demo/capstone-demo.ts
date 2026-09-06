@@ -176,13 +176,21 @@ async function main() {
   if (jsonMode) {
     console.log(JSON.stringify({ investigation: { question, result }, report }, null, 2));
   } else {
-    console.log(`  Scenarios: ${report.totalScenarios}  |  Passed: ${report.passed}  |  Failed: ${report.failed}`);
+    console.log(
+      `  Scenarios: ${report.totalScenarios}  |  Passed: ${report.passed}  |  Failed: ${report.failed}`,
+    );
     console.log();
     console.log('  Metric Summary:');
-    console.log(`    Citation Accuracy:    ${report.summary.citationAccuracy}/${report.totalScenarios}`);
-    console.log(`    Retrieval Relevance:  ${report.summary.retrievalRelevance}/${report.totalScenarios}`);
+    console.log(
+      `    Citation Accuracy:    ${report.summary.citationAccuracy}/${report.totalScenarios}`,
+    );
+    console.log(
+      `    Retrieval Relevance:  ${report.summary.retrievalRelevance}/${report.totalScenarios}`,
+    );
     console.log(`    Tool Success:         ${report.summary.toolSuccess}/${report.totalScenarios}`);
-    console.log(`    Answer Completeness:  ${report.summary.answerCompleteness}/${report.totalScenarios}`);
+    console.log(
+      `    Answer Completeness:  ${report.summary.answerCompleteness}/${report.totalScenarios}`,
+    );
     console.log(`    Avg Latency:          ${report.summary.avgLatencyMs}ms`);
     console.log();
     console.log('  Per-scenario results:');
@@ -190,7 +198,9 @@ async function main() {
       const status = r.passed ? '✅' : '❌';
       const questionShort = r.question.slice(0, 60);
       console.log(`    ${status} [${r.id}] ${questionShort}`);
-      console.log(`       Tools: ${r.toolsUsed.join(' → ') || '(none)'}  |  Latency: ${r.latencyMs}ms`);
+      console.log(
+        `       Tools: ${r.toolsUsed.join(' → ') || '(none)'}  |  Latency: ${r.latencyMs}ms`,
+      );
     }
   }
 

@@ -18,10 +18,7 @@ import { readFile } from 'node:fs/promises';
 import * as v from 'valibot';
 import { isEventType, SUPPORTED_EVENT_TYPES, type EventType } from './types.ts';
 
-const nonEmptyStringArray = v.pipe(
-  v.array(v.pipe(v.string(), v.minLength(1))),
-  v.minLength(1),
-);
+const nonEmptyStringArray = v.pipe(v.array(v.pipe(v.string(), v.minLength(1))), v.minLength(1));
 
 const filterSchema = v.object({
   action: v.optional(nonEmptyStringArray),
@@ -71,10 +68,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function formatIssue(issue: {
-  path?: Array<{ key: unknown }>;
-  message: string;
-}): string {
+function formatIssue(issue: { path?: Array<{ key: unknown }>; message: string }): string {
   const path = issue.path?.map((p) => String(p.key)).join('.');
   return `${path ? path : '(root)'}: ${issue.message}`;
 }
@@ -108,9 +102,7 @@ function parseShorthandKey(key: string): {
 function normalizeRule(rule: v.InferOutput<typeof ruleSchema>): RouteRule {
   const filter: RouteFilter = rule.filter ? { ...rule.filter } : {};
   if (rule.action) {
-    filter.action = filter.action
-      ? [...new Set([...filter.action, rule.action])]
-      : [rule.action];
+    filter.action = filter.action ? [...new Set([...filter.action, rule.action])] : [rule.action];
   }
   const normalized: RouteRule = { event: rule.event, agent: rule.agent };
   if (Object.keys(filter).length > 0) normalized.filter = filter;
@@ -138,9 +130,7 @@ export function safeParseConfig(value: unknown): ConfigResult {
     const issues: string[] = [];
     for (const [key, agent] of Object.entries(routesValue)) {
       if (typeof agent !== 'string' || agent.trim() === '') {
-        issues.push(
-          `routes["${key}"]: agent must be a non-empty string, got ${typeof agent}`,
-        );
+        issues.push(`routes["${key}"]: agent must be a non-empty string, got ${typeof agent}`);
         continue;
       }
       const parsed = parseShorthandKey(key);

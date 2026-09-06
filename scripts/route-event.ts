@@ -73,7 +73,9 @@ async function main(): Promise<number> {
     // Unsupported events are ignored safely — a routing decision, not an error.
     const reason = parsed.reason === 'unsupported' ? 'unconfigured' : 'malformed';
     console.error(`[event-router] ${parsed.detail}`);
-    process.stdout.write(`${JSON.stringify({ outcome: 'ignore', reason, detail: parsed.detail })}\n`);
+    process.stdout.write(
+      `${JSON.stringify({ outcome: 'ignore', reason, detail: parsed.detail })}\n`,
+    );
     return 0;
   }
 

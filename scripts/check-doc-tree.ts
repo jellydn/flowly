@@ -112,7 +112,13 @@ function parseContainsLines(text: string): Array<{ dir: string; contains: string
 }
 
 /** Assert a documented path exists; push a clear error otherwise. */
-function assertExists(errors: string[], where: string, token: string, full: string, isDirToken: boolean): void {
+function assertExists(
+  errors: string[],
+  where: string,
+  token: string,
+  full: string,
+  isDirToken: boolean,
+): void {
   try {
     const isDir = statSync(full).isDirectory();
     if (isDirToken && !isDir) {
@@ -155,7 +161,9 @@ function validateParenthetical(errors: string[], dir: string, contains: string):
       try {
         statSync(path.join(subPath, `${name}.ts`));
       } catch {
-        errors.push(`${STRUCTURE} ${dir}: \`${subdir}${name}.ts\` is documented but does not exist`);
+        errors.push(
+          `${STRUCTURE} ${dir}: \`${subdir}${name}.ts\` is documented but does not exist`,
+        );
       }
     }
     for (const real of realNames) {
@@ -177,7 +185,9 @@ function main(): void {
 
   for (const dir of LAYOUT_DIRS) {
     if (!seenDirs.has(dir)) {
-      errors.push(`${STRUCTURE}: no "Contains:" section for \`${dir}\` — parsing broke or the section was removed`);
+      errors.push(
+        `${STRUCTURE}: no "Contains:" section for \`${dir}\` — parsing broke or the section was removed`,
+      );
     }
   }
 
@@ -207,7 +217,13 @@ function main(): void {
 
     // Direction 1: every documented entry must exist.
     for (const token of documentedFiles) {
-      assertExists(errors, `${STRUCTURE} ${dir}`, token, path.join(dir, token), token.endsWith('/'));
+      assertExists(
+        errors,
+        `${STRUCTURE} ${dir}`,
+        token,
+        path.join(dir, token),
+        token.endsWith('/'),
+      );
     }
 
     // Parenthetical subdir lists (bench/, events/) — the lists that rotted twice.
@@ -228,15 +244,21 @@ function main(): void {
   // Test counts in the STRUCTURE.md tree block and TESTING.md.
   const treeCount = structure.match(/tests\/\s+# Node test-runner tests \((\d+) files/);
   if (!treeCount) {
-    errors.push(`${STRUCTURE}: expected "tests/ # Node test-runner tests (N files + helpers)" pattern not found`);
+    errors.push(
+      `${STRUCTURE}: expected "tests/ # Node test-runner tests (N files + helpers)" pattern not found`,
+    );
   } else if (Number(treeCount[1]) !== actualTestFiles.length) {
-    errors.push(`${STRUCTURE} tree: documents ${treeCount[1]} test files, found ${actualTestFiles.length}`);
+    errors.push(
+      `${STRUCTURE} tree: documents ${treeCount[1]} test files, found ${actualTestFiles.length}`,
+    );
   }
   const testingCount = testing.match(/\*\.test\.ts\s+# (\d+) test files/);
   if (!testingCount) {
     errors.push(`${TESTING}: expected "*.test.ts # N test files" pattern not found`);
   } else if (Number(testingCount[1]) !== actualTestFiles.length) {
-    errors.push(`${TESTING}: documents ${testingCount[1]} test files, found ${actualTestFiles.length}`);
+    errors.push(
+      `${TESTING}: documents ${testingCount[1]} test files, found ${actualTestFiles.length}`,
+    );
   }
 
   // ADR-count guard: docs/index.html cards + README tree range + the
@@ -267,9 +289,13 @@ function main(): void {
 
     // README tree: `adr/ # architecture decision records (0001–0004)` must span the records.
     const readme = readFileSync(README, 'utf8');
-    const rangeMatch = readme.match(/adr\/\s*# architecture decision records \((\d{4})[–-](\d{4})\)/);
+    const rangeMatch = readme.match(
+      /adr\/\s*# architecture decision records \((\d{4})[–-](\d{4})\)/,
+    );
     if (!rangeMatch) {
-      errors.push(`${README}: expected "adr/ # architecture decision records (0001–NNNN)" tree comment not found`);
+      errors.push(
+        `${README}: expected "adr/ # architecture decision records (0001–NNNN)" tree comment not found`,
+      );
     } else if (rangeMatch[1] !== first || rangeMatch[2] !== last) {
       errors.push(
         `${README}: tree range \`${rangeMatch[1]}–${rangeMatch[2]}\` does not span the ADR records \`${first}–${last}\``,
@@ -285,7 +311,9 @@ function main(): void {
     );
     for (const file of adrFiles) {
       if (!indexRows.includes(file)) {
-        errors.push(`${ADR_INDEX}: index table has no row for ADR ${file.slice(0, 4)} (\`${file}\`)`);
+        errors.push(
+          `${ADR_INDEX}: index table has no row for ADR ${file.slice(0, 4)} (\`${file}\`)`,
+        );
       }
     }
     for (const row of indexRows) {
@@ -297,16 +325,22 @@ function main(): void {
     const example = adrReadme.match(/docs\/adr\/(\d{4})-your-title\.md/);
     const next = String(Number(last) + 1).padStart(4, '0');
     if (!example) {
-      errors.push(`${ADR_INDEX}: expected "cp docs/adr/template.md docs/adr/NNNN-your-title.md" example not found`);
+      errors.push(
+        `${ADR_INDEX}: expected "cp docs/adr/template.md docs/adr/NNNN-your-title.md" example not found`,
+      );
     } else if (example[1] !== next) {
-      errors.push(`${ADR_INDEX}: new-ADR example uses \`${example[1]}\` but the next record after \`${last}\` is \`${next}\``);
+      errors.push(
+        `${ADR_INDEX}: new-ADR example uses \`${example[1]}\` but the next record after \`${last}\` is \`${next}\``,
+      );
     }
   }
 
   if (errors.length > 0) {
     console.error(`[check-doc-tree] ${errors.length} drift item(s) in layout docs:`);
     for (const error of errors) console.error(`  - ${error}`);
-    console.error('[check-doc-tree] Update .planning/codebase/STRUCTURE.md / TESTING.md to match the tree.');
+    console.error(
+      '[check-doc-tree] Update .planning/codebase/STRUCTURE.md / TESTING.md to match the tree.',
+    );
     process.exit(1);
   }
 
