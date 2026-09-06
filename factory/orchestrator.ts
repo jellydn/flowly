@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
+import { applyFactoryAutonomyEvent, decideFactoryAutonomyGate } from './autonomy.ts';
 import type { FactoryRunStore } from './store.ts';
 import {
   factoryBranch,
@@ -12,6 +13,8 @@ import {
   type FactoryAutonomyAudit,
   type FactoryAutonomyBoundary,
   type FactoryAutonomyEvent,
+  type FactoryAutonomyPolicy,
+  type FactoryManualConfirmation,
 } from './types.ts';
 
 /**
@@ -62,16 +65,50 @@ export class FactoryOrchestrator {
     const run = await this.get(id);
     if (!run.autonomy) throw new Error(`Factory run ${id} has no autonomy audit.`);
     const existing = run.autonomy.gateDecisions.find((item) => item.boundary === boundary);
+    // One-run confirmation remains valid on retry. Failure events revoke it through applyAutonomyEvent.
     if (existing?.allowed || (existing && !decision.allowed)) return run;
     const gateDecisions = run.autonomy.gateDecisions.filter((item) => item.boundary !== boundary);
     gateDecisions.push({ ...decision, boundary, decidedAt: Date.now() });
     return this.save({ ...run, autonomy: { ...run.autonomy, gateDecisions } });
   }
 
-  async recordAutonomyEvent(id: string, event: FactoryAutonomyEvent): Promise<FactoryRun> {
+  async applyAutonomyEvent(
+    id: string,
+    event: FactoryAutonomyEvent,
+    policy: FactoryAutonomyPolicy | undefined,
+    confirmation: FactoryManualConfirmation | undefined,
+    boundary?: FactoryAutonomyBoundary,
+  ): Promise<FactoryRun> {
     const run = await this.get(id);
-    if (run.autonomyEvents?.includes(event)) return run;
-    return this.save({ ...run, autonomyEvents: [...(run.autonomyEvents ?? []), event] });
+    if (!run.autonomy) throw new Error(`Factory run ${id} has no autonomy audit.`);
+    if (run.autonomyEvents?.includes(event) && run.autonomy.evidence.events.includes(event)) {
+      return run;
+    }
+
+    let autonomy = applyFactoryAutonomyEvent(run.autonomy, policy, event);
+    if (boundary) {
+      const decision = decideFactoryAutonomyGate(autonomy, boundary, confirmation);
+      const existing = autonomy.gateDecisions.find((item) => item.boundary === boundary);
+      const decidedAt =
+        existing &&
+        existing.allowed === decision.allowed &&
+        existing.manualConfirmation === decision.manualConfirmation &&
+        existing.reason === decision.reason
+          ? existing.decidedAt
+          : Date.now();
+      autonomy = {
+        ...autonomy,
+        gateDecisions: [
+          ...autonomy.gateDecisions.filter((item) => item.boundary !== boundary),
+          { ...decision, boundary, decidedAt },
+        ],
+      };
+    }
+    return this.save({
+      ...run,
+      autonomy,
+      autonomyEvents: [...new Set([...(run.autonomyEvents ?? []), event])],
+    });
   }
 
   async classify(id: string, classification: TaskClassification): Promise<FactoryRun> {

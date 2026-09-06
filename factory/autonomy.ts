@@ -12,6 +12,7 @@ import {
 } from './types.ts';
 
 const autonomyLevelSchema = v.picklist(FACTORY_AUTONOMY_LEVELS);
+const autonomyEventSchema = v.picklist(FACTORY_AUTONOMY_EVENTS);
 const rateSchema = v.pipe(v.number(), v.minValue(0), v.maxValue(1));
 
 export const factoryAutonomyPolicySchema = v.object({
@@ -68,9 +69,13 @@ export function evaluateFactoryAutonomy(
   }
 
   const policy = parseFactoryAutonomyPolicy(policyValue);
-  let effectiveLevel = minLevel(policy.defaultLevel, policy.maximumLevel);
+  let effectiveLevel = policy.promotionEnabled
+    ? 'plan-only'
+    : minLevel(policy.defaultLevel, policy.maximumLevel);
   const explanation = [
-    `Policy ${policy.version} starts at ${policy.defaultLevel} and caps at ${policy.maximumLevel}.`,
+    policy.promotionEnabled
+      ? `Policy ${policy.version} starts history-based promotion at plan-only and caps at ${policy.maximumLevel}.`
+      : `Policy ${policy.version} uses static level ${policy.defaultLevel} and caps at ${policy.maximumLevel}.`,
     `Verification: ${evidence.verificationSuccesses}/${evidence.verificationSamples} (${formatRate(evidence.verificationSuccessRate)}).`,
     `Review readiness: ${evidence.reviewReady}/${evidence.reviewSamples} (${formatRate(evidence.reviewReadyRate)}).`,
     `Draft publication: ${evidence.publicationSuccesses}/${evidence.publicationSamples} (${formatRate(evidence.publicationSuccessRate)}).`,
@@ -116,6 +121,39 @@ export function evaluateFactoryAutonomy(
     effectiveLevel,
     explanation,
     gateDecisions: [],
+  };
+}
+
+export function applyFactoryAutonomyEvent(
+  audit: FactoryAutonomyAudit,
+  policyValue: FactoryAutonomyPolicy | undefined,
+  eventValue: unknown,
+): FactoryAutonomyAudit {
+  const event = v.parse(autonomyEventSchema, eventValue);
+  if (audit.evidence.events.includes(event)) return audit;
+  const evidence = {
+    ...audit.evidence,
+    events: [...audit.evidence.events, event].sort(),
+  };
+  if (!policyValue) return { ...audit, evidence };
+
+  const policy = parseFactoryAutonomyPolicy(policyValue);
+  if (policy.version !== audit.policyVersion) {
+    throw new Error(
+      `Factory autonomy policy ${policy.version} does not match audit policy ${audit.policyVersion}.`,
+    );
+  }
+  const demotedLevel = policy.demotions[event];
+  if (!demotedLevel) return { ...audit, evidence };
+  return {
+    ...audit,
+    evidence,
+    effectiveLevel: minLevel(audit.effectiveLevel, demotedLevel),
+    explanation: [
+      ...audit.explanation,
+      `${event} immediately demoted the run to at most ${demotedLevel}.`,
+    ],
+    gateDecisions: audit.gateDecisions,
   };
 }
 
@@ -172,12 +210,20 @@ export function assertFactoryAutonomyGate(
   run: FactoryRun,
   boundary: FactoryAutonomyBoundary,
 ): void {
-  const decision = run.autonomy?.gateDecisions.find(
-    (candidate) => candidate.boundary === boundary && candidate.allowed,
-  );
-  if (!decision) {
+  if (!factoryAutonomyGateAllowed(run, boundary)) {
     throw new Error(`Factory run ${run.id} has no allowed ${boundary} autonomy gate.`);
   }
+}
+
+export function factoryAutonomyGateAllowed(
+  run: FactoryRun,
+  boundary: FactoryAutonomyBoundary,
+): boolean {
+  return (
+    run.autonomy?.gateDecisions.some(
+      (candidate) => candidate.boundary === boundary && candidate.allowed,
+    ) ?? false
+  );
 }
 
 function rate(successes: number, samples: number): number {

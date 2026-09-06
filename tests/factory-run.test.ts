@@ -187,6 +187,10 @@ describe('runFactoryPipeline', () => {
   test('failed verification completes as failed and never opens a PR', async () => {
     const calls: string[] = [];
     const dependencies = pipelineDependencies(calls);
+    dependencies.autonomyPolicy = {
+      ...publishPolicy,
+      demotions: { 'verification-failure': 'plan-only' },
+    };
     dependencies.verifier = {
       async run(commands) {
         return commands.map((command) => ({
@@ -203,6 +207,13 @@ describe('runFactoryPipeline', () => {
     const result = await runFactoryPipeline(task, dependencies);
 
     assert.equal(result.state, 'failed');
+    assert.equal(result.autonomy?.effectiveLevel, 'plan-only');
+    assert.deepEqual(result.autonomy?.evidence.events, ['verification-failure']);
+    assert.equal(
+      result.autonomy?.gateDecisions.find((decision) => decision.boundary === 'implementation')
+        ?.allowed,
+      false,
+    );
     assert.equal(result.prNumber, undefined);
     assert.equal(
       calls.some((call) => call.startsWith('create:')),
@@ -212,6 +223,72 @@ describe('runFactoryPipeline', () => {
       calls.some((call) => call.startsWith('push:')),
       false,
     );
+  });
+
+  test('applies review demotion before publication and keeps retries blocked', async () => {
+    const calls: string[] = [];
+    const dependencies = pipelineDependencies(calls);
+    dependencies.autonomyPolicy = {
+      ...publishPolicy,
+      defaultLevel: 'implement-and-verify',
+      demotions: { 'review-failure': 'implement-and-verify' },
+    };
+    dependencies.manualConfirmation = 'publication';
+    dependencies.reviewer = {
+      async review() {
+        calls.push('review:changes-requested');
+        return {
+          summary: 'The implementation does not satisfy the plan.',
+          verdict: 'REQUEST_CHANGES',
+          findings: [
+            { title: 'Missing behavior', explanation: 'The required behavior is absent.' },
+          ],
+        };
+      },
+    };
+    dependencies.judgmentsFrom = () => [];
+
+    const stopped = await runFactoryPipeline(task, dependencies);
+    const retried = await runFactoryPipeline(task, dependencies);
+
+    assert.equal(stopped.state, 'reviewing');
+    assert.equal(retried.state, 'reviewing');
+    assert.equal(retried.autonomy?.effectiveLevel, 'implement-and-verify');
+    assert.deepEqual(retried.autonomyEvents, ['review-failure']);
+    assert.equal(
+      retried.autonomy?.gateDecisions.find((decision) => decision.boundary === 'publication')
+        ?.allowed,
+      false,
+    );
+    assert.equal(calls.filter((call) => call === 'review:changes-requested').length, 1);
+    assert.equal(
+      calls.some((call) => call.startsWith('create:')),
+      false,
+    );
+  });
+
+  test('applies publication demotion before a failed publish can retry', async () => {
+    const calls: string[] = [];
+    const dependencies = pipelineDependencies(calls);
+    dependencies.autonomyPolicy = {
+      ...publishPolicy,
+      defaultLevel: 'implement-and-verify',
+      demotions: { 'publication-failure': 'implement-and-verify' },
+    };
+    dependencies.manualConfirmation = 'publication';
+    let publishAttempts = 0;
+    dependencies.publisher.publish = async () => {
+      publishAttempts += 1;
+      throw new Error('GitHub unavailable.');
+    };
+
+    await assert.rejects(() => runFactoryPipeline(task, dependencies), /GitHub unavailable/);
+    const retried = await runFactoryPipeline(task, dependencies);
+
+    assert.equal(retried.state, 'reviewing');
+    assert.equal(retried.autonomy?.effectiveLevel, 'implement-and-verify');
+    assert.deepEqual(retried.autonomyEvents, ['publication-failure']);
+    assert.equal(publishAttempts, 1);
   });
 });
 

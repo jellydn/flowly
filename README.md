@@ -470,13 +470,15 @@ three maximum levels are:
 
 `factory-autonomy.example.json` documents the validated policy shape. Set
 `promotionEnabled` to opt into deterministic history-based promotion; it is
-disabled by default. `defaultLevel` is always bounded by `maximumLevel`, sample
-minimums prevent promotion from sparse history, and each threshold is a 0–1
-rate. Configured verification, review, security, or publication events lower
-the effective level immediately. Operators can recover after investigating a
-demotion by supplying a clean bounded outcome window in persistent history or
-by lowering/adjusting a versioned policy; every new run records the exact policy
-version, evidence snapshot, explanation, and gate decisions it used.
+disabled by default. History-based policies start at Plan only even when
+`defaultLevel` is higher, and remain there until the configured sample minimums
+and thresholds pass. A disabled promotion policy uses `defaultLevel` as an
+explicit static operator setting. `defaultLevel` is always bounded by
+`maximumLevel`, and each threshold is a 0–1 rate. Configured verification,
+review, security, or publication events lower the current run immediately.
+Operators can recover after investigating a demotion by adjusting a versioned
+policy; every new run records the exact policy version, evidence snapshot,
+explanation, and gate decisions it used.
 
 Evidence comes only from persisted Flowly run snapshots: verification command
 outcomes, independent-review readiness, draft publication, and enumerated

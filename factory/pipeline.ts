@@ -14,8 +14,8 @@ import {
   type IsolatedFactoryReviewEvidence,
   reviewFactoryImplementation,
 } from './review.ts';
-import type { FactoryRun } from './types.ts';
-import { assertFactoryAutonomyGate } from './autonomy.ts';
+import type { FactoryAutonomyPolicy, FactoryManualConfirmation, FactoryRun } from './types.ts';
+import { assertFactoryAutonomyGate, factoryAutonomyGateAllowed } from './autonomy.ts';
 
 export type IndependentReviewPipelineDependencies = {
   orchestrator: FactoryOrchestrator;
@@ -26,6 +26,8 @@ export type IndependentReviewPipelineDependencies = {
     evidence: IsolatedFactoryReviewEvidence,
     output: IndependentReviewOutput,
   ) => CriterionJudgment[];
+  autonomyPolicy?: FactoryAutonomyPolicy;
+  manualConfirmation?: FactoryManualConfirmation;
   progress?: FactoryProgressPublisher;
 };
 
@@ -48,15 +50,28 @@ export async function runIndependentReviewAndPublish(
   }
   assertFactoryAutonomyGate(current, 'publication');
 
-  const reviewed = current.review ? current : await recordIndependentReview(current, dependencies);
+  let reviewed = current.review ? current : await recordIndependentReview(current, dependencies);
   if (!reviewed.review?.readyForHumanReview) {
-    await dependencies.orchestrator.recordAutonomyEvent(reviewed.id, 'review-failure');
+    reviewed = await dependencies.orchestrator.applyAutonomyEvent(
+      reviewed.id,
+      'review-failure',
+      dependencies.autonomyPolicy,
+      undefined,
+      'publication',
+    );
+    if (!factoryAutonomyGateAllowed(reviewed, 'publication')) return reviewed;
   }
   let pullRequest;
   try {
     pullRequest = await dependencies.publisher.publish(reviewed);
   } catch (error) {
-    await dependencies.orchestrator.recordAutonomyEvent(reviewed.id, 'publication-failure');
+    await dependencies.orchestrator.applyAutonomyEvent(
+      reviewed.id,
+      'publication-failure',
+      dependencies.autonomyPolicy,
+      undefined,
+      'publication',
+    );
     throw error;
   }
   if (pullRequest.state !== 'open' || !pullRequest.draft) {
