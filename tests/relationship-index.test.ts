@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { buildRepositoryRelationshipIndex } from '../index/repository-relationship-index.ts';
@@ -28,6 +28,13 @@ before(async () => {
   );
   await mkdir(path.join(root, 'packages', 'bad'), { recursive: true });
   await writeFile(path.join(root, 'packages', 'bad', 'package.json'), '{not json');
+  await writeFile(path.join(root, 'unsupported.py'), 'from app import main\n');
+  await writeFile(path.join(root, 'oversized.ts'), Buffer.alloc(1_000_001, 'x'));
+  await symlink(path.join(root, 'src', 'auth.ts'), path.join(root, 'linked-auth.ts'));
+  await writeFile(
+    path.join(root, 'src', 'duplicate.ts'),
+    'import "./auth.ts"; import "./auth.ts";\n',
+  );
 });
 
 after(async () => {
@@ -42,9 +49,9 @@ describe('repository relationship index', () => {
       index.relationships('file:src/index.ts', 'imports', 20).map((edge) => edge.target.label),
       ['src/auth.ts', 'src/config.ts'],
     );
-    assert.equal(
-      index.relationships('file:src/auth.ts', 'imported_by', 20)[0]?.target.label,
-      'src/index.ts',
+    assert.deepEqual(
+      index.relationships('file:src/auth.ts', 'imported_by', 20).map((edge) => edge.target.label),
+      ['src/duplicate.ts', 'src/index.ts'],
     );
     assert.equal(
       index.relationships('file:src/auth.ts', 'owned_by', 20)[0]?.target.label,
@@ -89,14 +96,47 @@ describe('repository relationship index', () => {
     const secondEdges = second.relationships('file:src/index.ts', undefined, 20);
 
     assert.deepEqual(firstEdges, secondEdges);
+    assert.deepEqual(
+      firstEdges.map((edge) => `${edge.relationship}:${edge.target.id}`),
+      ['imports:file:src/auth.ts', 'imports:file:src/config.ts'],
+    );
     assert.equal(new Set(firstEdges.map((edge) => edge.id)).size, firstEdges.length);
+    assert.equal(first.relationships('file:src/duplicate.ts', 'imports', 20).length, 1);
     assert.ok(firstEdges.every((edge) => edge.citation.path && edge.citation.line >= 1));
   });
 
-  test('skips malformed metadata with diagnostics while preserving valid edges', async () => {
-    const index = await buildRepositoryRelationshipIndex(await createRepositoryReader(root));
+  test('diagnoses malformed, unsupported, and oversized data while preserving valid edges', async () => {
+    const repository = await createRepositoryReader(root);
+    const readText = repository.readText.bind(repository);
+    const unscannableReads: string[] = [];
+    repository.readText = async (relativePath) => {
+      if (relativePath === 'unsupported.py' || relativePath === 'oversized.ts') {
+        unscannableReads.push(relativePath);
+      }
+      return readText(relativePath);
+    };
+
+    const index = await buildRepositoryRelationshipIndex(repository);
     assert.ok(index.diagnostics.some((item) => /malformed package manifest/.test(item.message)));
+    assert.ok(
+      index.diagnostics.some(
+        (item) => item.path === 'unsupported.py' && /unsupported/.test(item.message),
+      ),
+    );
+    assert.ok(
+      index.diagnostics.some(
+        (item) => item.path === 'oversized.ts' && /larger than 1000000 bytes/.test(item.message),
+      ),
+    );
+    assert.deepEqual(unscannableReads, []);
     assert.ok(index.relationships('file:src/auth.ts', 'imports', 20).length > 0);
+  });
+
+  test('inherits ignored-path and symlink rules from RepositoryReader discovery', async () => {
+    const index = await buildRepositoryRelationshipIndex(await createRepositoryReader(root));
+
+    assert.equal(index.hasNode('file:node_modules/ignored.js'), false);
+    assert.equal(index.hasNode('file:linked-auth.ts'), false);
   });
 });
 
