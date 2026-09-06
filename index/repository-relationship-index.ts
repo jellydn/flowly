@@ -50,6 +50,7 @@ export type RelationshipIndexStats = {
 const MAX_DIAGNOSTICS = 50;
 const CODE_EXTENSIONS = new Set(['.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.mts', '.cts']);
 const MANIFEST_NAMES = new Set(['package.json']);
+type RelationshipFileKind = 'code' | 'manifest' | 'ownership' | 'documentation' | 'unsupported';
 
 export class RepositoryRelationshipIndex {
   private readonly nodesById = new Map<string, RelationshipNode>();
@@ -139,6 +140,13 @@ export async function buildRepositoryRelationshipIndex(
   const codeowners: CodeownersRule[] = [];
 
   for (const filePath of filePaths) {
+    const kind = classifyRelationshipFile(filePath);
+    if (kind === 'unsupported') {
+      const extension = path.posix.extname(filePath).toLowerCase();
+      report(filePath, `Skipped unsupported ${extension || 'extensionless'} file type.`);
+      continue;
+    }
+
     let content: string;
     try {
       content = await repository.readText(filePath);
@@ -148,25 +156,19 @@ export async function buildRepositoryRelationshipIndex(
     }
     index.stats.filesScanned += 1;
 
-    const extension = path.posix.extname(filePath).toLowerCase();
-    const codeFile = CODE_EXTENSIONS.has(extension);
-    const manifest = MANIFEST_NAMES.has(path.posix.basename(filePath));
-    const ownershipFile = /^(?:\.github\/|docs\/)?CODEOWNERS$/i.test(filePath);
-    const documentationFile = /\.(?:md|markdown|txt)$/i.test(filePath);
-    if (codeFile) {
-      extractImports(index, files, filePath, content, report);
-    }
-    if (manifest) {
-      extractManifestDependencies(index, filePath, content, report);
-    }
-    if (ownershipFile) {
-      codeowners.push(...parseCodeowners(filePath, content, report));
-    }
-    if (documentationFile) {
-      extractMarkdownRelationships(index, files, filePath, content, report);
-    }
-    if (!codeFile && !manifest && !ownershipFile && !documentationFile) {
-      report(filePath, `Skipped unsupported ${extension || 'extensionless'} file type.`);
+    switch (kind) {
+      case 'code':
+        extractImports(index, files, filePath, content, report);
+        break;
+      case 'manifest':
+        extractManifestDependencies(index, filePath, content, report);
+        break;
+      case 'ownership':
+        codeowners.push(...parseCodeowners(filePath, content, report));
+        break;
+      case 'documentation':
+        extractMarkdownRelationships(index, files, filePath, content, report);
+        break;
     }
   }
 
@@ -175,6 +177,15 @@ export async function buildRepositoryRelationshipIndex(
   index.stats.edgesIndexed = index.edgeCount;
   index.stats.skippedEntries = skippedEntries;
   return index;
+}
+
+function classifyRelationshipFile(filePath: string): RelationshipFileKind {
+  if (MANIFEST_NAMES.has(path.posix.basename(filePath))) return 'manifest';
+  if (/^(?:\.github\/|docs\/)?CODEOWNERS$/i.test(filePath)) return 'ownership';
+  const extension = path.posix.extname(filePath).toLowerCase();
+  if (CODE_EXTENSIONS.has(extension)) return 'code';
+  if (/\.(?:md|markdown|txt)$/i.test(filePath)) return 'documentation';
+  return 'unsupported';
 }
 
 function extractImports(

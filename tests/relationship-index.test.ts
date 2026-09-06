@@ -106,7 +106,17 @@ describe('repository relationship index', () => {
   });
 
   test('diagnoses malformed, unsupported, and oversized data while preserving valid edges', async () => {
-    const index = await buildRepositoryRelationshipIndex(await createRepositoryReader(root));
+    const repository = await createRepositoryReader(root);
+    const readText = repository.readText.bind(repository);
+    const unscannableReads: string[] = [];
+    repository.readText = async (relativePath) => {
+      if (relativePath === 'unsupported.py' || relativePath === 'oversized.ts') {
+        unscannableReads.push(relativePath);
+      }
+      return readText(relativePath);
+    };
+
+    const index = await buildRepositoryRelationshipIndex(repository);
     assert.ok(index.diagnostics.some((item) => /malformed package manifest/.test(item.message)));
     assert.ok(
       index.diagnostics.some(
@@ -118,6 +128,7 @@ describe('repository relationship index', () => {
         (item) => item.path === 'oversized.ts' && /larger than 1000000 bytes/.test(item.message),
       ),
     );
+    assert.deepEqual(unscannableReads, []);
     assert.ok(index.relationships('file:src/auth.ts', 'imports', 20).length > 0);
   });
 
