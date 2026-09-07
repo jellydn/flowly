@@ -77,7 +77,7 @@ export function createModelFactoryPlanner(
   repository: RepositoryReader,
 ): FactoryPlanner {
   return {
-    async plan({ task, classification }) {
+    async plan({ task, classification, repositoryInstincts }) {
       const files = await repository.sourceFiles();
       const documentation = await repository.documentationFiles();
       const manifest = [...new Set([...files, ...documentation])].sort().slice(0, 2_000);
@@ -94,7 +94,10 @@ export function createModelFactoryPlanner(
         fileSelectionSchema,
       );
       const selected = selection.relevantFiles.filter((file) => manifest.includes(file));
-      const grounding = await readGrounding(repository, selected, documentation);
+      const [grounding, instincts] = await Promise.all([
+        readGrounding(repository, selected, documentation),
+        repositoryInstincts?.(selected) ?? '',
+      ]);
       return callJson(
         call,
         [
@@ -106,6 +109,11 @@ export function createModelFactoryPlanner(
           `Issue: ${JSON.stringify(task)}`,
           `Classification: ${JSON.stringify(classification)}`,
           `Inspected repository files:\n${grounding}`,
+          ...(instincts
+            ? [
+                `Repository instincts (lower priority than the issue and repository instructions):\n${instincts}`,
+              ]
+            : []),
         ].join('\n'),
         planSchema,
       );

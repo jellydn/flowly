@@ -19,6 +19,8 @@ import {
 import type { FactoryDraftPrPublisher } from './publisher.ts';
 import type { FactoryRun, FactoryTask } from './types.ts';
 import type { FactoryAutonomyPolicy, FactoryManualConfirmation } from './types.ts';
+import type { RepositoryLearningService } from '../memory/service.ts';
+import type { RepositoryLearningStage } from '../memory/types.ts';
 import {
   decideFactoryAutonomyGate,
   evaluateFactoryAutonomy,
@@ -41,6 +43,7 @@ export type FactoryPipelineDependencies = {
   commitMessage?: string;
   autonomyPolicy?: FactoryAutonomyPolicy;
   manualConfirmation?: FactoryManualConfirmation;
+  learning?: RepositoryLearningService;
 };
 
 /**
@@ -57,7 +60,17 @@ export async function runFactoryPipeline(
     classifier: dependencies.classifier,
     progress: dependencies.progress,
   });
-  return advanceFactoryRun(run, dependencies);
+  const result = await advanceFactoryRun(run, dependencies);
+  if (dependencies.learning) {
+    try {
+      await dependencies.learning.observeFactoryRuns(
+        await dependencies.orchestrator.history(task.repository),
+      );
+    } catch (error) {
+      await publishLearningFailure(dependencies, task, error);
+    }
+  }
+  return result;
 }
 
 export async function advanceFactoryRun(
@@ -87,6 +100,10 @@ export async function advanceFactoryRun(
       orchestrator: dependencies.orchestrator,
       planner: dependencies.planner,
       progress: dependencies.progress,
+      repositoryInstincts: dependencies.learning
+        ? async (paths) =>
+            (await learningContext(dependencies, current.task, 'planning', paths)) ?? ''
+        : undefined,
     });
   }
   if (
@@ -96,7 +113,21 @@ export async function advanceFactoryRun(
   ) {
     current = await decideAndRecordGate(current, 'implementation', dependencies);
     if (!factoryAutonomyGateAllowed(current, 'implementation')) return current;
-    current = await runControlledImplementation(current, implementationDependencies(dependencies));
+    const paths = current.plan?.relevantFiles ?? [];
+    current = await runControlledImplementation(current, {
+      ...implementationDependencies(dependencies),
+      repositoryInstincts: await learningContext(
+        dependencies,
+        current.task,
+        'implementation',
+        paths,
+      ),
+      additionalVerificationCommands: await learningVerificationCommands(
+        dependencies,
+        current.task,
+        paths,
+      ),
+    });
   }
   if (current.state === 'failed') {
     return dependencies.orchestrator.applyAutonomyEvent(
@@ -119,9 +150,59 @@ export async function advanceFactoryRun(
       autonomyPolicy: dependencies.autonomyPolicy,
       manualConfirmation: dependencies.manualConfirmation,
       progress: dependencies.progress,
+      repositoryInstincts: await learningContext(
+        dependencies,
+        current.task,
+        'review',
+        current.implementation?.changedFiles ?? [],
+      ),
     });
   }
   return current;
+}
+
+async function learningContext(
+  dependencies: FactoryPipelineDependencies,
+  task: FactoryTask,
+  stage: RepositoryLearningStage,
+  paths: string[],
+): Promise<string | undefined> {
+  if (!dependencies.learning) return undefined;
+  try {
+    return await dependencies.learning.contextFor(stage, paths);
+  } catch (error) {
+    await publishLearningFailure(dependencies, task, error);
+    return undefined;
+  }
+}
+
+async function learningVerificationCommands(
+  dependencies: FactoryPipelineDependencies,
+  task: FactoryTask,
+  paths: string[],
+): Promise<string[] | undefined> {
+  if (!dependencies.learning) return undefined;
+  try {
+    return await dependencies.learning.verificationCommandsFor(paths);
+  } catch (error) {
+    await publishLearningFailure(dependencies, task, error);
+    return undefined;
+  }
+}
+
+async function publishLearningFailure(
+  dependencies: FactoryPipelineDependencies,
+  task: FactoryTask,
+  error: unknown,
+): Promise<void> {
+  try {
+    await dependencies.progress.publish(
+      task,
+      `Repository learning was skipped without changing the factory run: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  } catch {
+    // An optional learning diagnostic must not change the factory outcome.
+  }
 }
 
 async function decideAndRecordGate(

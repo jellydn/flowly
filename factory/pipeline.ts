@@ -29,6 +29,7 @@ export type IndependentReviewPipelineDependencies = {
   autonomyPolicy?: FactoryAutonomyPolicy;
   manualConfirmation?: FactoryManualConfirmation;
   progress?: FactoryProgressPublisher;
+  repositoryInstincts?: string;
 };
 
 /**
@@ -95,6 +96,7 @@ async function recordIndependentReview(
     diff,
     dependencies.reviewer,
     dependencies.judgmentsFrom,
+    dependencies.repositoryInstincts,
   );
   const reviewed = await dependencies.orchestrator.recordReview(reviewingRun.id, verdict);
   await dependencies.progress?.publish(

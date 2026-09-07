@@ -5,6 +5,7 @@ import type { FactoryRun, ImplementationPlan, TaskClassification } from './types
 export type FactoryPlannerInput = {
   task: FactoryRun['task'];
   classification: TaskClassification;
+  repositoryInstincts?: (paths: string[]) => Promise<string>;
 };
 
 /** Read-only analyst boundary. Implementations must not mutate a repository. */
@@ -18,6 +19,7 @@ type PlanDependencies = {
   orchestrator: FactoryOrchestrator;
   planner: FactoryPlanner;
   progress: FactoryProgressPublisher;
+  repositoryInstincts?: (paths: string[]) => Promise<string>;
 };
 
 /**
@@ -54,6 +56,7 @@ async function planAndPublish(
   const localPlan = await dependencies.planner.plan({
     task: run.task,
     classification,
+    repositoryInstincts: dependencies.repositoryInstincts,
   });
   const planned = await dependencies.orchestrator.plan(run.id, localPlan);
   await dependencies.progress.publish(planned.task, `Factory plan recorded: ${localPlan.summary}`);

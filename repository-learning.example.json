@@ -1,0 +1,7 @@
+{
+  "version": "learning-v1",
+  "enabled": false,
+  "minimumObservations": 3,
+  "requireHumanEvidenceFor": ["architecture-boundary"],
+  "decayAfterDays": 90
+}

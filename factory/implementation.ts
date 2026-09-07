@@ -8,6 +8,7 @@ export type FactoryImplementerInput = {
   task: FactoryTask;
   plan: ImplementationPlan;
   workspace: FactoryGitWorkspace;
+  repositoryInstincts?: string;
 };
 
 export type FactoryImplementer = {
@@ -35,6 +36,8 @@ export type ControlledImplementationDependencies = {
   verifier: FactoryVerifier;
   baseRef?: string;
   commitMessage?: string;
+  repositoryInstincts?: string;
+  additionalVerificationCommands?: string[];
 };
 
 /**
@@ -63,6 +66,7 @@ export async function runControlledImplementation(
     task: implementing.task,
     plan: implementing.plan,
     workspace,
+    repositoryInstincts: dependencies.repositoryInstincts,
   });
   const commit = await dependencies.git.commit(
     workspace,
@@ -89,10 +93,13 @@ async function resumeVerification(
     verifying.branch,
     dependencies.baseRef,
   );
-  const verification = await dependencies.verifier.run(
-    verifying.plan.verificationCommands,
-    workspace.path,
-  );
+  const commands = [
+    ...new Set([
+      ...verifying.plan.verificationCommands,
+      ...(dependencies.additionalVerificationCommands ?? []),
+    ]),
+  ];
+  const verification = await dependencies.verifier.run(commands, workspace.path);
   const pristine = await dependencies.git.isPristine(workspace, verifying.implementation.commitSha);
   await dependencies.orchestrator.recordImplementation(verifying.id, {
     ...verifying.implementation,

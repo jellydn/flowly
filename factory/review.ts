@@ -20,6 +20,7 @@ export type IsolatedFactoryReviewEvidence = {
   planSummary: string;
   acceptanceCriteria: AcceptanceCriterion[];
   verification: Array<{ command: string; exitCode: number }>;
+  repositoryInstincts?: string;
 };
 
 /** Reviewer-owned judgment for one acceptance criterion. */
@@ -52,6 +53,7 @@ const SHA = /^[a-f0-9]{40}$/;
 export function isolateReviewEvidence(
   run: FactoryRun,
   diff: string,
+  repositoryInstincts?: string,
 ): IsolatedFactoryReviewEvidence {
   if (run.state !== 'reviewing') {
     throw new Error(`Factory run ${run.id} is ${run.state}; expected reviewing.`);
@@ -85,6 +87,7 @@ export function isolateReviewEvidence(
       command,
       exitCode,
     })),
+    ...(repositoryInstincts ? { repositoryInstincts } : {}),
   };
 }
 
@@ -138,8 +141,9 @@ export async function reviewFactoryImplementation(
     evidence: IsolatedFactoryReviewEvidence,
     output: IndependentReviewOutput,
   ) => CriterionJudgment[],
+  repositoryInstincts?: string,
 ): Promise<ReviewVerdict> {
-  const evidence = isolateReviewEvidence(run, diff);
+  const evidence = isolateReviewEvidence(run, diff, repositoryInstincts);
   const output = await reviewer.review(evidence);
   return buildReviewVerdict(evidence, output, judgmentsFrom(evidence, output));
 }
