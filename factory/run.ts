@@ -19,8 +19,7 @@ import {
 import type { FactoryDraftPrPublisher } from './publisher.ts';
 import type { FactoryRun, FactoryTask } from './types.ts';
 import type { FactoryAutonomyPolicy, FactoryManualConfirmation } from './types.ts';
-import type { RepositoryLearningService } from '../memory/service.ts';
-import type { RepositoryLearningStage } from '../memory/types.ts';
+import type { FactoryRepositoryLearning } from '../memory/service.ts';
 import {
   decideFactoryAutonomyGate,
   evaluateFactoryAutonomy,
@@ -43,7 +42,7 @@ export type FactoryPipelineDependencies = {
   commitMessage?: string;
   autonomyPolicy?: FactoryAutonomyPolicy;
   manualConfirmation?: FactoryManualConfirmation;
-  learning?: RepositoryLearningService;
+  learning?: FactoryRepositoryLearning;
 };
 
 /**
@@ -61,15 +60,9 @@ export async function runFactoryPipeline(
     progress: dependencies.progress,
   });
   const result = await advanceFactoryRun(run, dependencies);
-  if (dependencies.learning) {
-    try {
-      await dependencies.learning.observeFactoryRuns(
-        await dependencies.orchestrator.history(task.repository),
-      );
-    } catch (error) {
-      await publishLearningFailure(dependencies, task, error);
-    }
-  }
+  await useRepositoryLearning(dependencies, task, undefined, async (learning) => {
+    await learning.observeFactoryRuns(await dependencies.orchestrator.history(task.repository));
+  });
   return result;
 }
 
@@ -102,7 +95,9 @@ export async function advanceFactoryRun(
       progress: dependencies.progress,
       repositoryInstincts: dependencies.learning
         ? async (paths) =>
-            (await learningContext(dependencies, current.task, 'planning', paths)) ?? ''
+            useRepositoryLearning(dependencies, current.task, '', (learning) =>
+              learning.contextFor('planning', paths),
+            )
         : undefined,
     });
   }
@@ -116,16 +111,17 @@ export async function advanceFactoryRun(
     const paths = current.plan?.relevantFiles ?? [];
     current = await runControlledImplementation(current, {
       ...implementationDependencies(dependencies),
-      repositoryInstincts: await learningContext(
+      repositoryInstincts: await useRepositoryLearning(
         dependencies,
         current.task,
-        'implementation',
-        paths,
+        undefined,
+        (learning) => learning.contextFor('implementation', paths),
       ),
-      additionalVerificationCommands: await learningVerificationCommands(
+      additionalVerificationCommands: await useRepositoryLearning(
         dependencies,
         current.task,
-        paths,
+        undefined,
+        (learning) => learning.verificationCommandsFor(paths),
       ),
     });
   }
@@ -150,43 +146,29 @@ export async function advanceFactoryRun(
       autonomyPolicy: dependencies.autonomyPolicy,
       manualConfirmation: dependencies.manualConfirmation,
       progress: dependencies.progress,
-      repositoryInstincts: await learningContext(
+      repositoryInstincts: await useRepositoryLearning(
         dependencies,
         current.task,
-        'review',
-        current.implementation?.changedFiles ?? [],
+        undefined,
+        (learning) => learning.contextFor('review', current.implementation?.changedFiles ?? []),
       ),
     });
   }
   return current;
 }
 
-async function learningContext(
+async function useRepositoryLearning<T>(
   dependencies: FactoryPipelineDependencies,
   task: FactoryTask,
-  stage: RepositoryLearningStage,
-  paths: string[],
-): Promise<string | undefined> {
-  if (!dependencies.learning) return undefined;
+  fallback: T,
+  operation: (learning: FactoryRepositoryLearning) => Promise<T>,
+): Promise<T> {
+  if (!dependencies.learning) return fallback;
   try {
-    return await dependencies.learning.contextFor(stage, paths);
+    return await operation(dependencies.learning);
   } catch (error) {
     await publishLearningFailure(dependencies, task, error);
-    return undefined;
-  }
-}
-
-async function learningVerificationCommands(
-  dependencies: FactoryPipelineDependencies,
-  task: FactoryTask,
-  paths: string[],
-): Promise<string[] | undefined> {
-  if (!dependencies.learning) return undefined;
-  try {
-    return await dependencies.learning.verificationCommandsFor(paths);
-  } catch (error) {
-    await publishLearningFailure(dependencies, task, error);
-    return undefined;
+    return fallback;
   }
 }
 

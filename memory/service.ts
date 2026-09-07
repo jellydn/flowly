@@ -81,3 +81,8 @@ export class RepositoryLearningService {
     return state ? learnRepositoryInstincts(this.repositoryId, state, [], this.policy) : null;
   }
 }
+
+export type FactoryRepositoryLearning = Pick<
+  RepositoryLearningService,
+  'contextFor' | 'observeFactoryRuns' | 'verificationCommandsFor'
+>;
