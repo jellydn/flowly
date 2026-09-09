@@ -129,15 +129,19 @@ export class GitHubClient {
 
   /**
    * GET /repos/{owner}/{repo}/issues/{prNumber}/comments — list all PR-level
-   * (issue) comments. Paginates through all pages (capped at 2000 comments) so
-   * the caller can search for a hidden state comment anywhere in the thread.
+   * (issue) comments. Paginates through all pages, with a bounded default that
+   * callers can override when they must find a hidden state comment anywhere
+   * in a long thread.
    */
-  async listIssueComments(prNumber: number): Promise<IssueComment[]> {
+  async listIssueComments(
+    prNumber: number,
+    options: { maxPages?: number } = {},
+  ): Promise<IssueComment[]> {
     const all: IssueComment[] = [];
     let page = 1;
     const perPage = 100;
-    // Cap at 20 pages (2000 comments) to bound API usage.
-    while (page <= 20) {
+    const maxPages = options.maxPages ?? 20;
+    while (page <= maxPages) {
       const batch = await this.requestJson<IssueComment[]>(
         'GET',
         `/repos/${this.owner}/${this.repo}/issues/${prNumber}/comments?per_page=${perPage}&page=${page}`,
@@ -174,11 +178,16 @@ export class GitHubClient {
   }
 
   /** PATCH /repos/{owner}/{repo}/issues/comments/{commentId} */
-  async updateIssueComment(commentId: number, body: string): Promise<IssueCommentResult> {
+  async updateIssueComment(
+    commentId: number,
+    body: string,
+    expectedUpdatedAt?: string,
+  ): Promise<IssueCommentResult> {
     return this.requestJson<IssueCommentResult>(
       'PATCH',
       `/repos/${this.owner}/${this.repo}/issues/comments/${commentId}`,
       { body },
+      expectedUpdatedAt ? { 'If-Unmodified-Since': expectedUpdatedAt } : undefined,
     );
   }
 
@@ -217,7 +226,12 @@ export class GitHubClient {
     );
   }
 
-  private async requestJson<T>(method: string, path: string, body?: unknown): Promise<T> {
+  private async requestJson<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    extraHeaders?: Record<string, string>,
+  ): Promise<T> {
     const url = `${this.apiUrl}${path}`;
     const response = await fetch(url, {
       method,
@@ -225,6 +239,7 @@ export class GitHubClient {
         Accept: 'application/vnd.github+json',
         Authorization: `Bearer ${this.token}`,
         'X-GitHub-Api-Version': '2022-11-28',
+        ...extraHeaders,
         ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,

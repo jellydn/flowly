@@ -10,12 +10,11 @@ const store = new FileRepositoryMemoryStore(
 );
 
 async function main(): Promise<void> {
-  const state = await store.load();
-  if (!state) throw new Error('Repository memory is empty.');
   if (command === 'list') {
+    const state = await store.load();
     console.log(
       JSON.stringify(
-        state.instincts.map(({ id: instinctId, kind, statement, confidence, status }) => ({
+        (state?.instincts ?? []).map(({ id: instinctId, kind, statement, confidence, status }) => ({
           id: instinctId,
           kind,
           statement,
@@ -28,6 +27,8 @@ async function main(): Promise<void> {
     );
     return;
   }
+  const state = await store.load();
+  if (!state) throw new Error('Repository memory is empty.');
   if (command === 'explain' && id) {
     const instinct = state.instincts.find((item) => item.id === id);
     if (!instinct) throw new Error(`Repository instinct ${id} does not exist.`);
@@ -35,9 +36,14 @@ async function main(): Promise<void> {
     return;
   }
   if ((command === 'reject' || command === 'deprecate') && id) {
-    await store.save(
-      setRepositoryInstinctStatus(state, id, command === 'reject' ? 'rejected' : 'deprecated'),
-    );
+    await store.update((current) => {
+      if (!current) throw new Error('Repository memory is empty.');
+      return setRepositoryInstinctStatus(
+        current,
+        id,
+        command === 'reject' ? 'rejected' : 'deprecated',
+      );
+    });
     console.log(
       `Repository instinct ${id} marked ${command === 'reject' ? 'rejected' : 'deprecated'}.`,
     );

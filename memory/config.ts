@@ -19,6 +19,7 @@ export function createRepositoryLearningFromEnv(
   const policy = parseRepositoryLearningPolicy(
     JSON.parse(readFileSync(resolveRepositoryFile(repositoryPath, policyPath), 'utf8')) as unknown,
   );
+  if (!policy.enabled) return undefined;
   const store = createStore(env, client, repositoryPath);
   return new RepositoryLearningService(`${client.owner}/${client.repo}`, policy, store);
 }

@@ -27,11 +27,13 @@ export function extractFactoryLearningObservations(
         laterSuccessfulCommands.add(result.command);
         observations.push({
           ...common,
+          outcome: 'supporting',
           artifactId: `factory-run:${run.id}:verification:${result.command}:success`,
         });
       } else if (result.exitCode !== 0 && laterSuccessfulCommands.has(result.command)) {
         observations.push({
           ...common,
+          outcome: 'contradicting',
           artifactId: `factory-run:${run.id}:verification:${result.command}:failure-before-fix`,
         });
       }

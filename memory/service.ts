@@ -65,15 +65,16 @@ export class RepositoryLearningService {
   }
 
   async mark(id: string, status: 'rejected' | 'deprecated'): Promise<void> {
-    const state = await this.store.load();
-    if (!state) throw new Error('Repository memory is empty.');
-    await this.store.save(setRepositoryInstinctStatus(state, id, status));
+    await this.store.update((state) => {
+      if (!state) throw new Error('Repository memory is empty.');
+      return setRepositoryInstinctStatus(state, id, status);
+    });
   }
 
   private async learn(values: unknown[], now: number): Promise<void> {
-    const current = await this.store.load();
-    const learned = learnRepositoryInstincts(this.repositoryId, current, values, this.policy, now);
-    await this.store.save(learned);
+    await this.store.update((current) =>
+      learnRepositoryInstincts(this.repositoryId, current, values, this.policy, now),
+    );
   }
 
   private async evaluatedState() {

@@ -93,10 +93,13 @@ async function resumeVerification(
     verifying.branch,
     dependencies.baseRef,
   );
+  const approvedCommands = new Set(verifying.plan.verificationCommands);
   const commands = [
     ...new Set([
       ...verifying.plan.verificationCommands,
-      ...(dependencies.additionalVerificationCommands ?? []),
+      ...(dependencies.additionalVerificationCommands ?? []).filter((command) =>
+        approvedCommands.has(command),
+      ),
     ]),
   ];
   const verification = await dependencies.verifier.run(commands, workspace.path);

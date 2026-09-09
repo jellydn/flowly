@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { describe, test } from 'node:test';
+import os from 'node:os';
+import path from 'node:path';
 import {
   formatRepositoryInstinctContext,
   learnRepositoryInstincts,
@@ -9,7 +12,11 @@ import {
 } from '../memory/engine.ts';
 import { extractFactoryLearningObservations } from '../memory/extractors.ts';
 import { parseRepositoryMemoryState } from '../memory/schema.ts';
-import { createGitHubRepositoryMemoryStore, MemoryRepositoryMemoryStore } from '../memory/store.ts';
+import {
+  createGitHubRepositoryMemoryStore,
+  FileRepositoryMemoryStore,
+  MemoryRepositoryMemoryStore,
+} from '../memory/store.ts';
 import { RepositoryLearningService } from '../memory/service.ts';
 import type { FactoryRun } from '../factory/types.ts';
 import type {
@@ -88,6 +95,47 @@ describe('repository memory', () => {
     assert.match(stale.instincts[0].promotionExplanation.join(' '), /older than 90 days/);
   });
 
+  test('uses supporting evidence for decay even when a contradiction is recent', () => {
+    const state = learnRepositoryInstincts(
+      'jellydn/flowly',
+      null,
+      [observation('1'), observation('2'), observation('3')],
+      policy,
+      NOW,
+    );
+    const evaluated = learnRepositoryInstincts(
+      'jellydn/flowly',
+      state,
+      [{ ...observation('4'), observedAt: NOW + 91 * 86_400_000, outcome: 'contradicting' }],
+      policy,
+      NOW + 91 * 86_400_000,
+    );
+
+    assert.equal(evaluated.instincts[0].confidence, 0.333);
+    assert.match(evaluated.instincts[0].promotionExplanation.join(' '), /older than 90 days/);
+  });
+
+  test('does not deduplicate observations from different exact scopes', () => {
+    const state = learnRepositoryInstincts(
+      'jellydn/flowly',
+      null,
+      [
+        observation('1'),
+        observation('2'),
+        observation('3'),
+        { ...observation('4'), paths: ['packages/web/**'] },
+      ],
+      policy,
+      NOW,
+    );
+
+    assert.equal(state.instincts.length, 2);
+    assert.deepEqual(
+      state.instincts.map((item) => item.scope.paths),
+      [['packages/api/**'], ['packages/web/**']],
+    );
+  });
+
   test('requires human evidence for configured kinds', () => {
     const inputs = ['1', '2', '3'].map((id) => ({
       ...observation(id),
@@ -137,6 +185,7 @@ describe('repository memory', () => {
     const rejected = setRepositoryInstinctStatus(original, original.instincts[0].id, 'rejected');
     assert.equal(rejected.instincts[0].status, 'rejected');
     assert.equal(rejected.instincts[0].evidence.length, 3);
+    assert.equal(original.instincts[0].status, 'active');
 
     const withReplacement: RepositoryMemoryState = {
       ...original,
@@ -152,6 +201,8 @@ describe('repository memory', () => {
     );
     assert.equal(superseded.instincts[0].status, 'deprecated');
     assert.equal(superseded.instincts[1].supersedes, original.instincts[0].id);
+    assert.equal(withReplacement.instincts[0].status, 'active');
+    assert.equal(withReplacement.instincts[1].supersedes, undefined);
   });
 
   test('replay is idempotent through the service store boundary', async () => {
@@ -191,6 +242,10 @@ describe('repository memory', () => {
     assert.equal(observations.filter((item) => item.kind === 'verification').length, 2);
     assert.equal(observations.filter((item) => item.kind === 'review-rule').length, 2);
     assert.ok(observations.every((item) => item.runId && item.issueNumber));
+    assert.deepEqual(
+      observations.filter((item) => item.kind === 'verification').map((item) => item.outcome),
+      ['supporting', 'contradicting'],
+    );
   });
 
   test('GitHub persistence trusts only the configured bot and confines the repository', async () => {
@@ -231,6 +286,104 @@ describe('repository memory', () => {
     await assert.rejects(
       () => store.save({ ...state, repositoryId: 'other/repository' }),
       /targets other\/repository/,
+    );
+  });
+
+  test('retries GitHub updates after a conditional-write conflict', async () => {
+    const comments: IssueComment[] = [];
+    let updateAttempts = 0;
+    let lastOptions: { maxPages?: number } | undefined;
+    const client = {
+      owner: 'jellydn',
+      repo: 'flowly',
+      async listIssueComments(_issue: number, options?: { maxPages?: number }) {
+        lastOptions = options;
+        return comments;
+      },
+      async createIssueComment(_issue: number, body: string) {
+        comments.push({
+          id: 2,
+          body,
+          created_at: '',
+          updated_at: 'v1',
+          user: { login: 'github-actions[bot]' },
+        });
+        return { id: 2, html_url: 'https://example.test/comment/2' };
+      },
+      async updateIssueComment(id: number, body: string, expectedUpdatedAt?: string) {
+        assert.equal(expectedUpdatedAt, updateAttempts === 0 ? 'v1' : 'v2');
+        updateAttempts += 1;
+        if (updateAttempts === 1) {
+          comments[0].updated_at = 'v2';
+          throw Object.assign(new Error('conflict'), { status: 412 });
+        }
+        comments.find((comment) => comment.id === id)!.body = body;
+        return { id, html_url: `https://example.test/comment/${id}` };
+      },
+    };
+    const store = createGitHubRepositoryMemoryStore(client, 138);
+    const state = learnRepositoryInstincts('jellydn/flowly', null, [observation('1')], policy, NOW);
+
+    await store.save(state);
+    await store.update((current) => ({
+      ...current!,
+      instincts: current!.instincts.map((instinct) => ({
+        ...instinct,
+        promotionExplanation: [...instinct.promotionExplanation, 'updated'],
+      })),
+    }));
+
+    assert.equal(updateAttempts, 2);
+    assert.equal(lastOptions?.maxPages, Number.POSITIVE_INFINITY);
+  });
+
+  test('serializes file-store read-modify-write updates', async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'flowly-memory-'));
+    try {
+      const filePath = path.join(directory, 'state.json');
+      const first = new FileRepositoryMemoryStore(filePath);
+      const second = new FileRepositoryMemoryStore(filePath);
+      const state = learnRepositoryInstincts(
+        'jellydn/flowly',
+        null,
+        [observation('1')],
+        policy,
+        NOW,
+      );
+      await first.save(state);
+
+      await Promise.all(
+        [
+          ['first', first],
+          ['second', second],
+        ].map(async ([label, store]) => {
+          await (store as FileRepositoryMemoryStore).update((current) => ({
+            ...current!,
+            instincts: current!.instincts.map((instinct) => ({
+              ...instinct,
+              promotionExplanation: [...instinct.promotionExplanation, label as string],
+            })),
+          }));
+        }),
+      );
+
+      const explanation = (await first.load())!.instincts[0].promotionExplanation;
+      assert.ok(explanation.includes('first'));
+      assert.ok(explanation.includes('second'));
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test('rejects instincts that target another repository', () => {
+    const state = learnRepositoryInstincts('jellydn/flowly', null, [observation('1')], policy, NOW);
+    assert.throws(
+      () =>
+        parseRepositoryMemoryState({
+          ...state,
+          instincts: [{ ...state.instincts[0], repositoryId: 'other/repository' }],
+        }),
+      /Every instinct must target the state repository/,
     );
   });
 });

@@ -54,6 +54,13 @@ const stateSchema = v.object({
   repositoryId: v.pipe(v.string(), v.regex(/^[^/]+\/[^/]+$/)),
   instincts: v.pipe(v.array(instinctSchema), v.maxLength(1000)),
 });
+const validatedStateSchema = v.pipe(
+  stateSchema,
+  v.check(
+    (state) => state.instincts.every((instinct) => instinct.repositoryId === state.repositoryId),
+    'Every instinct must target the state repository.',
+  ),
+);
 const policySchema = v.object({
   version: v.pipe(v.string(), v.minLength(1), v.maxLength(100)),
   enabled: v.boolean(),
@@ -68,7 +75,7 @@ const observationSchema = v.object({
 });
 
 export function parseRepositoryMemoryState(value: unknown): RepositoryMemoryState {
-  return v.parse(stateSchema, value);
+  return v.parse(validatedStateSchema, value);
 }
 
 export function parseRepositoryLearningPolicy(value: unknown): RepositoryLearningPolicy {
