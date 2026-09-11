@@ -108,6 +108,27 @@ describe('runControlledImplementation', () => {
     );
   });
 
+  test('runs only additional verification commands approved by the plan', async () => {
+    const { orchestrator, run } = await plannedRun();
+    let verifiedCommands: string[] = [];
+
+    const result = await runControlledImplementation(run, {
+      orchestrator,
+      git: fakeGit([]),
+      implementer: { async implement() {} },
+      verifier: {
+        async run(commands) {
+          verifiedCommands = commands;
+          return commands.map((command) => commandResult(command, 0));
+        },
+      },
+      additionalVerificationCommands: ['npm test', 'rm -rf /'],
+    });
+
+    assert.equal(result.state, 'reviewing');
+    assert.deepEqual(verifiedCommands, ['npm test', 'npm run typecheck']);
+  });
+
   test('records failed verification and does not enter review', async () => {
     const { orchestrator, run } = await plannedRun();
     const calls: string[] = [];

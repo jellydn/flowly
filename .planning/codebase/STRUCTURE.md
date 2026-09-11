@@ -15,12 +15,13 @@ flowly/
 ├── factory/           # Gated issue-to-PR runs, autonomy policy, and migration campaigns
 ├── github/            # Trusted GitHub client/adapter + event router
 ├── index/             # TF-IDF and relationship repository indexes
-├── scripts/           # CLI entrypoints (review-pr, route-event, flue-eval)
+├── memory/            # Repository-instinct schema, evidence engine, stores, and stage context
+├── scripts/           # CLI entrypoints (review-pr, route-event, flue-eval, memory)
 ├── eval/              # Capstone eval + benchmark framework + fixtures
 ├── demo/              # Deterministic demos (bash + ts)
 ├── docs/              # Hand-maintained docs page + ADRs
 ├── skills/            # Flue skills (analyzing-repositories)
-├── tests/             # Node test-runner tests (49 files + helpers)
+├── tests/             # Node test-runner tests (50 files + helpers)
 ├── .planning/         # Codebase map + internal planning docs
 ├── .github/workflows/ # CI + event-router/review/factory workflow + examples
 ├── sandbox.ts         # Empty toolset replacing default FS/shell tools
@@ -88,8 +89,8 @@ flowly/
 **`scripts/`:**
 
 - Purpose: CI entrypoints
-- Contains: `review-pr.ts`, `run-factory.ts`, `route-event.ts`, `flue-eval.ts`, `check-doc-tree.ts`
-- Key files: `review-pr.ts`, `route-event.ts`, `run-factory.ts`, `flue-eval.ts`
+- Contains: `review-pr.ts`, `run-factory.ts`, `route-event.ts`, `flue-eval.ts`, `memory.ts`, `check-doc-tree.ts`
+- Key files: `review-pr.ts`, `route-event.ts`, `run-factory.ts`, `flue-eval.ts`, `memory.ts`
 
 **`eval/`:**
 
@@ -112,7 +113,7 @@ flowly/
 **`tests/`:**
 
 - Purpose: All automated tests (single directory, not co-located)
-- Contains: 49 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
+- Contains: 50 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
 - Key files: `helpers.ts`, `event-router.test.ts`, `bench-runner.test.ts`
 
 ## Key File Locations
@@ -126,6 +127,7 @@ flowly/
 - `scripts/route-event.ts`: CI event-router entrypoint
 - `scripts/run-factory.ts`: production issue-to-draft-PR pipeline entrypoint
 - `scripts/flue-eval.ts`: benchmark CLI
+- `scripts/memory.ts`: local repository-instinct inspection and trusted status mutation CLI
 - `eval/capstone-eval.ts`: capstone suite entrypoint
 - `app.ts`: Flue route map
 

@@ -25,6 +25,7 @@ repository's checkout and granting the workflow only the GitHub and model creden
   — cited repository relationships)
 - A PR review agent (`agents/pr-reviewer.ts`) with review-specific tools and a
   trusted GitHub adapter — never auto-approves
+- Optional repository-local instincts learned from structured factory and review outcomes
 - A GitHub event router (`github/events/`) that maps repository events to
   configured agents with declarative routes and filters
 - Bounded investigation loop with evidence collection and deduplication
@@ -350,6 +351,79 @@ the agent cannot modify files._
 The agent **never writes to `.flue/` directly**. A human reviews the proposed
 learnings and manually adds approved ones to `.flue/repository-learnings.md`.
 This keeps the learning loop transparent and human-controlled.
+
+### Continuous repository learning
+
+Flowly can also convert repeated structured factory and review outcomes into
+typed repository instincts. This path is separate from the hand-authored
+`.flue/repository-learnings.md` file. It is disabled unless
+`FLOWLY_LEARNING_POLICY` names a validated policy file and that policy sets
+`enabled` to `true`. Start from [`repository-learning.example.json`](./repository-learning.example.json):
+
+```json
+{
+  "version": "learning-v1",
+  "enabled": true,
+  "minimumObservations": 3,
+  "requireHumanEvidenceFor": ["architecture-boundary"],
+  "decayAfterDays": 90
+}
+```
+
+Production runs set `FLOWLY_MEMORY_ISSUE` to one repository issue whose hidden,
+bot-authored comment holds the bounded state. The store accepts only the
+configured bot identity and the current `owner/repo`. Local development can set
+`FLOWLY_MEMORY_STORE=.flue/repository-instincts.json`; configured paths cannot
+escape the repository.
+
+The trusted learning core extracts only these MVP observations:
+
+- factory verification failures when a later run succeeds with the same command;
+- successful repository-native verification commands;
+- independent factory-review findings; and
+- validated PR-review findings after the review is posted.
+
+Equivalent observations add evidence to one candidate. Confidence is the
+deterministic balance of independent supporting and contradicting artifact IDs.
+A candidate becomes active only when the configured observation threshold is
+met, contradiction does not lower it below that threshold, required human
+evidence is present, and the evidence is not stale. Replaying an artifact does
+not add evidence. Rejection, deprecation, and supersession keep the prior
+evidence history.
+
+Active instincts are selected by both stage and touched path: planning gets
+architecture and convention instincts; implementation gets convention and
+verification instincts; review gets review rules and architecture boundaries;
+verification gets workflow and verification instincts. Every injected context
+states that explicit repository, issue, and user instructions take precedence.
+Instincts cannot change tools, credentials, network access, autonomy gates,
+branch permissions, or the draft-only/no-merge/no-deploy boundaries.
+
+For example, three factory runs under `packages/api/**` that report the same
+missing schema-validation finding produce one candidate with three concrete run
+references. With the example policy enabled, it becomes active for future
+reviews that touch `packages/api/**`; it is not supplied to unrelated paths or
+stages. A later contradiction reduces confidence, and 90 days without evidence
+deactivates and decays it.
+
+Local inspection is read-only:
+
+```bash
+npm run memory -- list
+npm run memory -- explain <id>
+```
+
+Trusted human status changes are separate explicit commands:
+
+```bash
+npm run memory -- reject <id>
+npm run memory -- deprecate <id>
+```
+
+The persisted data contains normalized statements, bounded path scopes,
+confidence explanations, and compact references to run IDs, issue/PR numbers,
+findings, commands, and outcomes. It does **not** contain transcripts, prompts,
+agent scratch data, chain-of-thought, credentials, or external conversation data.
 
 ### File-aware limits
 
@@ -1225,6 +1299,12 @@ flowly/
 │   ├── adapter.ts              # trusted review publisher
 │   ├── client.ts               # thin GitHub REST client
 │   └── events/                 # event router: config, router, dedupe, logger
+├── memory/
+│   ├── engine.ts               # deterministic evidence, promotion, decay, and scope
+│   ├── extractors.ts           # structured factory and review observations
+│   ├── schema.ts               # persisted instinct and policy validation
+│   ├── service.ts              # stage-scoped learning API
+│   └── store.ts                # local file and trusted GitHub-comment stores
 ├── review/
 │   ├── diff.ts                 # unified-diff parser
 │   ├── filters.ts              # skip lockfiles / generated / vendored
@@ -1238,6 +1318,7 @@ flowly/
 │   └── schema.ts               # ReviewResult Valibot schema
 ├── scripts/
 │   ├── flue-eval.ts            # eval benchmark CLI (npm run eval)
+│   ├── memory.ts               # inspect or explicitly reject/deprecate instincts
 │   ├── review-pr.ts            # CI entrypoint (npm run review-pr)
 │   ├── run-factory.ts          # issues.labeled.factory pipeline (npm run run-factory)
 │   └── route-event.ts          # event router CLI (npm run route-event)

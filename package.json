@@ -12,6 +12,7 @@
     "start": "flue run agents/repo-assistant.ts",
     "review-pr": "node --import tsx scripts/review-pr.ts",
     "run-factory": "node --import tsx scripts/run-factory.ts",
+    "memory": "tsx scripts/memory.ts",
     "route-event": "node --import tsx scripts/route-event.ts",
     "test": "tsx --test tests/*.test.ts",
     "typecheck": "tsc",

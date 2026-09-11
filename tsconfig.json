@@ -21,6 +21,7 @@
     "review/**/*.ts",
     "github/**/*.ts",
     "factory/**/*.ts",
+    "memory/**/*.ts",
     "scripts/**/*.ts",
     "eval/**/*.ts",
     "demo/**/*.ts",

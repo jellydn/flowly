@@ -18,6 +18,9 @@
  *   REVIEW_BOT_LOGIN       – expected author of the factory-run comment (default github-actions[bot])
  *   FACTORY_AUTONOMY_POLICY – path to a repository autonomy-policy JSON file
  *   FACTORY_CONFIRM_BOUNDARY – one-run confirmation: implementation or publication
+ *   FLOWLY_LEARNING_POLICY – repository-relative learning-policy JSON file
+ *   FLOWLY_MEMORY_ISSUE    – issue that holds the bot-authored memory snapshot
+ *   FLOWLY_MEMORY_STORE    – local JSON memory file (development only)
  */
 
 import { readFile } from 'node:fs/promises';
@@ -46,6 +49,7 @@ import { GitHubClient } from '../github/client.ts';
 import { createRepositoryReader } from '../tools/repository.ts';
 import { parseFactoryAutonomyPolicy } from '../factory/autonomy.ts';
 import type { FactoryManualConfirmation } from '../factory/types.ts';
+import { createRepositoryLearningFromEnv } from '../memory/config.ts';
 
 function fail(message: string): never {
   console.error(`[flue-factory] ${message}`);
@@ -99,6 +103,7 @@ async function main(): Promise<void> {
       )
     : undefined;
   const manualConfirmation = parseManualConfirmation(process.env.FACTORY_CONFIRM_BOUNDARY);
+  const learning = createRepositoryLearningFromEnv(process.env, client, repositoryPath);
 
   const run = await dispatchFactoryLabeledIssue(eventName, payload, {
     orchestrator: new FactoryOrchestrator(store),
@@ -124,6 +129,7 @@ async function main(): Promise<void> {
     judgmentsFrom: review.judgmentsFrom,
     autonomyPolicy,
     manualConfirmation,
+    learning,
   });
 
   console.error(`[flue-factory] run ${run.id} ended in state ${run.state}`);
