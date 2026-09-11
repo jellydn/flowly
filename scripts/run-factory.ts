@@ -14,6 +14,7 @@
  * Optional:
  *   REPOSITORY_PATH    – checkout root (defaults to cwd)
  *   FACTORY_WORKSPACE_ROOT – isolated clone root (defaults to <cwd>/.factory-workspaces)
+ *   FACTORY_WORKSPACE_STORE – optional JSON directory for workspace lifecycle records
  *   FACTORY_RUN_STORE      – local JSON directory (dev only; Actions uses an issue comment)
  *   REVIEW_BOT_LOGIN       – expected author of the factory-run comment (default github-actions[bot])
  *   FACTORY_AUTONOMY_POLICY – path to a repository autonomy-policy JSON file
@@ -32,6 +33,8 @@ import { createAgentFactoryImplementer } from '../factory/agent-implementer.ts';
 import { createIssueCommentProgress } from '../factory/defaults.ts';
 import { dispatchFactoryLabeledIssue, factoryTaskFromIssuesEvent } from '../factory/dispatch.ts';
 import { FactoryGitAdapter } from '../factory/git.ts';
+import { FactoryWorkspaceManager } from '../factory/workspace-lifecycle.ts';
+import { FileFactoryWorkspaceStore } from '../factory/workspace-store.ts';
 import {
   createModelFactoryClassifier,
   createModelFactoryPlanner,
@@ -93,9 +96,17 @@ async function main(): Promise<void> {
   const modelCall = createFactoryModelCall(model, process.env);
   const repository = await createRepositoryReader(repositoryPath);
   const review = createModelFactoryReview(modelCall);
-  const git = new FactoryGitAdapter({
+  const gitAdapter = new FactoryGitAdapter({
     sourceRepository: repositoryPath,
     workspaceRoot,
+  });
+  const git = new FactoryWorkspaceManager({
+    git: gitAdapter,
+    store: new FileFactoryWorkspaceStore(
+      process.env.FACTORY_WORKSPACE_STORE ?? path.join(workspaceRoot, '.lifecycle'),
+    ),
+    workspaceRoot,
+    repositoryId: process.env.GITHUB_REPOSITORY!,
   });
   const task = factoryTaskFromIssuesEvent(eventName, payload);
   const store = createFactoryRunStore(client, task.issueNumber);
@@ -126,7 +137,7 @@ async function main(): Promise<void> {
       if (!current.branch || !current.implementation) {
         throw new Error(`Factory run ${current.id} has no branch or implementation to diff.`);
       }
-      return git.readDiff({
+      return gitAdapter.readDiff({
         id: current.implementation.workspaceId,
         path: path.join(workspaceRoot, current.implementation.workspaceId),
         branch: current.branch,

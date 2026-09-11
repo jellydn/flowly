@@ -14,6 +14,7 @@ format. Each record captures the context, the decision, and the consequences.
 | [0004](./0004-live-eval-provider-seam.md)     | Live-eval provider seam                                      | Accepted |
 | [0005](./0005-transcript-based-showcase.md)   | Transcript-based static showcase and Pages asset conventions | Accepted |
 | [0006](./0006-factory-capability-profiles.md) | Least-capability profiles per factory stage                  | Accepted |
+| [0007](./0007-factory-workspace-lifecycle.md) | Isolated factory workspace lifecycle                         | Accepted |
 
 ## Codebase map
 
@@ -36,7 +37,7 @@ documentation systems stay consistent.
 ## Creating a new ADR
 
 ```bash
-cp docs/adr/template.md docs/adr/0007-your-title.md
+cp docs/adr/template.md docs/adr/0008-your-title.md
 # fill in Context / Decision / Consequences, then add it to the index
 # and cross-link it from .planning/codebase/ARCHITECTURE.md
 ```

@@ -212,6 +212,8 @@ export function bindGitMutator(
       assertGitRead(manifest);
       return git.isPristine(workspace, commitSha);
     },
+    complete: git.complete ? (id) => git.complete!(id) : undefined,
+    fail: git.fail ? (id) => git.fail!(id) : undefined,
   };
 }
 

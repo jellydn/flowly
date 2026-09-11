@@ -33,6 +33,8 @@ export type FactoryGitMutator = {
   ): Promise<{ commitSha: string; changedFiles: string[] }>;
   push(workspace: FactoryGitWorkspace, commitSha: string): Promise<void>;
   isPristine(workspace: FactoryGitWorkspace, commitSha: string): Promise<boolean>;
+  complete?(id: string): Promise<void>;
+  fail?(id: string): Promise<void>;
 };
 
 export type FactoryVerifier = {
@@ -151,7 +153,10 @@ async function resumeVerification(
       ? undefined
       : 'Verification commands modified the implementation or its commit history.';
   if (failure === undefined) {
-    await dependencies.git.push(workspace, verifying.implementation.commitSha);
+    await git.push(workspace, verifying.implementation.commitSha);
+    await git.complete?.(workspace.id);
+  } else {
+    await git.fail?.(workspace.id);
   }
   const result = await dependencies.orchestrator.recordVerification(
     verifying.id,
