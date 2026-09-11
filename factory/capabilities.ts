@@ -322,6 +322,14 @@ export function resolveFactoryCapabilityAudit(
   };
 }
 
+/** Return the recorded manifest. Legacy runs without an audit use the built-in maximum. */
+export function stageCapabilitiesFromAudit(
+  audit: FactoryCapabilityAudit | undefined,
+  stage: FactoryStage,
+): StageCapabilityManifest {
+  return audit?.stages[stage] ?? builtinStageProfile(stage);
+}
+
 export function isFactoryStage(value: string): value is FactoryStage {
   return (FACTORY_STAGES as readonly string[]).includes(value);
 }

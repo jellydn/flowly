@@ -253,6 +253,18 @@ describe('factory capability profiles', () => {
     );
     assert.equal(result.state, 'completed');
   });
+
+  test('a restrictive persisted manifest stops the stage before its adapter runs', async () => {
+    const calls: string[] = [];
+    const dependencies = pipelineDependencies(calls);
+    dependencies.capabilityPolicy = {
+      version: 'no-classifier-input',
+      stages: { classifier: { contextSources: [] } },
+    };
+
+    await assert.rejects(() => runFactoryPipeline(task, dependencies), /context.issue/);
+    assert.equal(calls.includes('classify'), false);
+  });
 });
 
 function fakeGit(calls: string[]): FactoryGitMutator {
@@ -283,6 +295,7 @@ function pipelineDependencies(calls: string[]): FactoryPipelineDependencies {
     orchestrator: new FactoryOrchestrator(new MemoryFactoryRunStore()),
     classifier: {
       async classify() {
+        calls.push('classify');
         return classification;
       },
     },

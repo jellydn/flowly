@@ -1,5 +1,13 @@
-import { resolveStageCapabilities, type FactoryCapabilityPolicy } from './capabilities.ts';
-import { assertContextSource, bindGitMutator, bindVerifier } from './capability-guard.ts';
+import { stageCapabilitiesFromAudit, type NetworkCapability } from './capabilities.ts';
+import {
+  assertContextSource,
+  assertRepositoryPathsUnrestricted,
+  assertRepositoryRead,
+  assertRepositoryWrite,
+  assertToolAllowed,
+  bindGitMutator,
+  bindVerifier,
+} from './capability-guard.ts';
 import type { FactoryGitWorkspace } from './git.ts';
 import type { FactoryOrchestrator } from './orchestrator.ts';
 import type { FactoryRun, FactoryTask, ImplementationPlan } from './types.ts';
@@ -28,7 +36,11 @@ export type FactoryGitMutator = {
 };
 
 export type FactoryVerifier = {
-  run(commands: string[], workspacePath: string): Promise<VerificationCommandResult[]>;
+  run(
+    commands: string[],
+    workspacePath: string,
+    options?: { network: NetworkCapability },
+  ): Promise<VerificationCommandResult[]>;
 };
 
 export type ControlledImplementationDependencies = {
@@ -40,7 +52,6 @@ export type ControlledImplementationDependencies = {
   commitMessage?: string;
   repositoryInstincts?: string;
   additionalVerificationCommands?: string[];
-  capabilityPolicy?: FactoryCapabilityPolicy;
 };
 
 /**
@@ -60,10 +71,13 @@ export async function runControlledImplementation(
     throw new Error(`Factory run ${implementing.id} is missing its plan or branch.`);
   }
 
-  const implementerManifest = resolveStageCapabilities(
-    'implementer',
-    dependencies.capabilityPolicy,
-  );
+  const implementerManifest = stageCapabilitiesFromAudit(implementing.capabilities, 'implementer');
+  assertRepositoryRead(implementerManifest);
+  assertRepositoryWrite(implementerManifest);
+  assertRepositoryPathsUnrestricted(implementerManifest);
+  for (const tool of ['list_files', 'read_file', 'write_file', 'search_code', 'bash']) {
+    assertToolAllowed(implementerManifest, tool);
+  }
   assertContextSource(implementerManifest, 'issue');
   assertContextSource(implementerManifest, 'approved-plan');
   if (dependencies.repositoryInstincts) {
@@ -101,11 +115,11 @@ async function resumeVerification(
   if (!verifying.plan || !verifying.branch || !verifying.implementation) {
     throw new Error(`Factory run ${verifying.id} cannot resume verification.`);
   }
-  const implementerManifest = resolveStageCapabilities(
-    'implementer',
-    dependencies.capabilityPolicy,
-  );
-  const verifierManifest = resolveStageCapabilities('verifier', dependencies.capabilityPolicy);
+  const implementerManifest = stageCapabilitiesFromAudit(verifying.capabilities, 'implementer');
+  const verifierManifest = stageCapabilitiesFromAudit(verifying.capabilities, 'verifier');
+  assertRepositoryRead(verifierManifest);
+  assertRepositoryPathsUnrestricted(verifierManifest);
+  assertToolAllowed(verifierManifest, 'bash');
   assertContextSource(verifierManifest, 'workspace');
   assertContextSource(verifierManifest, 'verification-commands');
   const git = bindGitMutator(dependencies.git, implementerManifest);

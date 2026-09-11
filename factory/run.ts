@@ -60,6 +60,7 @@ export async function runFactoryPipeline(
     orchestrator: dependencies.orchestrator,
     classifier: dependencies.classifier,
     progress: dependencies.progress,
+    capabilityAudit: resolveFactoryCapabilityAudit(dependencies.capabilityPolicy),
   });
   const result = await advanceFactoryRun(run, dependencies);
   await useRepositoryLearning(dependencies, task, undefined, async (learning) => {
@@ -152,7 +153,6 @@ export async function advanceFactoryRun(
       readDiff: dependencies.readDiff,
       judgmentsFrom: dependencies.judgmentsFrom,
       autonomyPolicy: dependencies.autonomyPolicy,
-      capabilityPolicy: dependencies.capabilityPolicy,
       manualConfirmation: dependencies.manualConfirmation,
       progress: dependencies.progress,
       repositoryInstincts: await useRepositoryLearning(
@@ -231,6 +231,5 @@ function implementationDependencies(
     verifier: dependencies.verifier,
     baseRef: dependencies.baseRef,
     commitMessage: dependencies.commitMessage,
-    capabilityPolicy: dependencies.capabilityPolicy,
   };
 }

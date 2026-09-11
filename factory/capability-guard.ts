@@ -102,6 +102,16 @@ export function assertRepositoryWrite(manifest: StageCapabilityManifest): void {
   }
 }
 
+export function assertRepositoryPathsUnrestricted(manifest: StageCapabilityManifest): void {
+  if (manifest.repository.allowedPaths !== undefined) {
+    throw new CapabilityDeniedError(
+      manifest.stage,
+      'repository.allowedPaths',
+      'This adapter cannot safely provide a restricted repository view.',
+    );
+  }
+}
+
 export function assertShell(manifest: StageCapabilityManifest, command?: string): void {
   if (!manifest.shell.enabled) {
     throw new CapabilityDeniedError(
@@ -213,7 +223,7 @@ export function bindVerifier(
     async run(commands, workspacePath) {
       assertShell(manifest);
       for (const command of commands) assertShell(manifest, command);
-      return verifier.run(commands, workspacePath);
+      return verifier.run(commands, workspacePath, { network: manifest.network });
     },
   };
 }

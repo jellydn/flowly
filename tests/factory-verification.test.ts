@@ -70,6 +70,19 @@ describe('FactoryVerificationRunner', () => {
     await assert.rejects(() => runner.run([], workspace), /between 1 and 20/);
     await assert.rejects(() => runner.run([''], workspace), /empty or exceeds/);
   });
+
+  test('runs denied-network verification in a network namespace with no routes', async () => {
+    const workspace = await temporaryWorkspace();
+    const runner = new FactoryVerificationRunner();
+
+    const [result] = await runner.run(
+      ['test "$(tail -n +2 /proc/net/route | wc -l)" -eq 0'],
+      workspace,
+      { network: { mode: 'deny', hosts: [] } },
+    );
+
+    assert.equal(result.exitCode, 0, result.stderr);
+  });
 });
 
 async function temporaryWorkspace(): Promise<string> {

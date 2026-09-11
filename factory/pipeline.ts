@@ -16,7 +16,7 @@ import {
 } from './review.ts';
 import type { FactoryAutonomyPolicy, FactoryManualConfirmation, FactoryRun } from './types.ts';
 import { assertFactoryAutonomyGate, factoryAutonomyGateAllowed } from './autonomy.ts';
-import { resolveStageCapabilities, type FactoryCapabilityPolicy } from './capabilities.ts';
+import { stageCapabilitiesFromAudit } from './capabilities.ts';
 import { bindDraftPublisher } from './capability-guard.ts';
 
 export type IndependentReviewPipelineDependencies = {
@@ -29,7 +29,6 @@ export type IndependentReviewPipelineDependencies = {
     output: IndependentReviewOutput,
   ) => CriterionJudgment[];
   autonomyPolicy?: FactoryAutonomyPolicy;
-  capabilityPolicy?: FactoryCapabilityPolicy;
   manualConfirmation?: FactoryManualConfirmation;
   progress?: FactoryProgressPublisher;
   repositoryInstincts?: string;
@@ -69,7 +68,7 @@ export async function runIndependentReviewAndPublish(
   try {
     const publisher = bindDraftPublisher(
       dependencies.publisher,
-      resolveStageCapabilities('publisher', dependencies.capabilityPolicy),
+      stageCapabilitiesFromAudit(reviewed.capabilities, 'publisher'),
     );
     pullRequest = await publisher.publish(reviewed);
   } catch (error) {
