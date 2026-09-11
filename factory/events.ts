@@ -82,13 +82,13 @@ export class MemoryFactoryEventLog implements FactoryEventLog {
   async append(event: FactoryEventInput): Promise<FactoryRunEvent> {
     const current = this.events.get(event.runId) ?? [];
     const recorded = ingestEvent(current, event);
-    this.events.set(event.runId, recorded.events);
-    return recorded.event;
+    this.events.set(event.runId, structuredClone(recorded.events));
+    return structuredClone(recorded.event);
   }
 
   async list(runId?: string): Promise<FactoryRunEvent[]> {
-    if (runId) return [...(this.events.get(runId) ?? [])];
-    return [...this.events.values()].flat().sort(compareEvents);
+    if (runId) return structuredClone(this.events.get(runId) ?? []);
+    return structuredClone([...this.events.values()].flat().sort(compareEvents));
   }
 }
 
@@ -121,10 +121,12 @@ export class StoredFactoryEventLog implements FactoryEventLog {
   }
 
   async list(runId?: string): Promise<FactoryRunEvent[]> {
-    if (runId) return [...((await this.store.load(runId))?.events ?? [])];
-    return (await this.store.listByRepository(this.repository))
-      .flatMap((run) => run.events ?? [])
-      .sort(compareEvents);
+    if (runId) return structuredClone((await this.store.load(runId))?.events ?? []);
+    return structuredClone(
+      (await this.store.listByRepository(this.repository))
+        .flatMap((run) => run.events ?? [])
+        .sort(compareEvents),
+    );
   }
 }
 

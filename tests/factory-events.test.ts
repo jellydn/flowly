@@ -86,6 +86,26 @@ describe('factory event log', () => {
     assert.equal((await log.list('run-139')).length, 1);
   });
 
+  test('does not expose mutable event history', async () => {
+    const log = new MemoryFactoryEventLog();
+    const appended = await log.append({
+      runId: 'run-139',
+      type: 'run.started',
+      timestamp: 1,
+      attempt: 1,
+      summary: 'Started.',
+      metadata: { nested: { value: 'original' } },
+    });
+    appended.summary = 'changed';
+    (appended.metadata.nested as { value: string }).value = 'changed';
+    const listed = await log.list('run-139');
+    listed[0]!.summary = 'changed again';
+    assert.equal((await log.list('run-139'))[0]?.summary, 'Started.');
+    assert.deepEqual((await log.list('run-139'))[0]?.metadata, {
+      nested: { value: 'original' },
+    });
+  });
+
   test('file-backed run log round-trips events', async () => {
     const directory = await mkdtemp(path.join(tmpdir(), 'flowly-events-'));
     temporaryDirectories.push(directory);
