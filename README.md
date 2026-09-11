@@ -1397,11 +1397,12 @@ flowly/
 │   ├── bench/                  # ORI-Eval-inspired benchmark framework
 │   ├── benchmarks/sample.json  # bundled 7-scenario suite
 │   ├── capstone-eval.ts        # Day 30 capstone evaluation
+│   ├── safety/                 # factory trust-boundary eval catalog
 │   ├── run-capstone-eval.sh
 │   ├── run-eval.sh
 │   └── fixtures/sample-repo/   # bundled evaluation fixture
 ├── docs/
-│   ├── adr/                    # architecture decision records (0001–0008)
+│   ├── adr/                    # architecture decision records (0001–0009)
 │   ├── showcase/               # static Flowly showcase pages and stylesheet
 │   ├── favicon.svg
 │   ├── favicon.ico

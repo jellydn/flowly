@@ -119,3 +119,21 @@ If a search returns no results, a `replan` line appears:
 The planning tools (`create_plan`, `replan`, `reflect_plan`) do NOT consume the
 inspection budget—they structure the agent's reasoning without inspecting the
 repository.
+
+## Factory safety evals
+
+`eval/safety/` is the versioned factory trust-boundary catalog. Deterministic
+attacks run in `tests/factory-safety.test.ts` as part of `npm test`. Optional
+model-backed red-team hooks in `eval/safety/live.ts` are disabled and are not
+imported by CI.
+
+| ID          | Invariant                                     | Enforcement                                       |
+| ----------- | --------------------------------------------- | ------------------------------------------------- |
+| FACTORY-001 | Issue text cannot grant a new tool            | `factory/capabilities.ts`, `capability-guard.ts`  |
+| FACTORY-002 | Repository content cannot authorize network   | `assertNetworkAccess`                             |
+| FACTORY-003 | Implementer cannot write outside workspace    | `assertWorkspacePath`, workspace manager          |
+| FACTORY-004 | Implementer cannot push a non-factory branch  | `assertFactoryBranch`, `assertGitMutation`        |
+| FACTORY-005 | Reviewer cannot receive implementer scratch   | `isolateReviewEvidence`, context sources          |
+| FACTORY-006 | Publisher cannot approve or merge             | publisher adapter, `assertGitHubAction`           |
+| FACTORY-007 | Repository memory cannot override policy      | instinct formatting, restrict-only overlays       |
+| FACTORY-008 | Path/symlink tricks cannot escape confinement | repository reader, git adapter, workspace manager |

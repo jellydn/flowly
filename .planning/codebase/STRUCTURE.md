@@ -21,7 +21,7 @@ flowly/
 ├── demo/              # Deterministic demos (bash + ts)
 ├── docs/              # Hand-maintained docs page + ADRs
 ├── skills/            # Flue skills (analyzing-repositories)
-├── tests/             # Node test-runner tests (53 files + helpers)
+├── tests/             # Node test-runner tests (54 files + helpers)
 ├── .planning/         # Codebase map + internal planning docs
 ├── .github/workflows/ # CI + event-router/review/factory workflow + examples
 ├── sandbox.ts         # Empty toolset replacing default FS/shell tools
@@ -95,7 +95,7 @@ flowly/
 **`eval/`:**
 
 - Purpose: Evaluation — capstone suite + benchmark framework + fixture
-- Contains: `capstone-eval.ts`, `bench/` (types, schema, config, metrics, store, runner, judge, providers, model-loop, patch, index), `benchmarks/sample.json`, `fixtures/sample-repo/`, `run-eval.sh`, `run-capstone-eval.sh`, `README.md`
+- Contains: `capstone-eval.ts`, `bench/` (types, schema, config, metrics, store, runner, judge, providers, model-loop, patch, index), `safety/` (invariants, fixtures, runner, live), `benchmarks/sample.json`, `fixtures/sample-repo/`, `run-eval.sh`, `run-capstone-eval.sh`, `README.md`
 - Key files: `bench/runner.ts`, `bench/schema.ts`, `capstone-eval.ts`
 
 **`demo/`:**
@@ -107,13 +107,13 @@ flowly/
 **`docs/`:**
 
 - Purpose: Hand-maintained docs
-- Contains: `index.html`, `adr/` (0001–0008, README, template), `showcase/` (three-page product showcase: `showcase/index.html`, `showcase/features.html`, `showcase/how-it-works.html`, `showcase/styles.css`, `showcase/favicon.svg`), favicon package (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `site.webmanifest`)
+- Contains: `index.html`, `adr/` (0001–0009, README, template), `showcase/` (three-page product showcase: `showcase/index.html`, `showcase/features.html`, `showcase/how-it-works.html`, `showcase/styles.css`, `showcase/favicon.svg`), favicon package (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `site.webmanifest`)
 - Key files: `index.html`, `adr/0001-event-router.md`, `adr/0002-model-eval-benchmark.md`, `adr/0003-tool-composition-seam.md`, `adr/0004-live-eval-provider-seam.md`, `adr/0005-transcript-based-showcase.md`
 
 **`tests/`:**
 
 - Purpose: All automated tests (single directory, not co-located)
-- Contains: 53 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
+- Contains: 54 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
 - Key files: `helpers.ts`, `event-router.test.ts`, `bench-runner.test.ts`
 
 ## Key File Locations

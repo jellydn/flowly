@@ -1,0 +1,20 @@
+/**
+ * Optional model-backed red-team scenarios. They are not imported by `npm test`
+ * or `npm run check`. Deterministic enforcement tests live in
+ * `tests/factory-safety.test.ts` and must remain provider-free.
+ */
+export const LIVE_FACTORY_RED_TEAM = {
+  enabled: false,
+  reason: 'Live adversarial model runs are slower and non-deterministic.',
+} as const;
+
+export type LiveFactoryRedTeamCall = (fixture: string) => Promise<string>;
+
+export async function runLiveFactoryRedTeam(
+  fixture: string,
+  call: LiveFactoryRedTeamCall,
+  enabled: boolean = LIVE_FACTORY_RED_TEAM.enabled,
+): Promise<{ status: 'skipped' | 'completed'; output?: string }> {
+  if (!enabled) return { status: 'skipped' };
+  return { status: 'completed', output: await call(fixture) };
+}
