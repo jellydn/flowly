@@ -19,6 +19,7 @@ import {
 import type { FactoryDraftPrPublisher } from './publisher.ts';
 import type { FactoryRun, FactoryTask } from './types.ts';
 import type { FactoryAutonomyPolicy, FactoryManualConfirmation } from './types.ts';
+import { resolveFactoryCapabilityAudit, type FactoryCapabilityPolicy } from './capabilities.ts';
 import type { FactoryRepositoryLearning } from '../memory/service.ts';
 import {
   decideFactoryAutonomyGate,
@@ -41,6 +42,7 @@ export type FactoryPipelineDependencies = {
   baseRef?: string;
   commitMessage?: string;
   autonomyPolicy?: FactoryAutonomyPolicy;
+  capabilityPolicy?: FactoryCapabilityPolicy;
   manualConfirmation?: FactoryManualConfirmation;
   learning?: FactoryRepositoryLearning;
 };
@@ -76,6 +78,12 @@ export async function advanceFactoryRun(
     current = await dependencies.orchestrator.recordAutonomyAudit(
       current.id,
       evaluateFactoryAutonomy(dependencies.autonomyPolicy, history),
+    );
+  }
+  if (!current.capabilities) {
+    current = await dependencies.orchestrator.recordCapabilityAudit(
+      current.id,
+      resolveFactoryCapabilityAudit(dependencies.capabilityPolicy),
     );
   }
   if (
@@ -144,6 +152,7 @@ export async function advanceFactoryRun(
       readDiff: dependencies.readDiff,
       judgmentsFrom: dependencies.judgmentsFrom,
       autonomyPolicy: dependencies.autonomyPolicy,
+      capabilityPolicy: dependencies.capabilityPolicy,
       manualConfirmation: dependencies.manualConfirmation,
       progress: dependencies.progress,
       repositoryInstincts: await useRepositoryLearning(
@@ -222,5 +231,6 @@ function implementationDependencies(
     verifier: dependencies.verifier,
     baseRef: dependencies.baseRef,
     commitMessage: dependencies.commitMessage,
+    capabilityPolicy: dependencies.capabilityPolicy,
   };
 }

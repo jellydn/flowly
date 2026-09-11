@@ -4,6 +4,8 @@
  * chain-of-thought, conversation history, or workspace scratch.
  */
 
+import { resolveStageCapabilities } from './capabilities.ts';
+import { assertContextSource } from './capability-guard.ts';
 import { assertFactoryBranch } from './git.ts';
 import type { AcceptanceCriterion, FactoryRun, ReviewVerdict } from './types.ts';
 
@@ -69,6 +71,13 @@ export function isolateReviewEvidence(
   }
   const trimmedDiff = diff.trim();
   if (!trimmedDiff) throw new Error('Independent review requires a non-empty git diff.');
+
+  const reviewer = resolveStageCapabilities('reviewer');
+  assertContextSource(reviewer, 'issue');
+  assertContextSource(reviewer, 'acceptance-criteria');
+  assertContextSource(reviewer, 'diff');
+  assertContextSource(reviewer, 'verification-evidence');
+  if (repositoryInstincts) assertContextSource(reviewer, 'repository-instincts');
 
   return {
     issueNumber: run.task.issueNumber,

@@ -1,4 +1,5 @@
 import * as v from 'valibot';
+import { FACTORY_STAGES } from './capabilities.ts';
 import {
   FACTORY_AUTONOMY_EVENTS,
   FACTORY_AUTONOMY_LEVELS,
@@ -80,6 +81,47 @@ const autonomyEvidenceSchema = v.object({
   events: v.array(v.picklist(FACTORY_AUTONOMY_EVENTS)),
 });
 
+const capabilityManifestSchema = v.object({
+  stage: v.picklist(FACTORY_STAGES),
+  policyVersion: v.pipe(v.string(), v.minLength(1)),
+  repository: v.object({
+    read: v.boolean(),
+    write: v.boolean(),
+    allowedPaths: v.optional(v.array(v.string())),
+  }),
+  shell: v.object({
+    enabled: v.boolean(),
+    mode: v.optional(v.picklist(['read-only', 'bounded-write'] as const)),
+    allowedCommands: v.optional(v.array(v.string())),
+  }),
+  git: v.object({
+    read: v.boolean(),
+    write: v.boolean(),
+    allowedBranchPatterns: v.array(v.string()),
+  }),
+  github: v.object({
+    allowedActions: v.array(v.string()),
+  }),
+  network: v.object({
+    mode: v.picklist(['deny', 'allowlist'] as const),
+    hosts: v.array(v.string()),
+  }),
+  tools: v.array(v.string()),
+  contextSources: v.array(v.string()),
+});
+
+const capabilityAuditSchema = v.object({
+  policyVersion: v.pipe(v.string(), v.minLength(1)),
+  stages: v.object({
+    classifier: v.optional(capabilityManifestSchema),
+    planner: v.optional(capabilityManifestSchema),
+    implementer: v.optional(capabilityManifestSchema),
+    verifier: v.optional(capabilityManifestSchema),
+    reviewer: v.optional(capabilityManifestSchema),
+    publisher: v.optional(capabilityManifestSchema),
+  }),
+});
+
 const autonomyAuditSchema = v.object({
   policyVersion: v.pipe(v.string(), v.minLength(1)),
   evidence: autonomyEvidenceSchema,
@@ -109,6 +151,7 @@ export const factoryRunSchema = v.object({
   review: v.optional(reviewVerdictSchema),
   autonomy: v.optional(autonomyAuditSchema),
   autonomyEvents: v.optional(v.array(v.picklist(FACTORY_AUTONOMY_EVENTS))),
+  capabilities: v.optional(capabilityAuditSchema),
   prNumber: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1))),
   failure: v.optional(v.string()),
   updatedAt: v.pipe(v.number(), v.integer(), v.minValue(0)),

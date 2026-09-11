@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { applyFactoryAutonomyEvent, decideFactoryAutonomyGate } from './autonomy.ts';
+import type { FactoryCapabilityAudit } from './capabilities.ts';
 import type { FactoryRunStore } from './store.ts';
 import {
   factoryBranch,
@@ -55,6 +56,15 @@ export class FactoryOrchestrator {
     const run = await this.get(id);
     if (run.autonomy) return run;
     return this.save({ ...run, autonomy: audit });
+  }
+
+  async recordCapabilityAudit(id: string, audit: FactoryCapabilityAudit): Promise<FactoryRun> {
+    const run = await this.get(id);
+    if (run.capabilities) {
+      if (isDeepStrictEqual(run.capabilities, audit)) return run;
+      throw new Error(`Factory run ${id} already has a capability audit.`);
+    }
+    return this.save({ ...run, capabilities: audit });
   }
 
   async recordAutonomyGate(

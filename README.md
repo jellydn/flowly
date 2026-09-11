@@ -476,6 +476,14 @@ structured plan (steps, relevant files, risks, verification commands, and
 acceptance criteria). The planner cannot write to the source checkout. Already
 planned runs return without invoking the planner again.
 
+Every factory stage resolves a least-capability manifest from
+`factory/capabilities.ts` before it runs. Trusted adapters in
+`factory/capability-guard.ts` deny undeclared tools, context sources, network
+targets, git writes, and GitHub mutations. A policy file may only restrict the
+built-in profile; issue text cannot grant capabilities. The publisher can open a
+draft PR or comment and cannot merge, approve, or deploy. Each run records the
+resolved `FactoryCapabilityAudit`.
+
 The factory's implementation stage crosses two trusted boundaries in `factory/`:
 
 - `FactoryGitAdapter` creates or restores an independent clone outside the
@@ -1279,6 +1287,8 @@ flowly/
 │   ├── repo-assistant.ts       # general inspection agent
 │   └── pr-reviewer.ts          # PR review agent (never auto-approves)
 ├── factory/
+│   ├── capabilities.ts         # least-capability stage manifests
+│   ├── capability-guard.ts     # trusted adapter enforcement
 │   ├── defaults.ts             # deterministic classifier/planner/reviewer ports
 │   ├── dispatch.ts             # issues.labeled.factory → factory task
 │   ├── git.ts                  # isolated clone + factory-branch Git boundary
@@ -1387,7 +1397,7 @@ flowly/
 │   ├── run-eval.sh
 │   └── fixtures/sample-repo/   # bundled evaluation fixture
 ├── docs/
-│   ├── adr/                    # architecture decision records (0001–0005)
+│   ├── adr/                    # architecture decision records (0001–0006)
 │   ├── showcase/               # static Flowly showcase pages and stylesheet
 │   ├── favicon.svg
 │   ├── favicon.ico

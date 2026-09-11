@@ -6,17 +6,18 @@ format. Each record captures the context, the decision, and the consequences.
 
 ## Index
 
-| ADR | Title | Status |
-| --- | ----- | ------ |
-| [0001](./0001-event-router.md) | GitHub event router for agent dispatch | Accepted |
-| [0002](./0002-model-eval-benchmark.md) | Model evaluation benchmark framework | Accepted |
-| [0003](./0003-tool-composition-seam.md) | Tool composition seam for the inspection tool set | Accepted |
-| [0004](./0004-live-eval-provider-seam.md) | Live-eval provider seam | Accepted |
-| [0005](./0005-transcript-based-showcase.md) | Transcript-based static showcase and Pages asset conventions | Accepted |
+| ADR                                           | Title                                                        | Status   |
+| --------------------------------------------- | ------------------------------------------------------------ | -------- |
+| [0001](./0001-event-router.md)                | GitHub event router for agent dispatch                       | Accepted |
+| [0002](./0002-model-eval-benchmark.md)        | Model evaluation benchmark framework                         | Accepted |
+| [0003](./0003-tool-composition-seam.md)       | Tool composition seam for the inspection tool set            | Accepted |
+| [0004](./0004-live-eval-provider-seam.md)     | Live-eval provider seam                                      | Accepted |
+| [0005](./0005-transcript-based-showcase.md)   | Transcript-based static showcase and Pages asset conventions | Accepted |
+| [0006](./0006-factory-capability-profiles.md) | Least-capability profiles per factory stage                  | Accepted |
 
 ## Codebase map
 
-ADR records capture *why* a decision was made. For the *current* state of the
+ADR records capture _why_ a decision was made. For the _current_ state of the
 codebase — layers, data flow, entry points, conventions, and concerns — see the
 [codebase map](../../.planning/codebase/), especially the Decisions section of
 [ARCHITECTURE.md](../../.planning/codebase/ARCHITECTURE.md). When a decision
