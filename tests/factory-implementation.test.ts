@@ -175,6 +175,35 @@ describe('runControlledImplementation', () => {
       false,
     );
   });
+
+  test('marks an allocated workspace failed when implementation throws', async () => {
+    const { orchestrator, run } = await plannedRun();
+    const calls: string[] = [];
+    const git = fakeGit(calls);
+    git.fail = async (id) => {
+      calls.push(`fail:${id}`);
+    };
+
+    await assert.rejects(
+      () =>
+        runControlledImplementation(run, {
+          orchestrator,
+          git,
+          implementer: {
+            async implement() {
+              throw new Error('implementation crashed');
+            },
+          },
+          verifier: {
+            async run() {
+              return [];
+            },
+          },
+        }),
+      /implementation crashed/,
+    );
+    assert.equal(calls.includes(`fail:${run.id}`), true);
+  });
 });
 
 async function plannedRun(): Promise<{ orchestrator: FactoryOrchestrator; run: FactoryRun }> {

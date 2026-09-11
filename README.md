@@ -1304,7 +1304,9 @@ flowly/
 │   ├── store.ts                # memory + local-file factory run persistence
 │   ├── run-state-store.ts      # issue-comment store for Actions retries
 │   ├── types.ts                # structured stage inputs and outputs
-│   └── verification.ts         # bounded repository-native checks
+│   ├── verification.ts         # bounded repository-native checks
+│   ├── workspace-lifecycle.ts  # isolated workspace allocation, resume, and GC
+│   ├── workspace-store.ts      # persisted factory workspace records
 ├── github/
 │   ├── adapter.ts              # trusted review publisher
 │   ├── client.ts               # thin GitHub REST client
@@ -1397,7 +1399,7 @@ flowly/
 │   ├── run-eval.sh
 │   └── fixtures/sample-repo/   # bundled evaluation fixture
 ├── docs/
-│   ├── adr/                    # architecture decision records (0001–0006)
+│   ├── adr/                    # architecture decision records (0001–0007)
 │   ├── showcase/               # static Flowly showcase pages and stylesheet
 │   ├── favicon.svg
 │   ├── favicon.ico

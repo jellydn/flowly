@@ -156,6 +156,21 @@ export class FactoryGitAdapter {
     return commit;
   }
 
+  async resolveSha(workspace: FactoryGitWorkspace, rev = 'HEAD'): Promise<string> {
+    const sourceRepository = await realpath(this.options.sourceRepository);
+    const sourceRemoteUrl = (
+      await this.execGit(['remote', 'get-url', this.remote], sourceRepository)
+    ).stdout.trim();
+    await this.assertWorkspace(workspace, sourceRemoteUrl);
+    const sha = (
+      await this.execGit(['rev-parse', `${rev}^{commit}`], workspace.path)
+    ).stdout.trim();
+    if (!/^[a-f0-9]{40}$/.test(sha)) {
+      throw new Error(`Factory workspace ${workspace.id} could not resolve ${rev} to a commit.`);
+    }
+    return sha;
+  }
+
   async isPristine(workspace: FactoryGitWorkspace, commitSha: string): Promise<boolean> {
     assertCommitSha(commitSha);
     const sourceRepository = await realpath(this.options.sourceRepository);

@@ -286,6 +286,15 @@ function assertStoreVersion(
   }
 }
 
+export async function withFileLock<T>(lockPath: string, operation: () => Promise<T>): Promise<T> {
+  const token = await acquireLock(lockPath);
+  try {
+    return await operation();
+  } finally {
+    await releaseLock(lockPath, token);
+  }
+}
+
 async function acquireLock(lockPath: string): Promise<string> {
   const token = randomUUID();
   for (let attempt = 0; attempt < 100; attempt += 1) {

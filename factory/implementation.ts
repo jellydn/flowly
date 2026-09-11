@@ -33,6 +33,8 @@ export type FactoryGitMutator = {
   ): Promise<{ commitSha: string; changedFiles: string[] }>;
   push(workspace: FactoryGitWorkspace, commitSha: string): Promise<void>;
   isPristine(workspace: FactoryGitWorkspace, commitSha: string): Promise<boolean>;
+  complete?(id: string): Promise<void>;
+  fail?(id: string): Promise<void>;
 };
 
 export type FactoryVerifier = {
@@ -63,9 +65,21 @@ export async function runControlledImplementation(
   dependencies: ControlledImplementationDependencies,
 ): Promise<FactoryRun> {
   assertFactoryAutonomyGate(plannedRun, 'implementation');
-  if (plannedRun.state === 'verifying') {
-    return resumeVerification(plannedRun, dependencies);
+  try {
+    if (plannedRun.state === 'verifying') {
+      return await resumeVerification(plannedRun, dependencies);
+    }
+    return await implementAndVerify(plannedRun, dependencies);
+  } catch (error) {
+    await markWorkspaceFailed(dependencies.git, plannedRun.id);
+    throw error;
   }
+}
+
+async function implementAndVerify(
+  plannedRun: FactoryRun,
+  dependencies: ControlledImplementationDependencies,
+): Promise<FactoryRun> {
   const implementing = await dependencies.orchestrator.beginImplementation(plannedRun.id);
   if (!implementing.plan || !implementing.branch) {
     throw new Error(`Factory run ${implementing.id} is missing its plan or branch.`);
@@ -106,6 +120,14 @@ export async function runControlledImplementation(
     commands: [],
   });
   return resumeVerification(verifying, dependencies);
+}
+
+async function markWorkspaceFailed(git: FactoryGitMutator, id: string): Promise<void> {
+  try {
+    await git.fail?.(id);
+  } catch {
+    // Preserve the stage error when allocation did not create a workspace or cleanup also fails.
+  }
 }
 
 async function resumeVerification(
@@ -151,7 +173,10 @@ async function resumeVerification(
       ? undefined
       : 'Verification commands modified the implementation or its commit history.';
   if (failure === undefined) {
-    await dependencies.git.push(workspace, verifying.implementation.commitSha);
+    await git.push(workspace, verifying.implementation.commitSha);
+    await git.complete?.(workspace.id);
+  } else {
+    await git.fail?.(workspace.id);
   }
   const result = await dependencies.orchestrator.recordVerification(
     verifying.id,
