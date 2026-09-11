@@ -33,6 +33,7 @@ import { createAgentFactoryImplementer } from '../factory/agent-implementer.ts';
 import { createIssueCommentProgress } from '../factory/defaults.ts';
 import { dispatchFactoryLabeledIssue, factoryTaskFromIssuesEvent } from '../factory/dispatch.ts';
 import { FactoryGitAdapter } from '../factory/git.ts';
+import { StoredFactoryEventLog, workspaceEventsToLog } from '../factory/events.ts';
 import { FactoryWorkspaceManager } from '../factory/workspace-lifecycle.ts';
 import { FileFactoryWorkspaceStore } from '../factory/workspace-store.ts';
 import {
@@ -96,6 +97,9 @@ async function main(): Promise<void> {
   const modelCall = createFactoryModelCall(model, process.env);
   const repository = await createRepositoryReader(repositoryPath);
   const review = createModelFactoryReview(modelCall);
+  const task = factoryTaskFromIssuesEvent(eventName, payload);
+  const store = createFactoryRunStore(client, task.issueNumber);
+  const events = new StoredFactoryEventLog(store, task.repository);
   const gitAdapter = new FactoryGitAdapter({
     sourceRepository: repositoryPath,
     workspaceRoot,
@@ -107,10 +111,9 @@ async function main(): Promise<void> {
     ),
     workspaceRoot,
     repositoryId: process.env.GITHUB_REPOSITORY!,
+    events: workspaceEventsToLog(events),
   });
   await git.collectGarbage();
-  const task = factoryTaskFromIssuesEvent(eventName, payload);
-  const store = createFactoryRunStore(client, task.issueNumber);
   const autonomyPolicy = process.env.FACTORY_AUTONOMY_POLICY
     ? parseFactoryAutonomyPolicy(
         JSON.parse(await readFile(process.env.FACTORY_AUTONOMY_POLICY, 'utf8')) as unknown,

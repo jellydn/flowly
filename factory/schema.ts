@@ -1,5 +1,6 @@
 import * as v from 'valibot';
 import { FACTORY_STAGES } from './capabilities.ts';
+import { factoryRunEventSchema } from './events.ts';
 import {
   FACTORY_AUTONOMY_EVENTS,
   FACTORY_AUTONOMY_LEVELS,
@@ -156,6 +157,7 @@ export const factoryRunSchema = v.object({
   failure: v.optional(v.string()),
   updatedAt: v.pipe(v.number(), v.integer(), v.minValue(0)),
   planningStartedAt: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
+  events: v.optional(v.array(factoryRunEventSchema)),
 });
 
 export function parseFactoryRun(value: unknown): FactoryRun {

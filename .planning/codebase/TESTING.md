@@ -36,7 +36,7 @@ npx tsx --test tests/<file>.test.ts   # single file
 ```
 tests/
 ├── helpers.ts                  # fixture builder + tool invocation
-├── *.test.ts                   # 52 test files
+├── *.test.ts                   # 53 test files
 ```
 
 ## Test Structure
@@ -120,7 +120,7 @@ export async function createSampleRepo(): Promise<string> {
 
 - Scope: tool pipelines against the sample fixture (`tools.test.ts`, `eval-scenarios.test.ts`, `doc-aware.test.ts`, `repository-search.test.ts`, `relationship-index.test.ts`), full event-router flow (`event-router.test.ts`), benchmark runner end-to-end (`bench-runner.test.ts`, `flue-eval-cli.test.ts` — the latter spawns the actual CLI via `spawnSync`), GitHub adapter (mock fetch)
 - Approach: deterministic deciders and static model calls keep them key-free and reproducible
-- Factory Git integration uses temporary real repositories and a local bare remote; no network or shared branch is touched (`factory-git.test.ts`). Controlled implementation and verification use dependency fakes plus real subprocess execution (`factory-implementation.test.ts`, `factory-verification.test.ts`). Independent review isolation uses a distinctive scratch token that must not appear in reviewer input (`factory-review.test.ts`). The draft-PR publisher uses an in-memory GitHub client fake (`factory-publisher.test.ts`). `runFactoryPipeline` covers classify → plan → gated implement → verify → gated draft PR, including interrupted-run recovery (`factory-run.test.ts`). Autonomy policy promotion, demotion, caps, confirmations, and gate assertions are covered in `factory-autonomy.test.ts`. Least-capability stage manifests, restrict-only overlays, and adapter denials are covered in `factory-capabilities.test.ts`. Workspace allocation, resume, GC, and confinement are covered in `factory-workspace.test.ts`. Migration plan digests, ordering, approval, resumability, blocked dependencies, and batch execution are covered in `factory-campaign.test.ts`. Provider-backed classifier/planner/reviewer adapters are covered with static model calls in `factory-model-adapters.test.ts`.
+- Factory Git integration uses temporary real repositories and a local bare remote; no network or shared branch is touched (`factory-git.test.ts`). Controlled implementation and verification use dependency fakes plus real subprocess execution (`factory-implementation.test.ts`, `factory-verification.test.ts`). Independent review isolation uses a distinctive scratch token that must not appear in reviewer input (`factory-review.test.ts`). The draft-PR publisher uses an in-memory GitHub client fake (`factory-publisher.test.ts`). `runFactoryPipeline` covers classify → plan → gated implement → verify → gated draft PR, including interrupted-run recovery (`factory-run.test.ts`). Autonomy policy promotion, demotion, caps, confirmations, and gate assertions are covered in `factory-autonomy.test.ts`. Least-capability stage manifests, restrict-only overlays, and adapter denials are covered in `factory-capabilities.test.ts`. Workspace allocation, resume, GC, and confinement are covered in `factory-workspace.test.ts`. Append-only run events, projection, and explain are covered in `factory-events.test.ts`. Migration plan digests, ordering, approval, resumability, blocked dependencies, and batch execution are covered in `factory-campaign.test.ts`. Provider-backed classifier/planner/reviewer adapters are covered with static model calls in `factory-model-adapters.test.ts`.
 
 **E2E Tests:**
 

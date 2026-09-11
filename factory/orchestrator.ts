@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { applyFactoryAutonomyEvent, decideFactoryAutonomyGate } from './autonomy.ts';
 import type { FactoryCapabilityAudit } from './capabilities.ts';
+import { appendFactoryEvents, eventsForRunTransition } from './events.ts';
 import type { FactoryRunStore } from './store.ts';
 import {
   factoryBranch,
@@ -42,6 +43,7 @@ export class FactoryOrchestrator {
       version: 1,
       updatedAt: now,
     };
+    run.events = appendFactoryEvents([], eventsForRunTransition(undefined, run));
     const created = await this.store.createOrGet(run);
     return { run: created.run, duplicate: !created.created };
   }
@@ -262,7 +264,13 @@ export class FactoryOrchestrator {
   }
 
   private async save(run: FactoryRun): Promise<FactoryRun> {
+    const previous = await this.store.load(run.id);
+    if (!previous) throw new Error(`Factory run ${run.id} does not exist.`);
     const next = { ...run, version: run.version + 1, updatedAt: Date.now() };
+    next.events = appendFactoryEvents(
+      previous.events ?? [],
+      eventsForRunTransition(previous, next),
+    );
     await this.store.save(next, run.version);
     return next;
   }

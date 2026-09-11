@@ -1,4 +1,5 @@
 import type { FactoryCapabilityAudit } from './capabilities.ts';
+import type { FactoryRunEvent } from './events.ts';
 
 /** Explicit, serializable state exchanged by the isolated factory stages. */
 export const FACTORY_RUN_STATES = [
@@ -146,6 +147,8 @@ export type FactoryRun = {
   updatedAt: number;
   /** Set when the run enters `planning`; used to reclaim a stale lease. */
   planningStartedAt?: number;
+  /** Durable event history, persisted atomically with each run transition. */
+  events?: FactoryRunEvent[];
 };
 
 export function factoryBranch(

@@ -1307,6 +1307,7 @@ flowly/
 │   ├── verification.ts         # bounded repository-native checks
 │   ├── workspace-lifecycle.ts  # isolated workspace allocation, resume, and GC
 │   ├── workspace-store.ts      # persisted factory workspace records
+│   ├── events.ts               # append-only run events and projections
 ├── github/
 │   ├── adapter.ts              # trusted review publisher
 │   ├── client.ts               # thin GitHub REST client
@@ -1329,6 +1330,7 @@ flowly/
 │   ├── review-tools.ts         # review-specific tool factories
 │   └── schema.ts               # ReviewResult Valibot schema
 ├── scripts/
+│   ├── factory.ts              # operator run inspection CLI (npm run factory)
 │   ├── flue-eval.ts            # eval benchmark CLI (npm run eval)
 │   ├── memory.ts               # inspect or explicitly reject/deprecate instincts
 │   ├── review-pr.ts            # CI entrypoint (npm run review-pr)
@@ -1399,7 +1401,7 @@ flowly/
 │   ├── run-eval.sh
 │   └── fixtures/sample-repo/   # bundled evaluation fixture
 ├── docs/
-│   ├── adr/                    # architecture decision records (0001–0007)
+│   ├── adr/                    # architecture decision records (0001–0008)
 │   ├── showcase/               # static Flowly showcase pages and stylesheet
 │   ├── favicon.svg
 │   ├── favicon.ico
