@@ -16,7 +16,6 @@
  *   FACTORY_WORKSPACE_ROOT – isolated clone root (defaults to <cwd>/.factory-workspaces)
  *   FACTORY_WORKSPACE_STORE – optional JSON directory for workspace lifecycle records
  *   FACTORY_RUN_STORE      – local JSON directory (dev only; Actions uses an issue comment)
- *   FACTORY_EVENT_STORE    – append-only factory run events (operator control plane)
  *   REVIEW_BOT_LOGIN       – expected author of the factory-run comment (default github-actions[bot])
  *   FACTORY_AUTONOMY_POLICY – path to a repository autonomy-policy JSON file
  *   FACTORY_CAPABILITY_POLICY – optional restrict-only capability overlay JSON file
@@ -34,7 +33,7 @@ import { createAgentFactoryImplementer } from '../factory/agent-implementer.ts';
 import { createIssueCommentProgress } from '../factory/defaults.ts';
 import { dispatchFactoryLabeledIssue, factoryTaskFromIssuesEvent } from '../factory/dispatch.ts';
 import { FactoryGitAdapter } from '../factory/git.ts';
-import { FileFactoryEventLog, workspaceEventsToLog } from '../factory/events.ts';
+import { StoredFactoryEventLog, workspaceEventsToLog } from '../factory/events.ts';
 import { FactoryWorkspaceManager } from '../factory/workspace-lifecycle.ts';
 import { FileFactoryWorkspaceStore } from '../factory/workspace-store.ts';
 import {
@@ -98,9 +97,9 @@ async function main(): Promise<void> {
   const modelCall = createFactoryModelCall(model, process.env);
   const repository = await createRepositoryReader(repositoryPath);
   const review = createModelFactoryReview(modelCall);
-  const events = new FileFactoryEventLog(
-    process.env.FACTORY_EVENT_STORE ?? path.join(workspaceRoot, '.events'),
-  );
+  const task = factoryTaskFromIssuesEvent(eventName, payload);
+  const store = createFactoryRunStore(client, task.issueNumber);
+  const events = new StoredFactoryEventLog(store, task.repository);
   const gitAdapter = new FactoryGitAdapter({
     sourceRepository: repositoryPath,
     workspaceRoot,
@@ -115,8 +114,6 @@ async function main(): Promise<void> {
     events: workspaceEventsToLog(events),
   });
   await git.collectGarbage();
-  const task = factoryTaskFromIssuesEvent(eventName, payload);
-  const store = createFactoryRunStore(client, task.issueNumber);
   const autonomyPolicy = process.env.FACTORY_AUTONOMY_POLICY
     ? parseFactoryAutonomyPolicy(
         JSON.parse(await readFile(process.env.FACTORY_AUTONOMY_POLICY, 'utf8')) as unknown,
@@ -131,7 +128,7 @@ async function main(): Promise<void> {
   const learning = createRepositoryLearningFromEnv(process.env, client, repositoryPath);
 
   const run = await dispatchFactoryLabeledIssue(eventName, payload, {
-    orchestrator: new FactoryOrchestrator(store, events),
+    orchestrator: new FactoryOrchestrator(store),
     classifier: createModelFactoryClassifier(modelCall),
     planner: createModelFactoryPlanner(modelCall, repository),
     progress: createIssueCommentProgress(client),

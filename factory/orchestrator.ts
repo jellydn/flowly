@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { applyFactoryAutonomyEvent, decideFactoryAutonomyGate } from './autonomy.ts';
 import type { FactoryCapabilityAudit } from './capabilities.ts';
-import { eventsForRunTransition, type FactoryEventLog } from './events.ts';
+import { appendFactoryEvents, eventsForRunTransition } from './events.ts';
 import type { FactoryRunStore } from './store.ts';
 import {
   factoryBranch,
@@ -25,10 +25,7 @@ import {
  * another branch or PR.
  */
 export class FactoryOrchestrator {
-  constructor(
-    private readonly store: FactoryRunStore,
-    private readonly events?: FactoryEventLog,
-  ) {}
+  constructor(private readonly store: FactoryRunStore) {}
 
   /** Load the persisted run. Callers must not treat a stale snapshot as current. */
   async get(id: string): Promise<FactoryRun> {
@@ -46,8 +43,8 @@ export class FactoryOrchestrator {
       version: 1,
       updatedAt: now,
     };
+    run.events = appendFactoryEvents([], eventsForRunTransition(undefined, run));
     const created = await this.store.createOrGet(run);
-    if (created.created) await this.recordEvents(undefined, created.run);
     return { run: created.run, duplicate: !created.created };
   }
 
@@ -268,17 +265,14 @@ export class FactoryOrchestrator {
 
   private async save(run: FactoryRun): Promise<FactoryRun> {
     const previous = await this.store.load(run.id);
+    if (!previous) throw new Error(`Factory run ${run.id} does not exist.`);
     const next = { ...run, version: run.version + 1, updatedAt: Date.now() };
+    next.events = appendFactoryEvents(
+      previous.events ?? [],
+      eventsForRunTransition(previous, next),
+    );
     await this.store.save(next, run.version);
-    await this.recordEvents(previous ?? undefined, next);
     return next;
-  }
-
-  private async recordEvents(previous: FactoryRun | undefined, next: FactoryRun): Promise<void> {
-    if (!this.events) return;
-    for (const event of eventsForRunTransition(previous, next)) {
-      await this.events.append(event);
-    }
   }
 }
 

@@ -6,16 +6,16 @@ import { afterEach, describe, test } from 'node:test';
 import {
   eventsForRunTransition,
   explainFactoryRun,
-  FileFactoryEventLog,
   MemoryFactoryEventLog,
   projectFactoryRun,
+  StoredFactoryEventLog,
   unknownUsage,
   type FactoryRunEventType,
 } from '../factory/events.ts';
 import { FactoryOrchestrator } from '../factory/orchestrator.ts';
 import { FactoryDraftPrPublisher } from '../factory/publisher.ts';
 import { runFactoryPipeline, type FactoryPipelineDependencies } from '../factory/run.ts';
-import { MemoryFactoryRunStore } from '../factory/store.ts';
+import { FileFactoryRunStore, MemoryFactoryRunStore } from '../factory/store.ts';
 import type { FactoryTask, ImplementationPlan, TaskClassification } from '../factory/types.ts';
 
 const task: FactoryTask = {
@@ -86,20 +86,48 @@ describe('factory event log', () => {
     assert.equal((await log.list('run-139')).length, 1);
   });
 
-  test('file log round-trips events', async () => {
+  test('file-backed run log round-trips events', async () => {
     const directory = await mkdtemp(path.join(tmpdir(), 'flowly-events-'));
     temporaryDirectories.push(directory);
-    const log = new FileFactoryEventLog(directory);
+    const store = new FileFactoryRunStore(directory);
+    const orchestrator = new FactoryOrchestrator(store);
+    const { run } = await orchestrator.start(task);
+    const log = new StoredFactoryEventLog(store, task.repository);
     await log.append({
-      runId: 'run-139',
-      type: 'run.started',
-      timestamp: 1,
+      runId: run.id,
+      type: 'tool.invoked',
+      timestamp: 2,
       attempt: 1,
-      summary: 'Started.',
+      summary: 'Tool completed.',
       metadata: { repository: 'jellydn/flowly' },
     });
-    const reloaded = new FileFactoryEventLog(directory);
-    assert.equal((await reloaded.list('run-139'))[0]?.summary, 'Started.');
+    const reloaded = new StoredFactoryEventLog(new FileFactoryRunStore(directory), task.repository);
+    assert.equal((await reloaded.list(run.id))[1]?.summary, 'Tool completed.');
+  });
+
+  test('stored log does not lose concurrent appends', async () => {
+    const store = new MemoryFactoryRunStore();
+    const orchestrator = new FactoryOrchestrator(store);
+    const { run } = await orchestrator.start(task);
+    const log = new StoredFactoryEventLog(store, task.repository);
+    await Promise.all(
+      Array.from({ length: 20 }, (_, index) =>
+        log.append({
+          runId: run.id,
+          type: 'tool.invoked',
+          timestamp: index + 1,
+          attempt: 1,
+          summary: `Tool ${index}.`,
+          metadata: {},
+        }),
+      ),
+    );
+    const events = await log.list(run.id);
+    assert.equal(events.length, 21);
+    assert.deepEqual(
+      events.map((item) => item.sequence),
+      Array.from({ length: 21 }, (_, index) => index + 1),
+    );
   });
 
   test('projection replays status, retries, gates, and unknown usage', () => {
@@ -152,12 +180,58 @@ describe('factory event log', () => {
     assert.equal(JSON.stringify(events).includes('secret reasoning'), false);
     assert.equal(JSON.stringify(events).includes('chainOfThought'), false);
   });
+
+  test('removes sensitive metadata recursively', async () => {
+    const log = new MemoryFactoryEventLog();
+    const recorded = await log.append({
+      runId: 'run-139',
+      type: 'tool.invoked',
+      timestamp: 1,
+      attempt: 1,
+      summary: 'Tool completed.',
+      metadata: {
+        safe: { result: 'ok', transcript: 'secret' },
+        nested: [{ implementer_scratch: 'secret', value: 2 }],
+      },
+    });
+    assert.deepEqual(recorded.metadata, {
+      safe: { result: 'ok' },
+      nested: [{ value: 2 }],
+    });
+  });
+
+  test('records a reclaimed planning lease as a new attempt', async () => {
+    const store = new MemoryFactoryRunStore();
+    const orchestrator = new FactoryOrchestrator(store);
+    const { run } = await orchestrator.start(task);
+    await orchestrator.classify(run.id, classification);
+    const first = await orchestrator.beginPlanning(run.id);
+    await store.save(
+      {
+        ...first.run,
+        version: first.run.version + 1,
+        planningStartedAt: 0,
+      },
+      first.run.version,
+    );
+    await orchestrator.beginPlanning(run.id);
+    const events = (await orchestrator.get(run.id)).events ?? [];
+    const resumed = events.find((item) => item.type === 'run.resumed');
+    assert.equal(resumed?.attempt, 2);
+    assert.equal(
+      events.some(
+        (item) => item.type === 'stage.started' && item.stage === 'planner' && item.attempt === 2,
+      ),
+      true,
+    );
+  });
 });
 
 describe('factory pipeline events', () => {
   test('records a complete stage timeline that explain can replay', async () => {
-    const events = new MemoryFactoryEventLog();
-    const result = await runFactoryPipeline(task, pipelineDependencies(events));
+    const store = new MemoryFactoryRunStore();
+    const events = new StoredFactoryEventLog(store, task.repository);
+    const result = await runFactoryPipeline(task, pipelineDependencies(store));
     const timeline = await events.list(result.id);
     assert.equal(timeline[0]?.type, 'run.started');
     assert.deepEqual(
@@ -210,9 +284,9 @@ function event(
   };
 }
 
-function pipelineDependencies(events: MemoryFactoryEventLog): FactoryPipelineDependencies {
+function pipelineDependencies(store: MemoryFactoryRunStore): FactoryPipelineDependencies {
   return {
-    orchestrator: new FactoryOrchestrator(new MemoryFactoryRunStore(), events),
+    orchestrator: new FactoryOrchestrator(store),
     classifier: {
       async classify() {
         return classification;

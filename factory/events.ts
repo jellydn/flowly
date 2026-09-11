@@ -1,7 +1,6 @@
-import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import path from 'node:path';
 import * as v from 'valibot';
 import { FACTORY_STAGES, type FactoryStage } from './capabilities.ts';
+import type { FactoryRunStore } from './store.ts';
 import type { FactoryRun } from './types.ts';
 import type { FactoryWorkspaceEvent } from './workspace-lifecycle.ts';
 
@@ -56,7 +55,7 @@ export type FactoryRunEvent = {
 
 export type FactoryEventInput = Omit<FactoryRunEvent, 'sequence'> & { sequence?: number };
 
-const eventSchema = v.object({
+export const factoryRunEventSchema = v.object({
   runId: v.pipe(v.string(), v.minLength(1)),
   sequence: v.pipe(v.number(), v.integer(), v.minValue(1)),
   stage: v.optional(v.union([v.picklist(FACTORY_STAGES), v.literal('run')])),
@@ -69,7 +68,7 @@ const eventSchema = v.object({
 });
 
 export function parseFactoryRunEvent(value: unknown): FactoryRunEvent {
-  return v.parse(eventSchema, value);
+  return v.parse(factoryRunEventSchema, value);
 }
 
 export type FactoryEventLog = {
@@ -93,35 +92,39 @@ export class MemoryFactoryEventLog implements FactoryEventLog {
   }
 }
 
-export class FileFactoryEventLog implements FactoryEventLog {
-  constructor(private readonly directory: string) {}
+/** Durable event log backed by the same run store as the orchestrator. */
+export class StoredFactoryEventLog implements FactoryEventLog {
+  constructor(
+    private readonly store: FactoryRunStore,
+    private readonly repository: string,
+  ) {}
 
   async append(event: FactoryEventInput): Promise<FactoryRunEvent> {
-    await mkdir(this.directory, { recursive: true });
-    const current = await this.list(event.runId);
-    const recorded = ingestEvent(current, event);
-    await writeAtomicJson(this.filePath(event.runId), recorded.events);
-    return recorded.event;
-  }
-
-  async list(runId?: string): Promise<FactoryRunEvent[]> {
-    if (runId) return readEventFile(this.filePath(runId));
-    try {
-      const names = await readdir(this.directory);
-      const events: FactoryRunEvent[] = [];
-      for (const name of names) {
-        if (!name.endsWith('.json')) continue;
-        events.push(...(await readEventFile(path.join(this.directory, name))));
+    for (;;) {
+      const run = await this.store.load(event.runId);
+      if (!run) throw new Error(`Factory run ${event.runId} does not exist.`);
+      const recorded = ingestEvent(run.events ?? [], event);
+      if (recorded.events === run.events) return recorded.event;
+      const next = {
+        ...run,
+        events: recorded.events,
+        version: run.version + 1,
+        updatedAt: Math.max(run.updatedAt, event.timestamp),
+      };
+      try {
+        await this.store.save(next, run.version);
+        return recorded.event;
+      } catch (error) {
+        if (!isVersionConflict(error)) throw error;
       }
-      return events.sort(compareEvents);
-    } catch (error) {
-      if (isNotFound(error)) return [];
-      throw error;
     }
   }
 
-  private filePath(runId: string): string {
-    return path.join(this.directory, `${encodeURIComponent(runId)}.json`);
+  async list(runId?: string): Promise<FactoryRunEvent[]> {
+    if (runId) return [...((await this.store.load(runId))?.events ?? [])];
+    return (await this.store.listByRepository(this.repository))
+      .flatMap((run) => run.events ?? [])
+      .sort(compareEvents);
   }
 }
 
@@ -317,7 +320,9 @@ export function eventsForRunTransition(
   next: FactoryRun,
 ): FactoryEventInput[] {
   const now = next.updatedAt;
-  const attempt = 1;
+  const previousAttempt = Math.max(1, ...(previous?.events ?? []).map((event) => event.attempt));
+  const resumedPlanning = previous?.state === 'planning' && next.state === 'planning';
+  const attempt = resumedPlanning ? previousAttempt + 1 : previousAttempt;
   const base = {
     runId: next.id,
     timestamp: now,
@@ -336,7 +341,15 @@ export function eventsForRunTransition(
   }
   const from = previous?.state;
   const to = next.state;
-  if (from !== to) {
+  if (resumedPlanning) {
+    events.push({
+      ...base,
+      stage: 'run',
+      type: 'run.resumed',
+      summary: 'Factory run resumed after the planning lease expired.',
+    });
+    events.push(started(base, 'planner', 'Planning resumed.'));
+  } else if (from !== to) {
     events.push(...stageEvents(base, from, to, next));
   }
   if (!previous?.review && next.review) {
@@ -496,10 +509,33 @@ function identifiers(run: FactoryRun): Record<string, unknown> {
 function sanitizeMetadata(metadata: Record<string, unknown>): Record<string, unknown> {
   const sanitized: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(metadata)) {
-    if (FORBIDDEN_METADATA_KEYS.includes(key)) continue;
-    sanitized[key] = value;
+    const normalizedKey = key.toLowerCase().replaceAll(/[^a-z]/g, '');
+    if (
+      FORBIDDEN_METADATA_KEYS.some(
+        (forbidden) => forbidden.toLowerCase().replaceAll(/[^a-z]/g, '') === normalizedKey,
+      )
+    )
+      continue;
+    sanitized[key] = sanitizeMetadataValue(value);
   }
   return sanitized;
+}
+
+function sanitizeMetadataValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item) => sanitizeMetadataValue(item));
+  if (value && typeof value === 'object') {
+    return sanitizeMetadata(value as Record<string, unknown>);
+  }
+  return value;
+}
+
+export function appendFactoryEvents(
+  current: FactoryRunEvent[],
+  inputs: FactoryEventInput[],
+): FactoryRunEvent[] {
+  let events = current;
+  for (const input of inputs) events = ingestEvent(events, input).events;
+  return events;
 }
 
 function ingestEvent(
@@ -622,28 +658,6 @@ function optionalNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
-async function readEventFile(filePath: string): Promise<FactoryRunEvent[]> {
-  try {
-    const parsed = JSON.parse(await readFile(filePath, 'utf8')) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.map((item) => parseFactoryRunEvent(item));
-  } catch (error) {
-    if (isNotFound(error)) return [];
-    throw error;
-  }
-}
-
-async function writeAtomicJson(filePath: string, events: FactoryRunEvent[]): Promise<void> {
-  const temporaryPath = `${filePath}.tmp`;
-  try {
-    await writeFile(temporaryPath, `${JSON.stringify(events, null, 2)}\n`);
-    await rename(temporaryPath, filePath);
-  } catch (error) {
-    await rm(temporaryPath, { force: true });
-    throw error;
-  }
-}
-
-function isNotFound(error: unknown): boolean {
-  return Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT');
+function isVersionConflict(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('changed concurrently');
 }

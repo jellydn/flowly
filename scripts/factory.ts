@@ -1,12 +1,20 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import process from 'node:process';
-import { explainFactoryRun, FileFactoryEventLog, projectFactoryRun } from '../factory/events.ts';
+import {
+  explainFactoryRun,
+  projectFactoryRun,
+  StoredFactoryEventLog,
+  type FactoryRunEvent,
+} from '../factory/events.ts';
+import { parseFactoryRunComment } from '../factory/run-state-store.ts';
+import { FileFactoryRunStore } from '../factory/store.ts';
+import type { FactoryRun } from '../factory/types.ts';
+import { GitHubClient } from '../github/client.ts';
 
 const [command, subcommand, runId] = process.argv.slice(2);
-const log = new FileFactoryEventLog(
-  path.resolve(process.env.FACTORY_EVENT_STORE ?? '.factory-events'),
-);
+const repository = process.env.GITHUB_REPOSITORY;
+if (!repository) throw new Error('GITHUB_REPOSITORY is required (owner/repo).');
 
 async function main(): Promise<void> {
   if (command !== 'runs') {
@@ -15,7 +23,7 @@ async function main(): Promise<void> {
     );
   }
   if (subcommand === 'list') {
-    const events = await log.list();
+    const events = await loadEvents();
     const runIds = [...new Set(events.map((event) => event.runId))];
     const projections = [];
     for (const id of runIds) {
@@ -41,7 +49,7 @@ async function main(): Promise<void> {
   if (!runId) {
     throw new Error('A run id is required for show, timeline, and explain.');
   }
-  const events = await log.list(runId);
+  const events = await loadEvents(runId);
   if (events.length === 0) throw new Error(`Factory run ${runId} has no recorded events.`);
   if (subcommand === 'show') {
     console.log(JSON.stringify(projectFactoryRun(events), null, 2));
@@ -72,6 +80,24 @@ async function main(): Promise<void> {
   throw new Error(
     'Usage: npm run factory -- runs list | show <run-id> | timeline <run-id> | explain <run-id>',
   );
+}
+
+async function loadEvents(id?: string): Promise<FactoryRunEvent[]> {
+  if (process.env.FACTORY_RUN_STORE) {
+    return new StoredFactoryEventLog(
+      new FileFactoryRunStore(path.resolve(process.env.FACTORY_RUN_STORE)),
+      repository!,
+    ).list(id);
+  }
+  const expectedBotLogin = process.env.REVIEW_BOT_LOGIN ?? 'github-actions[bot]';
+  const runs = new Map<string, FactoryRun>();
+  for (const comment of await GitHubClient.fromEnv(process.env).listRepositoryIssueComments()) {
+    if (comment.user?.login !== expectedBotLogin) continue;
+    const run = parseFactoryRunComment(comment.body);
+    if (!run || run.task.repository !== repository || (id && run.id !== id)) continue;
+    runs.set(run.id, run);
+  }
+  return [...runs.values()].flatMap((run) => run.events ?? []);
 }
 
 main().catch((error: unknown) => {

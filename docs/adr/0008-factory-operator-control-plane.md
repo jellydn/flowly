@@ -16,13 +16,16 @@ CLI that does not become a hidden context channel or a merge path.
 ## Decision
 
 Trusted orchestration appends schema-validated `FactoryRunEvent` records as
-stages transition. Workspace lifecycle events use the same log. The operator
-view is a pure function of those events. Usage fields stay explicitly unknown
-when a provider does not report them. Chain-of-thought and raw transcripts are
-stripped from metadata.
+stages transition. The transition and its events are one atomic factory-run
+snapshot. Workspace lifecycle events use the same durable run store. The
+operator view is a pure function of those events. Usage fields stay explicitly
+unknown when a provider does not report them. Chain-of-thought and raw
+transcripts are stripped from metadata at every nesting level.
 
 `npm run factory -- runs list|show|timeline|explain` is the MVP inspection
-surface. It cannot merge, approve, deploy, or expand capabilities.
+surface. It reads GitHub issue-comment state by default or `FACTORY_RUN_STORE`
+for local development. It cannot merge, approve, deploy, or expand
+capabilities.
 
 ## Consequences
 
