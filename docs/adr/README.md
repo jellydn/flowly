@@ -36,7 +36,7 @@ documentation systems stay consistent.
 ## Creating a new ADR
 
 ```bash
-cp docs/adr/template.md docs/adr/0006-your-title.md
+cp docs/adr/template.md docs/adr/0007-your-title.md
 # fill in Context / Decision / Consequences, then add it to the index
 # and cross-link it from .planning/codebase/ARCHITECTURE.md
 ```
