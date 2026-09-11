@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
 import {
+  branchMatchesPatterns,
   CapabilityDeniedError,
   FACTORY_CAPABILITY_POLICY_VERSION,
   FACTORY_KNOWN_TOOLS,
@@ -136,6 +137,12 @@ describe('factory capability profiles', () => {
       () => assertGitMutation(resolveStageCapabilities('implementer'), 'main'),
       /outside a factory-owned branch/,
     );
+  });
+
+  test('branch patterns match wildcards without regular expressions', () => {
+    assert.equal(branchMatchesPatterns(['factory/*'], 'factory/140-capabilities'), true);
+    assert.equal(branchMatchesPatterns(['factory/*/retry-*'], 'factory/140/retry-2'), true);
+    assert.equal(branchMatchesPatterns(['factory/*'], 'main'), false);
   });
 
   test('adding a new integration does not expose it to existing stages', () => {

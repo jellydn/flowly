@@ -507,8 +507,26 @@ function assertNoForbiddenGrants(manifest: StageCapabilityManifest): void {
 }
 
 function matchesGlob(pattern: string, value: string): boolean {
-  if (pattern === value) return true;
-  if (!pattern.includes('*')) return false;
-  const escaped = pattern.replaceAll(/[.+?^${}()|[\]\\]/g, '\\$&').replaceAll('*', '.*');
-  return new RegExp(`^${escaped}$`).test(value);
+  let patternIndex = 0;
+  let valueIndex = 0;
+  let wildcardIndex = -1;
+  let wildcardValueIndex = 0;
+  while (valueIndex < value.length) {
+    if (pattern[patternIndex] === value[valueIndex]) {
+      patternIndex += 1;
+      valueIndex += 1;
+    } else if (pattern[patternIndex] === '*') {
+      wildcardIndex = patternIndex;
+      wildcardValueIndex = valueIndex;
+      patternIndex += 1;
+    } else if (wildcardIndex >= 0) {
+      patternIndex = wildcardIndex + 1;
+      wildcardValueIndex += 1;
+      valueIndex = wildcardValueIndex;
+    } else {
+      return false;
+    }
+  }
+  while (pattern[patternIndex] === '*') patternIndex += 1;
+  return patternIndex === pattern.length;
 }
