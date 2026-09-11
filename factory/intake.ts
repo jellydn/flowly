@@ -1,5 +1,8 @@
 import { FactoryOrchestrator } from './orchestrator.ts';
 import type { FactoryRun, FactoryTask, TaskClassification } from './types.ts';
+import type { FactoryCapabilityAudit } from './capabilities.ts';
+import { resolveFactoryCapabilityAudit, stageCapabilitiesFromAudit } from './capabilities.ts';
+import { assertContextSource } from './capability-guard.ts';
 
 /** Read-only classifier boundary. Implementations must not mutate a repository. */
 export type FactoryClassifier = {
@@ -26,16 +29,23 @@ export async function intakeFactoryIssue(
     orchestrator: FactoryOrchestrator;
     classifier: FactoryClassifier;
     progress: FactoryProgressPublisher;
+    capabilityAudit?: FactoryCapabilityAudit;
   },
 ): Promise<FactoryIntakeResult> {
   const started = await dependencies.orchestrator.start(task);
   if (started.run.state !== 'queued') return started;
 
+  const audited = await dependencies.orchestrator.recordCapabilityAudit(
+    started.run.id,
+    dependencies.capabilityAudit ?? resolveFactoryCapabilityAudit(),
+  );
+  assertContextSource(stageCapabilitiesFromAudit(audited.capabilities, 'classifier'), 'issue');
+
   if (!started.duplicate) {
     await dependencies.progress.publish(task, 'Factory run started: classifying the issue.');
   }
   const classification = await dependencies.classifier.classify(task);
-  const run = await dependencies.orchestrator.classify(started.run.id, classification);
+  const run = await dependencies.orchestrator.classify(audited.id, classification);
 
   if (!classification.actionable) {
     const missing = classification.missingInformation.map((item) => `- ${item}`).join('\n');

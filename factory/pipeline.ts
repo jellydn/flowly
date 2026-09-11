@@ -16,6 +16,8 @@ import {
 } from './review.ts';
 import type { FactoryAutonomyPolicy, FactoryManualConfirmation, FactoryRun } from './types.ts';
 import { assertFactoryAutonomyGate, factoryAutonomyGateAllowed } from './autonomy.ts';
+import { stageCapabilitiesFromAudit } from './capabilities.ts';
+import { bindDraftPublisher } from './capability-guard.ts';
 
 export type IndependentReviewPipelineDependencies = {
   orchestrator: FactoryOrchestrator;
@@ -64,7 +66,11 @@ export async function runIndependentReviewAndPublish(
   }
   let pullRequest;
   try {
-    pullRequest = await dependencies.publisher.publish(reviewed);
+    const publisher = bindDraftPublisher(
+      dependencies.publisher,
+      stageCapabilitiesFromAudit(reviewed.capabilities, 'publisher'),
+    );
+    pullRequest = await publisher.publish(reviewed);
   } catch (error) {
     await dependencies.orchestrator.applyAutonomyEvent(
       reviewed.id,

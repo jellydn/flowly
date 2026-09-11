@@ -21,7 +21,7 @@ flowly/
 ├── demo/              # Deterministic demos (bash + ts)
 ├── docs/              # Hand-maintained docs page + ADRs
 ├── skills/            # Flue skills (analyzing-repositories)
-├── tests/             # Node test-runner tests (50 files + helpers)
+├── tests/             # Node test-runner tests (51 files + helpers)
 ├── .planning/         # Codebase map + internal planning docs
 ├── .github/workflows/ # CI + event-router/review/factory workflow + examples
 ├── sandbox.ts         # Empty toolset replacing default FS/shell tools
@@ -71,8 +71,8 @@ flowly/
 **`factory/`:**
 
 - Purpose: Typed issue-to-PR state, trusted implementation/review/publication boundaries, autonomy policy, and multi-batch migration campaigns
-- Contains: `types.ts`, `schema.ts`, `store.ts`, `run-state-store.ts`, `orchestrator.ts`, `autonomy.ts`, `campaign-types.ts`, `campaign-schema.ts`, `campaign-store.ts`, `campaign.ts`, `campaign-run.ts`, `intake.ts`, `plan.ts`, `run.ts`, `dispatch.ts`, `defaults.ts`, `model.ts`, `model-adapters.ts`, `agent-implementer.ts`, `git.ts`, `implementation.ts`, `verification.ts`, `review.ts`, `publisher.ts`, `pipeline.ts`
-- Key files: `orchestrator.ts` (monotonic run transitions), `autonomy.ts` (evidence-based policy gates), `run.ts` (end-to-end factory pipeline), `agent-implementer.ts` (Flue implementer adapter), `git.ts` (isolated trusted Git mutation), `campaign.ts` and `campaign-run.ts` (approved migration batches)
+- Contains: `types.ts`, `schema.ts`, `store.ts`, `run-state-store.ts`, `orchestrator.ts`, `autonomy.ts`, `capabilities.ts`, `capability-guard.ts`, `campaign-types.ts`, `campaign-schema.ts`, `campaign-store.ts`, `campaign.ts`, `campaign-run.ts`, `intake.ts`, `plan.ts`, `run.ts`, `dispatch.ts`, `defaults.ts`, `model.ts`, `model-adapters.ts`, `agent-implementer.ts`, `git.ts`, `implementation.ts`, `verification.ts`, `review.ts`, `publisher.ts`, `pipeline.ts`
+- Key files: `orchestrator.ts` (monotonic run transitions), `autonomy.ts` (evidence-based policy gates), `capabilities.ts` and `capability-guard.ts` (least-capability stage manifests), `run.ts` (end-to-end factory pipeline), `agent-implementer.ts` (Flue implementer adapter), `git.ts` (isolated trusted Git mutation), `campaign.ts` and `campaign-run.ts` (approved migration batches)
 
 **`github/`:**
 
@@ -107,13 +107,13 @@ flowly/
 **`docs/`:**
 
 - Purpose: Hand-maintained docs
-- Contains: `index.html`, `adr/` (0001–0005, README, template), `showcase/` (three-page product showcase: `showcase/index.html`, `showcase/features.html`, `showcase/how-it-works.html`, `showcase/styles.css`, `showcase/favicon.svg`), favicon package (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `site.webmanifest`)
+- Contains: `index.html`, `adr/` (0001–0006, README, template), `showcase/` (three-page product showcase: `showcase/index.html`, `showcase/features.html`, `showcase/how-it-works.html`, `showcase/styles.css`, `showcase/favicon.svg`), favicon package (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `site.webmanifest`)
 - Key files: `index.html`, `adr/0001-event-router.md`, `adr/0002-model-eval-benchmark.md`, `adr/0003-tool-composition-seam.md`, `adr/0004-live-eval-provider-seam.md`, `adr/0005-transcript-based-showcase.md`
 
 **`tests/`:**
 
 - Purpose: All automated tests (single directory, not co-located)
-- Contains: 50 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
+- Contains: 51 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
 - Key files: `helpers.ts`, `event-router.test.ts`, `bench-runner.test.ts`
 
 ## Key File Locations

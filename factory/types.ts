@@ -1,3 +1,5 @@
+import type { FactoryCapabilityAudit } from './capabilities.ts';
+
 /** Explicit, serializable state exchanged by the isolated factory stages. */
 export const FACTORY_RUN_STATES = [
   'queued',
@@ -138,6 +140,7 @@ export type FactoryRun = {
   review?: ReviewVerdict;
   autonomy?: FactoryAutonomyAudit;
   autonomyEvents?: FactoryAutonomyEvent[];
+  capabilities?: FactoryCapabilityAudit;
   prNumber?: number;
   failure?: string;
   updatedAt: number;

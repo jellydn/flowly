@@ -17,6 +17,7 @@
  *   FACTORY_RUN_STORE      – local JSON directory (dev only; Actions uses an issue comment)
  *   REVIEW_BOT_LOGIN       – expected author of the factory-run comment (default github-actions[bot])
  *   FACTORY_AUTONOMY_POLICY – path to a repository autonomy-policy JSON file
+ *   FACTORY_CAPABILITY_POLICY – optional restrict-only capability overlay JSON file
  *   FACTORY_CONFIRM_BOUNDARY – one-run confirmation: implementation or publication
  *   FLOWLY_LEARNING_POLICY – repository-relative learning-policy JSON file
  *   FLOWLY_MEMORY_ISSUE    – issue that holds the bot-authored memory snapshot
@@ -48,6 +49,7 @@ import { FactoryVerificationRunner } from '../factory/verification.ts';
 import { GitHubClient } from '../github/client.ts';
 import { createRepositoryReader } from '../tools/repository.ts';
 import { parseFactoryAutonomyPolicy } from '../factory/autonomy.ts';
+import { parseFactoryCapabilityPolicy } from '../factory/capabilities.ts';
 import type { FactoryManualConfirmation } from '../factory/types.ts';
 import { createRepositoryLearningFromEnv } from '../memory/config.ts';
 
@@ -102,6 +104,11 @@ async function main(): Promise<void> {
         JSON.parse(await readFile(process.env.FACTORY_AUTONOMY_POLICY, 'utf8')) as unknown,
       )
     : undefined;
+  const capabilityPolicy = process.env.FACTORY_CAPABILITY_POLICY
+    ? parseFactoryCapabilityPolicy(
+        JSON.parse(await readFile(process.env.FACTORY_CAPABILITY_POLICY, 'utf8')) as unknown,
+      )
+    : undefined;
   const manualConfirmation = parseManualConfirmation(process.env.FACTORY_CONFIRM_BOUNDARY);
   const learning = createRepositoryLearningFromEnv(process.env, client, repositoryPath);
 
@@ -128,6 +135,7 @@ async function main(): Promise<void> {
     },
     judgmentsFrom: review.judgmentsFrom,
     autonomyPolicy,
+    capabilityPolicy,
     manualConfirmation,
     learning,
   });

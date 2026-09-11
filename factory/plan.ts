@@ -1,6 +1,13 @@
 import type { FactoryProgressPublisher } from './intake.ts';
 import type { FactoryOrchestrator } from './orchestrator.ts';
 import type { FactoryRun, ImplementationPlan, TaskClassification } from './types.ts';
+import { stageCapabilitiesFromAudit } from './capabilities.ts';
+import {
+  assertContextSource,
+  assertRepositoryPathsUnrestricted,
+  assertRepositoryRead,
+  assertToolAllowed,
+} from './capability-guard.ts';
 
 export type FactoryPlannerInput = {
   task: FactoryRun['task'];
@@ -49,6 +56,16 @@ async function planAndPublish(
   classification: TaskClassification,
   dependencies: PlanDependencies,
 ): Promise<FactoryRun> {
+  const manifest = stageCapabilitiesFromAudit(run.capabilities, 'planner');
+  assertRepositoryRead(manifest);
+  assertRepositoryPathsUnrestricted(manifest);
+  for (const tool of ['list_files', 'read_file']) assertToolAllowed(manifest, tool);
+  assertContextSource(manifest, 'issue');
+  assertContextSource(manifest, 'repository-instructions');
+  assertContextSource(manifest, 'retrieval');
+  if (dependencies.repositoryInstincts) {
+    assertContextSource(manifest, 'repository-instincts');
+  }
   await dependencies.progress.publish(
     run.task,
     'Factory planning started: inspecting the repository.',

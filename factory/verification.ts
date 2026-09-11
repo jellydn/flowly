@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import type { NetworkCapability } from './capabilities.ts';
 
 const DEFAULT_TIMEOUT_MS = 10 * 60_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 64 * 1024;
@@ -38,7 +39,11 @@ export class FactoryVerificationRunner {
     this.env = options.env ?? safeEnvironment();
   }
 
-  async run(commands: string[], workspacePath: string): Promise<VerificationCommandResult[]> {
+  async run(
+    commands: string[],
+    workspacePath: string,
+    options?: { network: NetworkCapability },
+  ): Promise<VerificationCommandResult[]> {
     if (commands.length === 0 || commands.length > MAX_COMMANDS) {
       throw new Error(
         `Factory plans must contain between 1 and ${MAX_COMMANDS} verification commands.`,
@@ -47,15 +52,37 @@ export class FactoryVerificationRunner {
     const results: VerificationCommandResult[] = [];
     for (const command of commands) {
       assertCommand(command);
-      results.push(await this.runCommand(command, workspacePath));
+      results.push(await this.runCommand(command, workspacePath, options?.network));
     }
     return results;
   }
 
-  private runCommand(command: string, cwd: string): Promise<VerificationCommandResult> {
+  private runCommand(
+    command: string,
+    cwd: string,
+    network: NetworkCapability | undefined,
+  ): Promise<VerificationCommandResult> {
     return new Promise((resolve, reject) => {
       const startedAt = Date.now();
-      const child = spawn('/bin/sh', ['-c', command], {
+      const executable = network?.mode === 'deny' ? '/usr/bin/sudo' : '/bin/sh';
+      const arguments_ =
+        network?.mode === 'deny'
+          ? [
+              '--non-interactive',
+              '/usr/bin/unshare',
+              '--net',
+              '--setuid',
+              String(process.getuid?.() ?? 65_534),
+              '--setgid',
+              String(process.getgid?.() ?? 65_534),
+              '/usr/bin/setpriv',
+              '--no-new-privs',
+              '/bin/sh',
+              '-c',
+              command,
+            ]
+          : ['-c', command];
+      const child = spawn(executable, arguments_, {
         cwd,
         detached: true,
         env: this.env,

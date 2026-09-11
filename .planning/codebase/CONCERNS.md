@@ -69,9 +69,9 @@
 **Two different capability boundaries must stay separate:**
 
 - Risk: the repository assistant is read-only, while the factory implementer can edit and execute commands in an isolated clone.
-- Files: `sandbox.ts`, `agents/factory-implementer.ts`, `factory/agent-implementer.ts`, `factory/git.ts`
-- Current mitigation: the assistant receives no filesystem or shell tools; the implementer uses root-confined `ReadWriteFs`, no network tools, and cannot publish. Trusted orchestration commits, pushes, and opens only draft PRs after verification and review.
-- Recommendation: do not reuse the writable sandbox in the assistant or reviewer. Keep GitHub credentials out of model-facing tools.
+- Files: `sandbox.ts`, `agents/factory-implementer.ts`, `factory/agent-implementer.ts`, `factory/git.ts`, `factory/capabilities.ts`, `factory/capability-guard.ts`
+- Current mitigation: the assistant receives no filesystem or shell tools; each factory stage resolves a least-capability manifest and trusted adapters deny undeclared tools, network, git writes, and GitHub mutations. The implementer uses root-confined `ReadWriteFs` and cannot publish. Trusted orchestration commits, pushes, and opens only draft PRs after verification and review.
+- Recommendation: do not reuse the writable sandbox in the assistant or reviewer. Keep GitHub credentials out of model-facing tools. Do not add a connector to the built-in profiles unless that stage requires it.
 
 **Repository and event content is untrusted:**
 

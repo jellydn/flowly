@@ -1,3 +1,13 @@
+import { stageCapabilitiesFromAudit, type NetworkCapability } from './capabilities.ts';
+import {
+  assertContextSource,
+  assertRepositoryPathsUnrestricted,
+  assertRepositoryRead,
+  assertRepositoryWrite,
+  assertToolAllowed,
+  bindGitMutator,
+  bindVerifier,
+} from './capability-guard.ts';
 import type { FactoryGitWorkspace } from './git.ts';
 import type { FactoryOrchestrator } from './orchestrator.ts';
 import type { FactoryRun, FactoryTask, ImplementationPlan } from './types.ts';
@@ -26,7 +36,11 @@ export type FactoryGitMutator = {
 };
 
 export type FactoryVerifier = {
-  run(commands: string[], workspacePath: string): Promise<VerificationCommandResult[]>;
+  run(
+    commands: string[],
+    workspacePath: string,
+    options?: { network: NetworkCapability },
+  ): Promise<VerificationCommandResult[]>;
 };
 
 export type ControlledImplementationDependencies = {
@@ -57,7 +71,20 @@ export async function runControlledImplementation(
     throw new Error(`Factory run ${implementing.id} is missing its plan or branch.`);
   }
 
-  const workspace = await dependencies.git.createWorkspace(
+  const implementerManifest = stageCapabilitiesFromAudit(implementing.capabilities, 'implementer');
+  assertRepositoryRead(implementerManifest);
+  assertRepositoryWrite(implementerManifest);
+  assertRepositoryPathsUnrestricted(implementerManifest);
+  for (const tool of ['list_files', 'read_file', 'write_file', 'search_code', 'bash']) {
+    assertToolAllowed(implementerManifest, tool);
+  }
+  assertContextSource(implementerManifest, 'issue');
+  assertContextSource(implementerManifest, 'approved-plan');
+  if (dependencies.repositoryInstincts) {
+    assertContextSource(implementerManifest, 'repository-instincts');
+  }
+  const git = bindGitMutator(dependencies.git, implementerManifest);
+  const workspace = await git.createWorkspace(
     implementing.id,
     implementing.branch,
     dependencies.baseRef,
@@ -68,7 +95,7 @@ export async function runControlledImplementation(
     workspace,
     repositoryInstincts: dependencies.repositoryInstincts,
   });
-  const commit = await dependencies.git.commit(
+  const commit = await git.commit(
     workspace,
     dependencies.commitMessage ?? `Implement issue #${implementing.task.issueNumber}`,
   );
@@ -88,11 +115,16 @@ async function resumeVerification(
   if (!verifying.plan || !verifying.branch || !verifying.implementation) {
     throw new Error(`Factory run ${verifying.id} cannot resume verification.`);
   }
-  const workspace = await dependencies.git.createWorkspace(
-    verifying.id,
-    verifying.branch,
-    dependencies.baseRef,
-  );
+  const implementerManifest = stageCapabilitiesFromAudit(verifying.capabilities, 'implementer');
+  const verifierManifest = stageCapabilitiesFromAudit(verifying.capabilities, 'verifier');
+  assertRepositoryRead(verifierManifest);
+  assertRepositoryPathsUnrestricted(verifierManifest);
+  assertToolAllowed(verifierManifest, 'bash');
+  assertContextSource(verifierManifest, 'workspace');
+  assertContextSource(verifierManifest, 'verification-commands');
+  const git = bindGitMutator(dependencies.git, implementerManifest);
+  const verifier = bindVerifier(dependencies.verifier, verifierManifest);
+  const workspace = await git.createWorkspace(verifying.id, verifying.branch, dependencies.baseRef);
   const approvedCommands = new Set(verifying.plan.verificationCommands);
   const commands = [
     ...new Set([
@@ -102,8 +134,11 @@ async function resumeVerification(
       ),
     ]),
   ];
-  const verification = await dependencies.verifier.run(commands, workspace.path);
-  const pristine = await dependencies.git.isPristine(workspace, verifying.implementation.commitSha);
+  const verification = await verifier.run(commands, workspace.path);
+  const pristine = await bindGitMutator(dependencies.git, verifierManifest).isPristine(
+    workspace,
+    verifying.implementation.commitSha,
+  );
   await dependencies.orchestrator.recordImplementation(verifying.id, {
     ...verifying.implementation,
     commands: verification.map(({ command, exitCode }) => ({ command, exitCode })),
