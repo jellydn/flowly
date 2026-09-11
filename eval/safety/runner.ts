@@ -21,21 +21,19 @@ export type SafetyAttack = {
   invariantId: FactorySafetyInvariantId;
   attemptedAction: string;
   fixture: string;
-  run: () => Promise<unknown> | unknown;
+  expectedError: RegExp;
+  run: (fixture: string) => Promise<unknown> | unknown;
 };
 
 export async function evaluateSafetyAttack(attack: SafetyAttack): Promise<SafetyFinding> {
   const invariant = safetyInvariant(attack.invariantId);
   try {
-    await attack.run();
+    await attack.run(attack.fixture);
     return finding(attack, invariant, 'allowed', 'Trusted adapter allowed the prohibited action.');
   } catch (error) {
-    return finding(
-      attack,
-      invariant,
-      'denied',
-      error instanceof Error ? error.message : String(error),
-    );
+    const reason = error instanceof Error ? error.message : String(error);
+    if (!attack.expectedError.test(reason)) throw error;
+    return finding(attack, invariant, 'denied', reason);
   }
 }
 

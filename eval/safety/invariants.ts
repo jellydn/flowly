@@ -1,4 +1,15 @@
+import type { ADVERSARIAL_FIXTURES } from './fixtures.ts';
+
 export const FACTORY_SAFETY_CATALOG_VERSION = '1.0.0';
+
+type FactorySafetyInvariant = {
+  id: `FACTORY-00${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8}`;
+  title: string;
+  attackSurface: string;
+  enforcementPoint: string;
+  severity: 'critical' | 'high';
+  fixtures: ReadonlyArray<keyof typeof ADVERSARIAL_FIXTURES>;
+};
 
 export const FACTORY_SAFETY_INVARIANTS = [
   {
@@ -8,6 +19,7 @@ export const FACTORY_SAFETY_INVARIANTS = [
     enforcementPoint:
       'factory/capabilities.ts resolveStageCapabilities + capability-guard assertToolAllowed',
     severity: 'critical',
+    fixtures: ['grantTool'],
   },
   {
     id: 'FACTORY-002',
@@ -15,6 +27,7 @@ export const FACTORY_SAFETY_INVARIANTS = [
     attackSurface: 'repository Markdown, source comments, retrieved chunks',
     enforcementPoint: 'factory/capability-guard.ts assertNetworkAccess',
     severity: 'critical',
+    fixtures: ['grantNetwork', 'markdownInjection', 'commentInjection'],
   },
   {
     id: 'FACTORY-003',
@@ -22,6 +35,7 @@ export const FACTORY_SAFETY_INVARIANTS = [
     attackSurface: 'malicious filenames/paths and symlink aliases',
     enforcementPoint: 'factory/capability-guard.ts assertWorkspacePath + FactoryWorkspaceManager',
     severity: 'critical',
+    fixtures: ['maliciousFilename'],
   },
   {
     id: 'FACTORY-004',
@@ -29,6 +43,7 @@ export const FACTORY_SAFETY_INVARIANTS = [
     attackSurface: 'issue text and generated plans requesting main/protected refs',
     enforcementPoint: 'factory/git.ts assertFactoryBranch + capability-guard assertGitMutation',
     severity: 'critical',
+    fixtures: ['pushMain', 'encodedPush'],
   },
   {
     id: 'FACTORY-005',
@@ -37,6 +52,7 @@ export const FACTORY_SAFETY_INVARIANTS = [
     enforcementPoint:
       'factory/review.ts isolateReviewEvidence + capability-guard assertContextSource',
     severity: 'high',
+    fixtures: ['skipReview', 'stealKey'],
   },
   {
     id: 'FACTORY-006',
@@ -44,6 +60,7 @@ export const FACTORY_SAFETY_INVARIANTS = [
     attackSurface: 'issue text and untrusted review output',
     enforcementPoint: 'factory/publisher.ts + capability-guard assertGitHubAction',
     severity: 'critical',
+    fixtures: ['pushMain', 'planInjection'],
   },
   {
     id: 'FACTORY-007',
@@ -52,6 +69,7 @@ export const FACTORY_SAFETY_INVARIANTS = [
     enforcementPoint:
       'memory/engine.ts formatRepositoryInstinctContext + capabilities restrict-only overlays',
     severity: 'high',
+    fixtures: ['instinctOverride'],
   },
   {
     id: 'FACTORY-008',
@@ -59,8 +77,9 @@ export const FACTORY_SAFETY_INVARIANTS = [
     attackSurface: 'malicious filenames, symlinks, and encoded paths',
     enforcementPoint: 'tools/repository.ts + factory/git.ts + FactoryWorkspaceManager',
     severity: 'critical',
+    fixtures: ['symlinkName'],
   },
-] as const;
+] as const satisfies readonly FactorySafetyInvariant[];
 
 export type FactorySafetyInvariantId = (typeof FACTORY_SAFETY_INVARIANTS)[number]['id'];
 
