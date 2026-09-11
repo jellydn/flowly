@@ -108,6 +108,7 @@ async function main(): Promise<void> {
     workspaceRoot,
     repositoryId: process.env.GITHUB_REPOSITORY!,
   });
+  await git.collectGarbage();
   const task = factoryTaskFromIssuesEvent(eventName, payload);
   const store = createFactoryRunStore(client, task.issueNumber);
   const autonomyPolicy = process.env.FACTORY_AUTONOMY_POLICY

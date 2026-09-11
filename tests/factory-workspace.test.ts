@@ -9,7 +9,10 @@ import {
   type FactoryWorkspaceEvent,
   type FactoryWorkspaceGit,
 } from '../factory/workspace-lifecycle.ts';
-import { MemoryFactoryWorkspaceStore } from '../factory/workspace-store.ts';
+import {
+  FileFactoryWorkspaceStore,
+  MemoryFactoryWorkspaceStore,
+} from '../factory/workspace-store.ts';
 
 const SHA = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const temporaryDirectories: string[] = [];
@@ -103,6 +106,30 @@ describe('FactoryWorkspaceManager', () => {
     assert.equal(listed[0]?.state, 'active');
   });
 
+  test('file store compare-and-swap rejects one concurrent writer', async () => {
+    const directory = await tempDir();
+    const store = new FileFactoryWorkspaceStore(directory);
+    const workspace = {
+      id: 'run-141',
+      runId: 'run-141',
+      attempt: 1,
+      repositoryId: 'jellydn/flowly',
+      path: '/tmp/run-141',
+      baseRef: 'origin/main',
+      baseSha: SHA,
+      branch: 'factory/141-lifecycle',
+      state: 'requested' as const,
+      version: 1,
+      createdAt: 1,
+      lastUsedAt: 1,
+    };
+
+    const results = await Promise.allSettled([store.save(workspace, 0), store.save(workspace, 0)]);
+
+    assert.equal(results.filter(({ status }) => status === 'fulfilled').length, 1);
+    assert.equal(results.filter(({ status }) => status === 'rejected').length, 1);
+  });
+
   test('suspend and resume revalidate ownership, branch, and repository', async () => {
     const { manager } = await createManager();
     const allocated = await manager.allocate({
@@ -160,6 +187,30 @@ describe('FactoryWorkspaceManager', () => {
           repositoryId: 'jellydn/flowly',
         }),
       /cleanup has already begun/,
+    );
+  });
+
+  test('resume rejects a workspace whose HEAD changed outside the lifecycle manager', async () => {
+    let headSha = SHA;
+    const { manager, git } = await createManager();
+    git.resolveSha = async (_workspace, rev) => (rev === 'HEAD' ? headSha : SHA);
+    const allocated = await manager.allocate({
+      runId: 'run-141',
+      attempt: 1,
+      branch: 'factory/141-lifecycle',
+      baseRef: 'origin/main',
+    });
+    await manager.suspend(allocated.id);
+    headSha = 'cccccccccccccccccccccccccccccccccccccccc';
+
+    await assert.rejects(
+      () =>
+        manager.resume(allocated.id, {
+          runId: 'run-141',
+          branch: 'factory/141-lifecycle',
+          repositoryId: 'jellydn/flowly',
+        }),
+      /HEAD moved/,
     );
   });
 

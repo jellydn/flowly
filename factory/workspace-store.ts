@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import * as v from 'valibot';
+import { withFileLock } from '../workspace.ts';
 
 export const FACTORY_WORKSPACE_STATES = [
   'requested',
@@ -24,6 +26,7 @@ export type FactoryWorkspace = {
   path: string;
   baseRef: string;
   baseSha: string;
+  headSha?: string;
   branch: string;
   state: FactoryWorkspaceState;
   version: number;
@@ -48,6 +51,7 @@ const workspaceSchema = v.object({
   path: v.pipe(v.string(), v.minLength(1)),
   baseRef: v.pipe(v.string(), v.minLength(1)),
   baseSha: v.string(),
+  headSha: v.optional(v.string()),
   branch: v.pipe(v.string(), v.minLength(1)),
   state: v.picklist(
     FACTORY_WORKSPACE_STATES as unknown as [FactoryWorkspaceState, ...FactoryWorkspaceState[]],
@@ -119,9 +123,12 @@ export class FileFactoryWorkspaceStore implements FactoryWorkspaceStore {
 
   async save(workspace: FactoryWorkspace, expectedVersion: number): Promise<void> {
     await mkdir(this.directory, { recursive: true });
-    const current = await this.load(workspace.id);
-    assertWorkspaceVersion(workspace, expectedVersion, current?.version ?? 0);
-    await writeAtomicJson(this.filePath(workspace.id), workspace);
+    const filePath = this.filePath(workspace.id);
+    await withFileLock(`${filePath}.lock`, async () => {
+      const current = await this.load(workspace.id);
+      assertWorkspaceVersion(workspace, expectedVersion, current?.version ?? 0);
+      await writeAtomicJson(filePath, workspace);
+    });
   }
 
   async findByRunAttempt(runId: string, attempt: number): Promise<FactoryWorkspace | null> {
@@ -164,7 +171,7 @@ async function readWorkspaceFile(filePath: string): Promise<FactoryWorkspace | n
 
 async function writeAtomicJson(filePath: string, workspace: FactoryWorkspace): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
-  const temporaryPath = `${filePath}.tmp`;
+  const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
   try {
     await writeFile(temporaryPath, `${JSON.stringify(workspace, null, 2)}\n`);
     await rename(temporaryPath, filePath);

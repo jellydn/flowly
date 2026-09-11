@@ -100,6 +100,7 @@ export class FactoryWorkspaceManager implements FactoryGitMutator {
   private readonly events: FactoryWorkspaceEventSink;
   private readonly now: () => number;
   private readonly removePath: (directory: string) => Promise<void>;
+  private readonly allocations = new Map<string, Promise<FactoryWorkspace>>();
 
   constructor(options: FactoryWorkspaceManagerOptions) {
     this.git = options.git;
@@ -132,7 +133,9 @@ export class FactoryWorkspaceManager implements FactoryGitMutator {
     message: string,
   ): Promise<{ commitSha: string; changedFiles: string[] }> {
     await this.assertUsable(workspace);
-    return this.git.commit(workspace, message);
+    const commit = await this.git.commit(workspace, message);
+    await this.updateHead(workspace.id, commit.commitSha);
+    return commit;
   }
 
   async push(workspace: FactoryGitWorkspace, commitSha: string): Promise<void> {
@@ -197,6 +200,14 @@ export class FactoryWorkspaceManager implements FactoryGitMutator {
         );
       }
     }
+    if (current.headSha) {
+      const headSha = await this.git.resolveSha?.(gitWorkspace, 'HEAD');
+      if (headSha && headSha !== current.headSha) {
+        throw new Error(
+          `Factory workspace ${id} HEAD moved from ${current.headSha} to ${headSha}; refusing unsafe resume.`,
+        );
+      }
+    }
     const next = await this.save({
       ...current,
       state: 'active',
@@ -222,6 +233,22 @@ export class FactoryWorkspaceManager implements FactoryGitMutator {
   }
 
   async allocate(input: {
+    runId: string;
+    attempt: number;
+    branch: string;
+    baseRef: string;
+  }): Promise<FactoryWorkspace> {
+    const key = `${input.runId}:${input.attempt}`;
+    const existing = this.allocations.get(key);
+    if (existing) return existing;
+    const allocation = this.allocateOnce(input).finally(() => {
+      if (this.allocations.get(key) === allocation) this.allocations.delete(key);
+    });
+    this.allocations.set(key, allocation);
+    return allocation;
+  }
+
+  private async allocateOnce(input: {
     runId: string;
     attempt: number;
     branch: string;
@@ -267,7 +294,7 @@ export class FactoryWorkspaceManager implements FactoryGitMutator {
         }
         return next;
       } catch (error) {
-        if (isVersionConflict(error)) return this.allocate(input);
+        if (isVersionConflict(error)) return this.allocateOnce(input);
         throw error;
       }
     }
@@ -297,7 +324,7 @@ export class FactoryWorkspaceManager implements FactoryGitMutator {
       await this.store.save(record, 0);
     } catch (error) {
       const raced = await this.store.findByRunAttempt(input.runId, input.attempt);
-      if (raced) return this.allocate(input);
+      if (raced) return this.allocateOnce(input);
       throw error;
     }
     record = await this.save({ ...record, state: 'allocated' });
@@ -312,6 +339,7 @@ export class FactoryWorkspaceManager implements FactoryGitMutator {
       ...record,
       path: gitWorkspace.path,
       baseSha,
+      headSha: baseSha,
       state: 'hydrated',
       lastUsedAt: this.now(),
     });
@@ -320,6 +348,18 @@ export class FactoryWorkspaceManager implements FactoryGitMutator {
     record = await this.save({ ...record, state: 'active', lastUsedAt: this.now() });
     await this.emit('workspace.activated', record, 'Workspace is active for implementation.');
     return record;
+  }
+
+  private async updateHead(id: string, headSha: string): Promise<void> {
+    for (;;) {
+      const current = await this.require(id);
+      try {
+        await this.save({ ...current, headSha, lastUsedAt: this.now() });
+        return;
+      } catch (error) {
+        if (!isVersionConflict(error)) throw error;
+      }
+    }
   }
 
   async collectGarbage(now = this.now()): Promise<FactoryWorkspace[]> {
