@@ -76,7 +76,7 @@ describe('FactoryVerificationRunner', () => {
     const runner = new FactoryVerificationRunner();
 
     const [result] = await runner.run(
-      ['test "$(tail -n +2 /proc/net/route | wc -l)" -eq 0'],
+      ['test "$(tail -n +2 /proc/net/route | wc -l)" -eq 0 && ! sudo --non-interactive true'],
       workspace,
       { network: { mode: 'deny', hosts: [] } },
     );

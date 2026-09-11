@@ -64,10 +64,23 @@ export class FactoryVerificationRunner {
   ): Promise<VerificationCommandResult> {
     return new Promise((resolve, reject) => {
       const startedAt = Date.now();
-      const executable = network?.mode === 'deny' ? '/usr/bin/unshare' : '/bin/sh';
+      const executable = network?.mode === 'deny' ? '/usr/bin/sudo' : '/bin/sh';
       const arguments_ =
         network?.mode === 'deny'
-          ? ['--user', '--map-root-user', '--net', '/bin/sh', '-c', command]
+          ? [
+              '--non-interactive',
+              '/usr/bin/unshare',
+              '--net',
+              '--setuid',
+              String(process.getuid?.() ?? 65_534),
+              '--setgid',
+              String(process.getgid?.() ?? 65_534),
+              '/usr/bin/setpriv',
+              '--no-new-privs',
+              '/bin/sh',
+              '-c',
+              command,
+            ]
           : ['-c', command];
       const child = spawn(executable, arguments_, {
         cwd,
