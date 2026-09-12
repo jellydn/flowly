@@ -31,6 +31,9 @@
  *   FLOWLY_EVAL_BASE_URL    – fallback base URL for unknown providers
  *   FLUE_EVAL_*             – legacy fallbacks for the variables above
  *
+ * Model-specific `baseUrl` and `apiKeyEnv` fields are rejected unless the
+ * operator passes `--trust-model-overrides` after reviewing the config.
+ *
  * Legacy: FLUE_EVAL_MODEL was removed when per-model provider resolution
  * landed — model ids and providers now come from the config's models list.
  *
@@ -66,10 +69,6 @@ const DEFAULT_RESULTS_DIR = 'eval/results';
 function fail(message: string, code = 1): never {
   console.error(`[flowly-eval] ${message}`);
   process.exit(code);
-}
-
-function modelClientKey(model: ModelSpec): string {
-  return [model.provider, model.id, model.baseUrl ?? '', model.apiKeyEnv ?? ''].join('\0');
 }
 
 function formatCostUsd(costUsd: number): string {
@@ -110,9 +109,9 @@ async function loadReportOrExit(
 
 function usage(): never {
   console.error(`Usage:
-  npm run eval -- run <config.json> [--live] [--json] [--judge-model <spec>]
-  npm run eval -- gate <config.json> [--live] [--no-save] [--judge-model <spec>]
-  npm run eval -- compare <config.json> [--live] [--judge-model <spec>]
+  npm run eval -- run <config.json> [--live] [--json] [--judge-model <spec>] [--trust-model-overrides]
+  npm run eval -- gate <config.json> [--live] [--no-save] [--judge-model <spec>] [--trust-model-overrides]
+  npm run eval -- compare <config.json> [--live] [--judge-model <spec>] [--trust-model-overrides]
   npm run eval -- leaderboard [--suite <id>]
   npm run eval -- report <runId>
   npm run eval -- review <runId> --accept <id,...> [--reject <id,...>]
@@ -121,7 +120,8 @@ Deterministic mode (default) uses the bundled capstone deciders and needs no
 LLM key. Pass --live to run provider-backed model calls. Pass
 --judge-model <spec> to score with an LLM judge instead of the keyword judge
 (spec: a provider-qualified id like openrouter/qwen/qwen3-coder, or a JSON
-model spec).`);
+model spec). Model-specific baseUrl/apiKeyEnv values require
+--trust-model-overrides after you review the config.`);
   process.exit(2);
 }
 
@@ -138,7 +138,10 @@ function buildDeciders(): Record<string, DecisionFn> {
  * Build the LLM judge for a `--judge-model <spec>` flag value. Exits with the
  * actionable message on an invalid spec; undefined means the keyword judge.
  */
-function buildJudge(spec: string | undefined): { judge?: Judge; judgeId?: string } {
+function buildJudge(
+  spec: string | undefined,
+  trustModelOverrides: boolean,
+): { judge?: Judge; judgeId?: string } {
   if (spec === undefined) return {};
   const parsed = parseModelSpecString(spec);
   if (!parsed.ok) {
@@ -146,7 +149,10 @@ function buildJudge(spec: string | undefined): { judge?: Judge; judgeId?: string
     fail(`Invalid --judge-model spec: "${spec}"`, 2);
   }
   const model = withDefaultPricing(parsed.model);
-  return { judge: createLlmJudgeFromSpec(model, process.env), judgeId: model.id };
+  return {
+    judge: createLlmJudgeFromSpec(model, process.env, { trustModelOverrides }),
+    judgeId: model.id,
+  };
 }
 
 /** Short label for a scenario's human-verdict state. */
@@ -192,15 +198,19 @@ function printReport(report: BenchmarkReport, json: boolean): void {
 
 async function runAll(
   configPath: string,
-  live: boolean,
-  judgeModelSpec?: string,
-  save = true,
+  options: {
+    live: boolean;
+    judgeModelSpec?: string;
+    save?: boolean;
+    trustModelOverrides?: boolean;
+  },
 ): Promise<{
   suiteName: string;
   suiteId: string;
   gate?: BenchmarkGate;
   reports: BenchmarkReport[];
 }> {
+  const { live, judgeModelSpec, save = true, trustModelOverrides = false } = options;
   const loaded = await loadBenchmarkConfigFromFile(configPath);
   if (!loaded.ok) {
     for (const issue of loaded.issues) console.error(`  - ${issue}`);
@@ -219,7 +229,7 @@ async function runAll(
   if (live) {
     for (const model of models) {
       try {
-        modelCalls.set(modelClientKey(model), createProviderClient(model, process.env));
+        modelCalls.set(model.id, createProviderClient(model, process.env, { trustModelOverrides }));
       } catch (error) {
         fail(
           `Cannot build a live client for model "${model.id}": ${
@@ -232,14 +242,14 @@ async function runAll(
 
   const reports: BenchmarkReport[] = [];
   const store = createFileBenchmarkStore(resultsDir);
-  const { judge, judgeId } = buildJudge(judgeModelSpec);
+  const { judge, judgeId } = buildJudge(judgeModelSpec, trustModelOverrides);
 
   for (const rawModel of models) {
     const model: ModelSpec = withDefaultPricing(rawModel);
     const report = await runBenchmark(suite, model, {
       mode: live ? 'live' : 'deterministic',
       deciders: live ? undefined : buildDeciders(),
-      modelCall: modelCalls.get(modelClientKey(model)),
+      modelCall: modelCalls.get(model.id),
       judge,
       judgeId,
       repositoryPath: suite.repositoryPath,
@@ -251,6 +261,7 @@ async function runAll(
 }
 
 function formatGateValue(metric: keyof BenchmarkGate, value: number): string {
+  if (Number.isNaN(value)) return 'unknown';
   return metric === 'maxAvgLatencyMs'
     ? `${value.toFixed(0)}ms`
     : metric === 'maxCostUsd'
@@ -296,7 +307,11 @@ async function main(): Promise<number> {
       const json = rest.includes('--json');
       const judgeModel = flagValue(rest, '--judge-model');
       if (rest.includes('--judge-model') && judgeModel === undefined) usage();
-      const { reports } = await runAll(configPath, live, judgeModel);
+      const { reports } = await runAll(configPath, {
+        live,
+        judgeModelSpec: judgeModel,
+        trustModelOverrides: rest.includes('--trust-model-overrides'),
+      });
       if (json) {
         // Emit a single JSON document: an array when multiple models ran.
         const payload = reports.length === 1 ? reports[0] : reports;
@@ -311,12 +326,12 @@ async function main(): Promise<number> {
       const live = rest.includes('--live');
       const judgeModel = flagValue(rest, '--judge-model');
       if (rest.includes('--judge-model') && judgeModel === undefined) usage();
-      const { reports, gate } = await runAll(
-        configPath,
+      const { reports, gate } = await runAll(configPath, {
         live,
-        judgeModel,
-        !rest.includes('--no-save'),
-      );
+        judgeModelSpec: judgeModel,
+        save: !rest.includes('--no-save'),
+        trustModelOverrides: rest.includes('--trust-model-overrides'),
+      });
       if (!gate) {
         console.error(
           `[flowly-eval] Benchmark config "${configPath}" has no suite.gate thresholds.`,
@@ -335,7 +350,11 @@ async function main(): Promise<number> {
       const live = rest.includes('--live');
       const judgeModel = flagValue(rest, '--judge-model');
       if (rest.includes('--judge-model') && judgeModel === undefined) usage();
-      const { suiteName, suiteId, reports } = await runAll(configPath, live, judgeModel);
+      const { suiteName, suiteId, reports } = await runAll(configPath, {
+        live,
+        judgeModelSpec: judgeModel,
+        trustModelOverrides: rest.includes('--trust-model-overrides'),
+      });
       const comparison: ModelComparison = {
         suiteId,
         suiteName,

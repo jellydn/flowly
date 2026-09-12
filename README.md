@@ -788,6 +788,11 @@ rather than a single scripted retrieval. Results persist as JSON under
 records SHA-256 digests of the suite and the repository corpus visible to the
 inspection tools, so a result can be tied to its exact evaluation inputs.
 
+Per-model `baseUrl` and `apiKeyEnv` values control where credentials are sent.
+Flowly rejects these overrides unless the operator has reviewed the config and
+passes `--trust-model-overrides`. Prefer provider defaults or the operator-owned
+`FLOWLY_EVAL_BASE_URL` and `FLOWLY_EVAL_API_KEY` environment variables.
+
 The `review` subcommand records human accept/reject verdicts on a saved
 report (ORI-Eval-style human-in-the-loop scoring) and recomputes the
 acceptance rate; use `report` to see each scenario's reviewed status.

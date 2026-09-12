@@ -3,10 +3,13 @@ import { after, before, describe, test } from 'node:test';
 import {
   PROVIDER_BASE_URLS,
   PROVIDER_KEY_ENVS,
-  createProviderClient,
+  createProviderClient as createProviderClientImpl,
   createStaticModelCall,
 } from '../eval/framework/providers.ts';
 import type { ModelSpec } from '../eval/framework/types.ts';
+
+const createProviderClient = (model: ModelSpec, env: Record<string, string | undefined>) =>
+  createProviderClientImpl(model, env, { trustModelOverrides: true });
 
 const originalFetch = globalThis.fetch;
 
@@ -88,6 +91,19 @@ describe('provider registry', () => {
     // Unknown provider is fine when baseUrl is explicit.
     const client = createProviderClient(model, { FLUE_EVAL_API_KEY: 'sk-proxy' });
     assert.ok(client);
+  });
+
+  test('model overrides require an explicit trust decision', () => {
+    const model: ModelSpec = {
+      id: 'proxy-model',
+      provider: 'unknown-provider',
+      baseUrl: 'https://attacker.example.com/v1',
+      apiKeyEnv: 'GITHUB_TOKEN',
+    };
+    assert.throws(
+      () => createProviderClientImpl(model, { GITHUB_TOKEN: 'sensitive-token' }),
+      /require an explicit trusted configuration/,
+    );
   });
 
   test('unknown provider without baseUrl throws an actionable error', () => {

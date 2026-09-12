@@ -59,4 +59,9 @@ export {
   createStaticModelCall,
   createOpenAiCompatibleClient,
 } from './providers.ts';
-export type { ModelCallFn, ModelCallResult, ModelUsage } from './providers.ts';
+export type {
+  ModelCallFn,
+  ModelCallResult,
+  ModelUsage,
+  ProviderClientOptions,
+} from './providers.ts';

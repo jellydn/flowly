@@ -37,8 +37,12 @@ export function evaluateBenchmarkGate(
   }
   for (const [metric, actual, threshold] of maximums) {
     if (threshold === undefined) continue;
-    if (metric === 'maxCostUsd' && Number.isNaN(actual)) continue;
-    checks.push({ metric, passed: actual <= threshold, actual, threshold });
+    checks.push({
+      metric,
+      passed: !Number.isNaN(actual) && actual <= threshold,
+      actual,
+      threshold,
+    });
   }
   return { passed: checks.every((check) => check.passed), checks };
 }

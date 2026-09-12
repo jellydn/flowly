@@ -14,6 +14,7 @@ import {
   parseBenchmarkConfig,
   parseModel,
   parseSuite,
+  recordHumanAcceptance,
 } from '../eval/framework/index.ts';
 import { buildReport, computeSummary, scoreScenario } from '../eval/framework/index.ts';
 import type { BenchmarkReport, BenchmarkScenario, MetricPass } from '../eval/framework/types.ts';
@@ -66,6 +67,17 @@ test('parseSuite rejects empty scenario ids', () => {
   if (!result.ok) assert.ok(result.issues.some((i) => i.includes('scenarios.0.id')));
 });
 
+test('config schemas reject unknown fields instead of hiding typos', () => {
+  assert.ok(!parseSuite({ ...sampleSuite, maxStep: 4 }).ok);
+  assert.ok(
+    !parseSuite({
+      ...sampleSuite,
+      scenarios: [{ id: 's1', prompt: 'p', requiresCitations: true }],
+    }).ok,
+  );
+  assert.ok(!parseModel({ ...sampleModel, apiKeyEnvironment: 'OPENROUTER_API_KEY' }).ok);
+});
+
 test('parseSuite validates versioned quality gates', () => {
   const valid = parseSuite({ ...sampleSuite, gate: { minQualityScore: 0.9 } });
   assert.ok(valid.ok);
@@ -84,6 +96,12 @@ test('parseBenchmarkConfig requires at least one model', () => {
   const result = parseBenchmarkConfig({ suite: sampleSuite, models: [] });
   assert.ok(!result.ok);
   if (!result.ok) assert.ok(result.issues.some((i) => i.includes('models')));
+});
+
+test('parseBenchmarkConfig rejects duplicate model ids', () => {
+  const result = parseBenchmarkConfig({ suite: sampleSuite, models: [sampleModel, sampleModel] });
+  assert.ok(!result.ok);
+  if (!result.ok) assert.ok(result.issues.some((i) => i.includes('Model ids must be unique')));
 });
 
 test('parseBenchmarkConfig accepts a full config', () => {
@@ -300,7 +318,7 @@ test('evaluateBenchmarkGate reports every threshold and fails regressions', () =
   );
 });
 
-test('evaluateBenchmarkGate skips maxCostUsd when cost is unknown', () => {
+test('evaluateBenchmarkGate fails maxCostUsd when cost is unknown', () => {
   const report = buildReport({
     runId: 'unknown-cost',
     suiteId: 'sample',
@@ -333,10 +351,13 @@ test('evaluateBenchmarkGate skips maxCostUsd when cost is unknown', () => {
     ],
   });
   const result = evaluateBenchmarkGate(report, { maxCostUsd: 0.01, minPassRate: 1 });
-  assert.equal(result.passed, true);
+  assert.equal(result.passed, false);
   assert.deepEqual(
-    result.checks.map((check) => check.metric),
-    ['minPassRate'],
+    result.checks.map((check) => [check.metric, check.passed]),
+    [
+      ['minPassRate', true],
+      ['maxCostUsd', false],
+    ],
   );
 });
 
@@ -412,12 +433,35 @@ test('file store persists reports across instances', async (t) => {
     totalScenarios: 1,
     passed: 1,
     failed: 0,
-    results: [],
+    results: [
+      {
+        id: 's1',
+        prompt: 'p',
+        passed: true,
+        metrics: {
+          qualityScore: 1,
+          latencyMs: 10,
+          tokensIn: 10,
+          tokensOut: 10,
+          costUsd: Number.NaN,
+          toolSuccess: pass('ok'),
+          citationAccuracy: pass('ok'),
+          retrievalRelevance: pass('ok'),
+          answerCompleteness: pass('ok'),
+          patchApplicability: null,
+        },
+        toolsUsed: [],
+        citedSources: [],
+        errors: [],
+        answer: 'a',
+        confidence: 'high',
+      },
+    ],
     summary: {
       qualityScore: 1,
       avgLatencyMs: 10,
       totalTokens: 100,
-      costUsd: 0.01,
+      costUsd: Number.NaN,
       toolSuccessRate: 1,
       patchApplicabilityRate: Number.NaN,
       humanAcceptanceRate: Number.NaN,
@@ -430,6 +474,9 @@ test('file store persists reports across instances', async (t) => {
   const second = createFileBenchmarkStore(dir);
   const loaded = await second.load('r1');
   assert.deepEqual(loaded?.runId, 'r1');
+  assert.ok(loaded && Number.isNaN(loaded.results[0].metrics.costUsd));
+  assert.ok(loaded && Number.isNaN(recordHumanAcceptance(loaded, { s1: true }).summary.costUsd));
+  assert.ok(loaded && Number.isNaN(loaded.summary.costUsd));
   assert.ok(loaded && Number.isNaN(loaded.summary.patchApplicabilityRate));
   assert.ok(loaded && Number.isNaN(loaded.summary.humanAcceptanceRate));
   assert.equal((await second.leaderboard('sample')).length, 1);

@@ -72,17 +72,28 @@ export const PROVIDER_KEY_ENVS: Record<string, string> = {
   grok: 'XAI_API_KEY',
 };
 
+export type ProviderClientOptions = {
+  /** Permit endpoint and key-variable overrides from a configuration the operator has reviewed. */
+  trustModelOverrides?: boolean;
+};
+
 /**
- * Resolve the OpenAI-compatible client for a model spec. Uses the model's
- * `baseUrl`/`apiKeyEnv` when provided, falling back to the per-provider
- * defaults, the Flowly-wide eval variables, and then the legacy `FLUE_EVAL_*`
- * variables. Throws an actionable error when the provider is unknown or its
- * key is missing.
+ * Resolve the OpenAI-compatible client for a model spec. Model-specific
+ * `baseUrl`/`apiKeyEnv` overrides require an explicit trust decision because
+ * an untrusted config could otherwise select a sensitive environment variable
+ * and send it to an arbitrary endpoint. Provider defaults and Flowly-wide
+ * environment fallbacks do not require that opt-in.
  */
 export function createProviderClient(
   model: ModelSpec,
   env: Record<string, string | undefined> = process.env,
+  options: ProviderClientOptions = {},
 ): ModelCallFn {
+  if ((model.baseUrl || model.apiKeyEnv) && !options.trustModelOverrides) {
+    throw new Error(
+      'Model-specific baseUrl and apiKeyEnv values require an explicit trusted configuration.',
+    );
+  }
   const provider = model.provider.toLowerCase();
   const baseUrl =
     model.baseUrl ??

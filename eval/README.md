@@ -62,6 +62,9 @@ npm run eval -- run eval/suites/sample.json --live \
 
 The bundled suite names OpenRouter, Anthropic, and DeepSeek models. A live run needs the matching
 key for every configured model, or a custom suite containing only the providers you configured.
+Provider defaults are safe for ordinary suite files. If a reviewed local config uses per-model
+`baseUrl` or `apiKeyEnv` overrides, add `--trust-model-overrides`; Flowly rejects those fields
+without this explicit operator decision because they control where credentials are sent.
 Use `FLOWLY_EVAL_API_KEY` and `FLOWLY_EVAL_BASE_URL` as product-wide fallbacks, and
 `FLOWLY_EVAL_RESULTS_DIR` to change the report directory. The former `FLUE_EVAL_*` names remain
 supported as legacy fallbacks, but new configuration should use `FLOWLY_EVAL_*`.

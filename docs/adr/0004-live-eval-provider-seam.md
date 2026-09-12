@@ -81,11 +81,16 @@ and `--judge-model` are both opt-in flags.
 
 - Live mode and `--judge-model` both require a key; misconfiguration fails
   fast with an actionable error rather than silently degrading.
+- Per-model `baseUrl` and `apiKeyEnv` overrides require the explicit
+  `--trust-model-overrides` operator flag. This prevents an unreviewed suite
+  from selecting a sensitive environment variable and sending it to an
+  arbitrary endpoint.
 - The model-driven loop makes live runs non-deterministic and token-spending
   by nature — CI must stay on deterministic mode.
 - The provider registry is a convenience table, not an exhaustive catalog;
-  providers outside it need an explicit `baseUrl` (and cost reads $0 unless
-  the provider reports usage).
+  providers outside it need an operator-owned `FLOWLY_EVAL_BASE_URL` or a
+  trusted per-model `baseUrl` (and cost stays unknown unless pricing or
+  provider-reported usage is available).
 - `FLOWLY_EVAL_API_KEY` and `FLOWLY_EVAL_BASE_URL` are the product-wide
   fallbacks. The old `FLUE_EVAL_API_KEY` and `FLUE_EVAL_BASE_URL` names remain
   read fallbacks for compatibility; `FLUE_EVAL_MODEL` is retired. These are

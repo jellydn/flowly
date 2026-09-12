@@ -66,6 +66,13 @@ function confinedReportFile(resultsDir: string, suiteId: string, runId: string):
 function reviveUnmeasuredRates(report: BenchmarkReport): BenchmarkReport {
   return {
     ...report,
+    results: report.results.map((result) => ({
+      ...result,
+      metrics: {
+        ...result.metrics,
+        costUsd: result.metrics.costUsd ?? Number.NaN,
+      },
+    })),
     summary: {
       ...report.summary,
       costUsd: report.summary.costUsd ?? Number.NaN,

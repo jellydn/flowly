@@ -27,13 +27,15 @@ export type ModelSpec = {
   pricing?: ModelPricing;
   /**
    * Environment variable holding the API key for this model's provider
-   * (e.g. "OPENAI_API_KEY"). When absent, a per-provider default key env is
-   * used (see createProviderClient in providers.ts).
+   * (e.g. "OPENAI_API_KEY"). This override requires an explicit trust opt-in
+   * at the provider-client boundary. When absent, a per-provider default key
+   * env is used (see createProviderClient in providers.ts).
    */
   apiKeyEnv?: string;
   /**
    * OpenAI-compatible base URL for this model's provider. When absent, a
-   * known per-provider endpoint is used; unknown providers require this.
+   * known per-provider endpoint is used. This override requires an explicit
+   * trust opt-in; unknown providers can also use FLOWLY_EVAL_BASE_URL.
    */
   baseUrl?: string;
 };

@@ -26,9 +26,7 @@ export function encodeFactoryRunComment(run: FactoryRun): string {
 }
 
 export function isFactoryRunComment(body: string): boolean {
-  return [STATE_MARKER, LEGACY_STATE_MARKER].some((marker) =>
-    body.startsWith(`<!-- ${marker}\n`),
-  );
+  return [STATE_MARKER, LEGACY_STATE_MARKER].some((marker) => body.startsWith(`<!-- ${marker}\n`));
 }
 
 export function parseFactoryRunComment(body: string): FactoryRun | null {

@@ -11,7 +11,7 @@ import type { BenchmarkSuite, ModelSpec } from './types.ts';
 
 const nonEmpty = v.pipe(v.string(), v.minLength(1));
 
-const scenarioSchema = v.object({
+const scenarioSchema = v.strictObject({
   id: nonEmpty,
   prompt: nonEmpty,
   expectedSources: v.optional(v.array(nonEmpty)),
@@ -24,7 +24,7 @@ const scenarioSchema = v.object({
 const rate = v.pipe(v.number(), v.minValue(0), v.maxValue(1));
 
 const gateSchema = v.pipe(
-  v.object({
+  v.strictObject({
     minPassRate: v.optional(rate),
     minQualityScore: v.optional(rate),
     minToolSuccessRate: v.optional(rate),
@@ -37,7 +37,7 @@ const gateSchema = v.pipe(
   ),
 );
 
-const suiteSchema = v.object({
+const suiteSchema = v.strictObject({
   id: v.pipe(nonEmpty, v.maxLength(100)),
   name: nonEmpty,
   description: v.optional(nonEmpty),
@@ -47,12 +47,12 @@ const suiteSchema = v.object({
   scenarios: v.pipe(v.array(scenarioSchema), v.minLength(1)),
 });
 
-const pricingSchema = v.object({
+const pricingSchema = v.strictObject({
   inputPer1kUsd: v.pipe(v.number(), v.minValue(0)),
   outputPer1kUsd: v.pipe(v.number(), v.minValue(0)),
 });
 
-const modelSchema = v.object({
+const modelSchema = v.strictObject({
   id: nonEmpty,
   provider: nonEmpty,
   label: v.optional(nonEmpty),
@@ -62,9 +62,16 @@ const modelSchema = v.object({
 });
 
 /** JSON config that wires a suite to a model list (used by `npm run eval`). */
-const benchmarkConfigSchema = v.object({
+const benchmarkConfigSchema = v.strictObject({
   suite: suiteSchema,
-  models: v.pipe(v.array(modelSchema), v.minLength(1)),
+  models: v.pipe(
+    v.array(modelSchema),
+    v.minLength(1),
+    v.check(
+      (models) => new Set(models.map((model) => model.id)).size === models.length,
+      'Model ids must be unique.',
+    ),
+  ),
 });
 
 export type SuiteInput = v.InferOutput<typeof suiteSchema>;
