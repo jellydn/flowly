@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Flue PR Review entrypoint.
+ * Flowly PR review entrypoint.
  *
- * Validates the GitHub Actions environment, then invokes the Flue PR Review
+ * Validates the GitHub Actions environment, then invokes the Flowly PR review
  * agent. The agent's tools fetch PR metadata and the diff, inspect context,
  * and submit the review through the trusted publisher. This script only
  * orchestrates — it holds no review logic.
@@ -33,7 +33,7 @@ const REQUIRED_ENV = [
 ] as const;
 
 function fail(message: string): never {
-  console.error(`[flue-review] ${message}`);
+  console.error(`[flowly-review] ${message}`);
   process.exit(1);
 }
 
@@ -62,7 +62,7 @@ const prompt = [
 ].join('\n');
 
 const args = ['run', 'agents/pr-reviewer.ts', '-m', prompt];
-console.error(`[flue-review] Invoking: npx flue ${args.slice(0, 3).join(' ')} ...`);
+console.error(`[flowly-review] Invoking: npx flue ${args.slice(0, 3).join(' ')} ...`);
 
 const child = spawn('npx', ['flue', ...args], {
   stdio: 'inherit',
@@ -70,7 +70,7 @@ const child = spawn('npx', ['flue', ...args], {
 });
 
 child.on('error', (err) => {
-  fail(`Failed to launch flue: ${err.message}`);
+  fail(`Failed to launch Flue: ${err.message}`);
 });
 
 child.on('exit', (code) => {

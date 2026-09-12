@@ -17,13 +17,13 @@ import {
   recordHumanAcceptance,
   runBenchmark,
   withDefaultPricing,
-} from '../eval/bench/index.ts';
+} from '../eval/framework/index.ts';
 import type {
   BenchmarkReport,
   BenchmarkScenario,
   BenchmarkSuite,
   ModelSpec,
-} from '../eval/bench/types.ts';
+} from '../eval/framework/types.ts';
 import type { DecisionFn, InvestigationResult } from '../investigation/types.ts';
 
 const scenario: BenchmarkScenario = {
@@ -165,6 +165,12 @@ test('formatJudgePrompt includes scenario expectations', () => {
   assert.ok(prompt.includes(scenario.prompt));
   assert.ok(prompt.includes('README.md'));
   assert.ok(prompt.includes('authentication'));
+  assert.ok(prompt.includes('Citations required when sources are available.'));
+});
+
+test('formatJudgePrompt treats omitted requiresCitation as not required', () => {
+  const prompt = formatJudgePrompt({ id: 's', prompt: 'p' }, 'answer text', 'evidence text');
+  assert.ok(prompt.includes('Citations not required.'));
 });
 
 test('createLlmJudgeFromSpec builds a judge through the provider registry', async () => {
@@ -464,6 +470,9 @@ test('createPatchCheck fails without a fenced block and passes with one', async 
   const noBlock = await check(scenario, 'just prose, no code fence');
   assert.ok(noBlock && !noBlock.passed);
 
-  const withBlock = await check(scenario, 'Here:\n```ts\n// change auth.ts\n```');
+  const withBlock = await check(scenario, 'Here:\n```ts\n// change README.md\n```');
   assert.ok(withBlock && withBlock.passed);
+
+  const unrelated = await check(scenario, 'Here:\n```ts\n// change auth.ts\n```');
+  assert.ok(unrelated && !unrelated.passed);
 });

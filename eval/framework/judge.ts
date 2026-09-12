@@ -15,7 +15,7 @@ import type { InvestigationResult } from '../../investigation/types.ts';
 import { checkScenario, type ScenarioChecks } from './runner.ts';
 import { scoreScenario } from './metrics.ts';
 import type { BenchmarkScenario, ModelSpec } from './types.ts';
-import { createProviderClient, type ModelCallFn } from './providers.ts';
+import { createProviderClient, type ModelCallFn, type ProviderClientOptions } from './providers.ts';
 
 export type JudgeInput = {
   scenario: BenchmarkScenario;
@@ -78,9 +78,9 @@ export function formatJudgePrompt(
     scenario.expectedKeywords?.length
       ? `Expected keywords: ${scenario.expectedKeywords.join(', ')}`
       : 'Expected keywords: none',
-    scenario.requiresCitation === false
-      ? 'Citations not required.'
-      : 'Citations required when sources are available.',
+    scenario.requiresCitation
+      ? 'Citations required when sources are available.'
+      : 'Citations not required.',
     '',
     'Answer:',
     answer,
@@ -114,8 +114,9 @@ export function createLlmJudge(modelCall: (prompt: string) => Promise<string>): 
 export function createLlmJudgeFromSpec(
   model: ModelSpec,
   env: Record<string, string | undefined> = process.env,
+  options: ProviderClientOptions = {},
 ): Judge {
-  const modelCall: ModelCallFn = createProviderClient(model, env);
+  const modelCall: ModelCallFn = createProviderClient(model, env, options);
   return createLlmJudgeFromCall(async (prompt) => (await modelCall(prompt)).content);
 }
 

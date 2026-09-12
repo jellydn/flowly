@@ -101,7 +101,7 @@ export interface PrDataSource {
   getReviewState(): Promise<ReviewState | null>;
   /** Return the incremental diff since the last reviewed SHA. */
   getIncrementalDiff(maxLines: number): Promise<IncrementalDiffResult>;
-  /** Read repository-specific review context files (AGENTS.md, .flue/*, etc.). */
+  /** Read repository-specific review context files (AGENTS.md, .flowly/*, etc.). */
   getReviewContext(): Promise<ReviewContextResult>;
 }
 
@@ -127,12 +127,18 @@ const MAX_RETURNED_LINES = 400;
  * repository-relative path checked in the working tree. Missing files are
  * silently skipped — the tool returns only what exists.
  */
-const REVIEW_CONTEXT_FILES: Array<{ path: string; label: string }> = [
-  { path: 'AGENTS.md', label: 'Project instructions (AGENTS.md)' },
-  { path: 'CONTRIBUTING.md', label: 'Contributing guidelines' },
-  { path: '.github/pull_request_template.md', label: 'Pull request template' },
-  { path: '.flue/review-instructions.md', label: 'Review instructions' },
-  { path: '.flue/repository-learnings.md', label: 'Repository learnings' },
+const REVIEW_CONTEXT_FILE_GROUPS: Array<Array<{ path: string; label: string }>> = [
+  [{ path: 'AGENTS.md', label: 'Project instructions (AGENTS.md)' }],
+  [{ path: 'CONTRIBUTING.md', label: 'Contributing guidelines' }],
+  [{ path: '.github/pull_request_template.md', label: 'Pull request template' }],
+  [
+    { path: '.flowly/review-instructions.md', label: 'Review instructions' },
+    { path: '.flue/review-instructions.md', label: 'Review instructions (legacy path)' },
+  ],
+  [
+    { path: '.flowly/repository-learnings.md', label: 'Repository learnings' },
+    { path: '.flue/repository-learnings.md', label: 'Repository learnings (legacy path)' },
+  ],
 ];
 
 /** Maximum lines read per context file to keep the tool output bounded. */
@@ -329,38 +335,41 @@ export function createGitDataSource(options: GitDataSourceOptions): PrDataSource
         }
       })();
 
-      for (const { path: relPath, label } of REVIEW_CONTEXT_FILES) {
-        const absolute = path.resolve(root, relPath);
-        // Path confinement: the resolved path must be under root.
-        if (absolute !== root && !absolute.startsWith(`${root}${path.sep}`)) {
-          continue;
-        }
-        let content: string;
-        try {
-          const stat = lstatSync(absolute);
-          // Skip non-regular files (e.g. symlinks) and files exceeding the size cap.
-          if (!stat.isFile() || stat.size > MAX_CONTEXT_FILE_BYTES) {
+      for (const candidates of REVIEW_CONTEXT_FILE_GROUPS) {
+        for (const { path: relPath, label } of candidates) {
+          const absolute = path.resolve(root, relPath);
+          // Path confinement: the resolved path must be under root.
+          if (absolute !== root && !absolute.startsWith(`${root}${path.sep}`)) {
             continue;
           }
-          const canonical = realpathSync(absolute);
-          if (canonical !== realRoot && !canonical.startsWith(`${realRoot}${path.sep}`)) {
+          let content: string;
+          try {
+            const stat = lstatSync(absolute);
+            // Skip non-regular files (e.g. symlinks) and files exceeding the size cap.
+            if (!stat.isFile() || stat.size > MAX_CONTEXT_FILE_BYTES) {
+              continue;
+            }
+            const canonical = realpathSync(absolute);
+            if (canonical !== realRoot && !canonical.startsWith(`${realRoot}${path.sep}`)) {
+              continue;
+            }
+            content = readFileSync(canonical, 'utf8');
+          } catch {
+            // File doesn't exist or is unreadable — try the next compatible path.
             continue;
           }
-          content = readFileSync(canonical, 'utf8');
-        } catch {
-          // File doesn't exist or is unreadable — skip silently.
-          continue;
+          const lines = content.split(/\r?\n/);
+          const truncated = lines.length > MAX_CONTEXT_FILE_LINES;
+          const cappedContent = lines.slice(0, MAX_CONTEXT_FILE_LINES).join('\n');
+          entries.push({
+            path: relPath,
+            label,
+            content: cappedContent,
+            truncated,
+            totalLines: lines.length,
+          });
+          break;
         }
-        const lines = content.split(/\r?\n/);
-        const truncated = lines.length > MAX_CONTEXT_FILE_LINES;
-        const cappedContent = lines.slice(0, MAX_CONTEXT_FILE_LINES).join('\n');
-        entries.push({
-          path: relPath,
-          label,
-          content: cappedContent,
-          truncated,
-          totalLines: lines.length,
-        });
       }
 
       const result: ReviewContextResult = {
@@ -368,7 +377,7 @@ export function createGitDataSource(options: GitDataSourceOptions): PrDataSource
         message:
           entries.length > 0
             ? `Loaded ${entries.length} repository context file(s). Use them to understand conventions, test commands, and review priorities before analyzing the diff.`
-            : 'No repository context files found (AGENTS.md, CONTRIBUTING.md, .flue/*). Proceed with general review practices.',
+            : 'No repository context files found (AGENTS.md, CONTRIBUTING.md, .flowly/*). Proceed with general review practices.',
       };
       cachedReviewContext = result;
       return result;

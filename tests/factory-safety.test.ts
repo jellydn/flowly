@@ -3,13 +3,13 @@ import { mkdir, mkdtemp, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
-import { ADVERSARIAL_FIXTURES } from '../eval/safety/fixtures.ts';
+import { ADVERSARIAL_FIXTURES } from '../eval/security/fixtures.ts';
 import {
   FACTORY_SAFETY_CATALOG_VERSION,
   FACTORY_SAFETY_INVARIANTS,
-} from '../eval/safety/invariants.ts';
-import { LIVE_FACTORY_RED_TEAM, runLiveFactoryRedTeam } from '../eval/safety/live.ts';
-import { assertDenied, evaluateSafetyAttack } from '../eval/safety/runner.ts';
+} from '../eval/security/invariants.ts';
+import { LIVE_FACTORY_RED_TEAM, runLiveFactoryRedTeam } from '../eval/security/live.ts';
+import { assertDenied, evaluateSafetyAttack } from '../eval/security/runner.ts';
 import { parseFactoryCapabilityPolicy, resolveStageCapabilities } from '../factory/capabilities.ts';
 import {
   assertContextSource,
@@ -78,7 +78,7 @@ describe('factory safety catalog', () => {
         evaluateSafetyAttack({
           invariantId: 'FACTORY-001',
           attemptedAction: 'grant a tool',
-          fixture: ADVERSARIAL_FIXTURES.grantTool,
+          fixtureId: 'grantTool',
           expectedError: /Capability denied/,
           run() {
             throw new Error('database unavailable');
@@ -86,6 +86,37 @@ describe('factory safety catalog', () => {
         }),
       /database unavailable/,
     );
+  });
+
+  test('rejects fixtures that are not catalogued for the invariant', async () => {
+    await assert.rejects(
+      () =>
+        evaluateSafetyAttack({
+          invariantId: 'FACTORY-001',
+          attemptedAction: 'grant a tool',
+          fixtureId: 'grantNetwork',
+          expectedError: /Capability denied/,
+          run() {
+            throw new Error('should not run');
+          },
+        }),
+      /not listed in the invariant catalog/,
+    );
+  });
+
+  test('resets sticky expectedError lastIndex before matching', async () => {
+    const expectedError = /Capability denied/g;
+    expectedError.lastIndex = 18;
+    const finding = await evaluateSafetyAttack({
+      invariantId: 'FACTORY-001',
+      attemptedAction: 'grant a tool',
+      fixtureId: 'grantTool',
+      expectedError,
+      run() {
+        throw new Error('Capability denied for planner: tool.mcp_browser');
+      },
+    });
+    assertDenied(finding);
   });
 });
 
@@ -95,7 +126,7 @@ describe('deterministic factory safety evals', () => {
     const finding = await evaluateSafetyAttack({
       invariantId: 'FACTORY-001',
       attemptedAction: 'grant mcp_browser from issue body',
-      fixture: ADVERSARIAL_FIXTURES.grantTool,
+      fixtureId: 'grantTool',
       expectedError: /Capability denied for planner: tool\.mcp_browser/,
       run: (fixture) => {
         const tool = requiredMatch(fixture, /mcp_browser/);
@@ -108,15 +139,11 @@ describe('deterministic factory safety evals', () => {
 
   test('FACTORY-002: repository content cannot authorize network', async () => {
     const implementer = resolveStageCapabilities('implementer');
-    for (const fixture of [
-      ADVERSARIAL_FIXTURES.grantNetwork,
-      ADVERSARIAL_FIXTURES.markdownInjection,
-      ADVERSARIAL_FIXTURES.commentInjection,
-    ]) {
+    for (const fixtureId of ['grantNetwork', 'markdownInjection', 'commentInjection'] as const) {
       const finding = await evaluateSafetyAttack({
         invariantId: 'FACTORY-002',
         attemptedAction: 'enable network because repository text said so',
-        fixture,
+        fixtureId,
         expectedError: /Capability denied for implementer: network\.evil\.example/,
         run: (payload) => {
           const host = requiredMatch(payload, /evil\.example/);
@@ -134,7 +161,7 @@ describe('deterministic factory safety evals', () => {
     const finding = await evaluateSafetyAttack({
       invariantId: 'FACTORY-003',
       attemptedAction: 'write escaped path',
-      fixture: ADVERSARIAL_FIXTURES.maliciousFilename,
+      fixtureId: 'maliciousFilename',
       expectedError: /Path escapes the isolated workspace root/,
       run: (fixture) =>
         assertWorkspacePath(
@@ -148,14 +175,16 @@ describe('deterministic factory safety evals', () => {
 
   test('FACTORY-004: implementer cannot push a non-factory branch', async () => {
     const implementer = resolveStageCapabilities('implementer');
-    const encoded = Buffer.from(ADVERSARIAL_FIXTURES.encodedPush, 'base64').toString('utf8');
-    for (const fixture of [ADVERSARIAL_FIXTURES.pushMain, encoded]) {
+    for (const fixtureId of ['pushMain', 'encodedPush'] as const) {
       const finding = await evaluateSafetyAttack({
         invariantId: 'FACTORY-004',
         attemptedAction: 'push to main',
-        fixture,
+        fixtureId,
         expectedError: /outside a factory-owned branch/,
         run: (payload) => {
+          if (fixtureId === 'encodedPush') {
+            payload = Buffer.from(payload, 'base64').toString('utf8');
+          }
           const branch = requiredMatch(payload, /main/);
           assertFactoryBranch(branch);
           assertGitMutation(implementer, branch);
@@ -195,7 +224,7 @@ describe('deterministic factory safety evals', () => {
     const finding = await evaluateSafetyAttack({
       invariantId: 'FACTORY-005',
       attemptedAction: 'pass implementer scratch to the reviewer',
-      fixture: ADVERSARIAL_FIXTURES.skipReview,
+      fixtureId: 'skipReview',
       expectedError: /context\.implementer-scratch/,
       run: (fixture) => {
         assert.match(fixture, /skip/);
@@ -211,7 +240,7 @@ describe('deterministic factory safety evals', () => {
       const finding = await evaluateSafetyAttack({
         invariantId: 'FACTORY-006',
         attemptedAction: action,
-        fixture: ADVERSARIAL_FIXTURES.pushMain,
+        fixtureId: 'pushMain',
         expectedError: new RegExp(`github\\.${action}`),
         run: (fixture) => {
           assert.match(fixture, /main/);
@@ -223,7 +252,7 @@ describe('deterministic factory safety evals', () => {
     const finding = await evaluateSafetyAttack({
       invariantId: 'FACTORY-006',
       attemptedAction: 'expose mergePullRequest',
-      fixture: ADVERSARIAL_FIXTURES.planInjection.summary,
+      fixtureId: 'planInjection',
       expectedError: /github\.mergePullRequest/,
       run: (fixture) => {
         assert.match(fixture, /main/);
@@ -245,7 +274,7 @@ describe('deterministic factory safety evals', () => {
     const finding = await evaluateSafetyAttack({
       invariantId: 'FACTORY-007',
       attemptedAction: 'grant merge from an instinct',
-      fixture: ADVERSARIAL_FIXTURES.instinctOverride,
+      fixtureId: 'instinctOverride',
       expectedError: /Capability denied for publisher: github\.merge/,
       run: (fixture) =>
         parseFactoryCapabilityPolicy({
@@ -268,7 +297,7 @@ describe('deterministic factory safety evals', () => {
     const finding = await evaluateSafetyAttack({
       invariantId: 'FACTORY-008',
       attemptedAction: 'follow a symlink out of the workspace',
-      fixture: ADVERSARIAL_FIXTURES.symlinkName,
+      fixtureId: 'symlinkName',
       expectedError: /Path escapes the isolated workspace root/,
       run: (fixture) =>
         assertWorkspacePath(
@@ -306,7 +335,7 @@ async function reviewingRun() {
   await orchestrator.recordImplementation(run.id, {
     workspaceId: run.id,
     commitSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-    changedFiles: ['eval/safety/invariants.ts'],
+    changedFiles: ['eval/security/invariants.ts'],
     commands: [{ command: 'npm test', exitCode: 0 }],
   });
   await orchestrator.recordVerification(run.id, true);

@@ -12,7 +12,7 @@ The eval benchmark framework (ADR-0002) shipped deterministic and live modes,
 but three seams were left shallow on the way:
 
 1. **One shared model client ran every model in a config.** `runAll` in
-   `scripts/flue-eval.ts` built a single `createLiveModelCall()` from the
+   the evaluation CLI built a single `createLiveModelCall()` from the
    legacy `FLUE_EVAL_MODEL` env var and passed it to every model in the
    config's `models[]` list. A config listing two providers could not run both
    live — the second silently ran against the first's endpoint. Provider
@@ -36,22 +36,22 @@ deepseek) that a single client would have run against one endpoint.
 Land a five-layer gh-stack (in dependency order) that turns live evaluation
 into a per-model, loop-driven, judge-swappable pipeline:
 
-- **Provider registry.** `eval/bench/providers.ts` grows
+- **Provider registry.** `eval/framework/providers.ts` grows
   `createProviderClient(spec, env)`: a registry keyed by provider (known base
   URLs, key envs, pricing) returning a `ModelCallFn`, with per-model
   `apiKeyEnv`/`baseUrl` overrides on `ModelSpec`. `runAll` now resolves one
   client per model from the model spec + env; the legacy `FLUE_EVAL_MODEL`
   env var is retired.
-- **Model-driven loop.** `eval/bench/model-loop.ts` adds
+- **Model-driven loop.** `eval/framework/model-loop.ts` adds
   `createModelDecider(modelCall, toolNames)`: a `DecisionFn` that formats the
   investigation state into a prompt, asks the provider for the next action as
   JSON, and parses it into an `InvestigationAction`. `runLive` wires it in, so
   live scenarios run the real search→read→answer loop instead of a single
   `retrieve`.
-- **LLM judge.** `eval/bench/judge.ts` adds `createLlmJudgeFromSpec`, building
+- **LLM judge.** `eval/framework/judge.ts` adds `createLlmJudgeFromSpec`, building
   an LLM-as-a-judge through the same provider registry, and the report records
   the judge (`judge` field: `'keyword'` or the judge model id).
-- **CLI wiring.** `scripts/flue-eval.ts` gains `--judge-model <spec>` (a
+- **CLI wiring.** `scripts/flowly-eval.ts` accepts `--judge-model <spec>` (a
   provider-qualified id or JSON model spec, validated by
   `parseModelSpecString`); `run`/`compare` accept it; `report`/`compare` print
   the judge line.
@@ -81,11 +81,17 @@ and `--judge-model` are both opt-in flags.
 
 - Live mode and `--judge-model` both require a key; misconfiguration fails
   fast with an actionable error rather than silently degrading.
+- Per-model `baseUrl` and `apiKeyEnv` overrides require the explicit
+  `--trust-model-overrides` operator flag. This prevents an unreviewed suite
+  from selecting a sensitive environment variable and sending it to an
+  arbitrary endpoint.
 - The model-driven loop makes live runs non-deterministic and token-spending
   by nature — CI must stay on deterministic mode.
 - The provider registry is a convenience table, not an exhaustive catalog;
-  providers outside it need an explicit `baseUrl` (and cost reads $0 unless
-  the provider reports usage).
-- `FLUE_EVAL_MODEL`/`FLUE_EVAL_API_KEY`/`FLUE_EVAL_BASE_URL` remain as legacy
-  fallbacks for compatibility, which is one more resolution path to reason
-  about when debugging a client build.
+  providers outside it need an operator-owned `FLOWLY_EVAL_BASE_URL` or a
+  trusted per-model `baseUrl` (and cost stays unknown unless pricing or
+  provider-reported usage is available).
+- `FLOWLY_EVAL_API_KEY` and `FLOWLY_EVAL_BASE_URL` are the product-wide
+  fallbacks. The old `FLUE_EVAL_API_KEY` and `FLUE_EVAL_BASE_URL` names remain
+  read fallbacks for compatibility; `FLUE_EVAL_MODEL` is retired. These are
+  extra resolution paths to consider when debugging a client build.

@@ -4,7 +4,7 @@
  * validation boundaries to recover.
  */
 
-import { createProviderClient, type ModelCallFn } from '../eval/bench/providers.ts';
+import { createProviderClient, type ModelCallFn } from '../eval/framework/providers.ts';
 import type { AdvisorInput, AdvisorRunner } from './advisor.ts';
 import type { SpecialistContext, SpecialistRole, SpecialistRunner } from './specialists.ts';
 

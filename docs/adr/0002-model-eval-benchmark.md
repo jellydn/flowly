@@ -26,12 +26,12 @@ The hard constraints were:
 
 ## Decision
 
-Add a built-in evaluation framework in `eval/bench/`, modeled on the existing
-capstone eval (`eval/capstone-eval.ts`) but generalized into a config-driven
+Add a built-in evaluation framework in `eval/framework/`, modeled on the existing
+repository eval (`eval/repository/scenarios.ts`) but generalized into a config-driven
 suite runner. The framework is split across three modules that were landed as
 a gh-stack of three PRs (#39–#41):
 
-- **Core** (`eval/bench/types.ts`, `schema.ts`, `config.ts`, `metrics.ts`,
+- **Core** (`eval/framework/types.ts`, `schema.ts`, `config.ts`, `metrics.ts`,
   `store.ts`): the data model (suites, scenarios, reports, leaderboard rows),
   Valibot validation with field-path issues, JSON config loading, cost/quality
   computation, and memory + file-backed report stores.
@@ -42,9 +42,9 @@ a gh-stack of three PRs (#39–#41):
   the answer). Scoring is keyword-based by default with an LLM-as-a-judge
   seam; provider pricing drives cost estimation; `measurePatch` is an opt-in
   patch-applicability hook.
-- **CLI + wiring** (`scripts/flue-eval.ts`): `npm run eval` with `run`,
+- **CLI + wiring** (`scripts/flowly-eval.ts`): `npm run eval` with `run`,
   `compare`, `leaderboard`, and `report` subcommands, the bundled
-  `eval/benchmarks/sample.json` suite, docs, and an example CI workflow.
+  `eval/suites/sample.json` suite, docs, and an example CI workflow.
 
 Key choices:
 
@@ -54,7 +54,7 @@ Key choices:
   evidence into a prompt and grounds citations in retrieved files (an early
   review caught that live mode never invoked the model; a spy test now proves
   it fires).
-- **Reports persist as JSON** under `eval/results/` (`FLUE_EVAL_RESULTS_DIR`)
+- **Reports persist as JSON** under `eval/results/` (`FLOWLY_EVAL_RESULTS_DIR`)
   so `leaderboard` and `report` work across runs.
 - **Dependency-light**: provider calls use a thin OpenAI-compatible `fetch`
   client and a static pricing table — no SDK per provider.

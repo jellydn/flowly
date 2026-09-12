@@ -10,11 +10,11 @@ import { findingSchema } from './schema.ts';
  * entry is not blank:
  *
  * ```
- * <!-- flue-review-state
+ * <!-- flowly-review-state
  * {"reviewedHeadSha":"abc123","findings":[...],"reviewedAt":1700000000}
  * -->
  *
- * _Flue review state (automated; do not edit)._
+ * _Flowly review state (automated; do not edit)._
  * ```
  *
  * On `synchronize`, the reviewer reads this state, computes the incremental
@@ -22,7 +22,8 @@ import { findingSchema } from './schema.ts';
  * each previous finding as resolved / still-present / obsolete / uncertain.
  */
 
-const STATE_MARKER = 'flue-review-state';
+const STATE_MARKER = 'flowly-review-state';
+const LEGACY_STATE_MARKER = 'flue-review-state';
 
 export const reviewStateSchema = v.object({
   reviewedHeadSha: v.pipe(v.string(), v.minLength(1)),
@@ -39,7 +40,7 @@ export type ReviewState = v.InferOutput<typeof reviewStateSchema>;
  * blank while the state itself stays invisible in the UI.
  */
 export function encodeReviewState(state: ReviewState): string {
-  return `<!-- ${STATE_MARKER}\n${JSON.stringify(state)}\n-->\n\n_Flue review state (automated; do not edit)._`;
+  return `<!-- ${STATE_MARKER}\n${JSON.stringify(state)}\n-->\n\n_Flowly review state (automated; do not edit)._`;
 }
 
 /**
@@ -48,8 +49,8 @@ export function encodeReviewState(state: ReviewState): string {
  * Never throws — a corrupt state comment is treated as "no previous state".
  */
 export function parseReviewState(body: string): ReviewState | null {
-  if (!body.includes(STATE_MARKER)) return null;
-  const match = body.match(/<!--\s*flue-review-state\s*:?[\s]*([\s\S]*?)\s*-->/);
+  if (!isReviewStateComment(body)) return null;
+  const match = body.match(/<!--\s*(?:flowly|flue)-review-state\s*:?[\s]*([\s\S]*?)\s*-->/);
   if (!match) return null;
   try {
     const json = JSON.parse(match[1]);
@@ -64,5 +65,5 @@ export function parseReviewState(body: string): ReviewState | null {
  * the state comment among all PR comments without parsing each one fully.
  */
 export function isReviewStateComment(body: string): boolean {
-  return body.includes(STATE_MARKER);
+  return body.includes(STATE_MARKER) || body.includes(LEGACY_STATE_MARKER);
 }

@@ -1,5 +1,5 @@
 /**
- * Day 30 Capstone Evaluation Framework.
+ * Deterministic repository-assistant evaluation scenarios.
  *
  * Runs a set of test questions through the repository assistant's
  * investigation pipeline and evaluates four dimensions:
@@ -17,9 +17,8 @@
  * - **Live** (requires provider key): runs the actual agent via `npm start`.
  *
  * Run with:
- *   npx tsx eval/capstone-eval.ts                 # deterministic mode
- *   npx tsx eval/capstone-eval.ts --live          # live agent mode
- *   npx tsx eval/capstone-eval.ts --json          # machine-readable output
+ *   npm run eval:repository
+ *   npm run eval:repository -- --json
  */
 
 import path from 'node:path';
@@ -28,13 +27,13 @@ import {
   createDebugLogger,
   createRepositoryReader,
   createStepBudget,
-} from '../tools/repository.ts';
-import { createBudgetedInspectionTools } from '../tools/inspection-registry.ts';
-import { buildToolMap, runInvestigation } from '../investigation/loop.ts';
-import type { DecisionFn, InvestigationResult } from '../investigation/types.ts';
+} from '../../tools/repository.ts';
+import { createBudgetedInspectionTools } from '../../tools/inspection-registry.ts';
+import { buildToolMap, runInvestigation } from '../../investigation/loop.ts';
+import type { DecisionFn, InvestigationResult } from '../../investigation/types.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const fixture = path.resolve(__dirname, 'fixtures', 'sample-repo');
+const fixture = path.resolve(__dirname, '..', 'fixtures', 'sample-repo');
 
 // ---------------------------------------------------------------------------
 // Evaluation scenario definitions
@@ -486,7 +485,7 @@ export async function runCapstoneEval(
 function formatReport(report: EvalReport): string {
   const lines: string[] = [];
   lines.push('╔══════════════════════════════════════════════════════════════════════╗');
-  lines.push('║           Day 30 Capstone Evaluation Report                           ║');
+  lines.push('║             Flowly Repository Evaluation Report                       ║');
   lines.push('╚══════════════════════════════════════════════════════════════════════╝');
   lines.push('');
   lines.push(
@@ -551,14 +550,14 @@ async function main() {
 }
 
 // Only run the suite when this file is executed directly (e.g. via
-// `eval/run-capstone-eval.sh` or `npm run capstone:eval`). Importing the
+// `eval/repository/run-deterministic.sh` or `npm run eval:repository`). Importing the
 // module (as the benchmark framework does for capstoneScenarios) must not
 // execute main().
 const isMain =
   process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
   main().catch((err) => {
-    console.error('Capstone evaluation failed:', err);
+    console.error('Repository evaluation failed:', err);
     process.exit(1);
   });
 }

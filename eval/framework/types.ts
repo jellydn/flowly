@@ -27,13 +27,15 @@ export type ModelSpec = {
   pricing?: ModelPricing;
   /**
    * Environment variable holding the API key for this model's provider
-   * (e.g. "OPENAI_API_KEY"). When absent, a per-provider default key env is
-   * used (see createProviderClient in providers.ts).
+   * (e.g. "OPENAI_API_KEY"). This override requires an explicit trust opt-in
+   * at the provider-client boundary. When absent, a per-provider default key
+   * env is used (see createProviderClient in providers.ts).
    */
   apiKeyEnv?: string;
   /**
    * OpenAI-compatible base URL for this model's provider. When absent, a
-   * known per-provider endpoint is used; unknown providers require this.
+   * known per-provider endpoint is used. This override requires an explicit
+   * trust opt-in; unknown providers can also use FLOWLY_EVAL_BASE_URL.
    */
   baseUrl?: string;
 };
@@ -63,7 +65,7 @@ export type BenchmarkSuite = {
   maxSteps?: number;
   /** Repository path the suite evaluates against (fixture by default). */
   repositoryPath?: string;
-  /** Versioned acceptance thresholds enforced by `flue eval gate`. */
+  /** Versioned acceptance thresholds enforced by `npm run eval -- gate`. */
   gate?: BenchmarkGate;
   scenarios: BenchmarkScenario[];
 };
@@ -106,7 +108,7 @@ export type ScenarioResult = {
     latencyMs: number;
     tokensIn: number;
     tokensOut: number;
-    /** USD cost; billed when the provider reported it, estimated otherwise. */
+    /** USD cost; billed when the provider reported it, estimated otherwise. NaN when unknown. */
     costUsd: number;
     /**
      * Whether tokens/cost came from the provider ('provider') or a heuristic
@@ -137,6 +139,7 @@ export type BenchmarkSummary = {
   qualityScore: number;
   avgLatencyMs: number;
   totalTokens: number;
+  /** USD cost; NaN when pricing is absent and the provider did not report billed cost. */
   costUsd: number;
   toolSuccessRate: number;
   /** NaN when patch applicability was not measured. */

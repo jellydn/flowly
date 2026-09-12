@@ -3,8 +3,8 @@
  * call function seam so benchmark runs can talk to any provider.
  *
  * Pricing is used to estimate cost from token usage (input + output per 1K
- * tokens, USD). Providers not listed here simply report $0 cost; the registry
- * is a convenience table, not an exhaustive catalog.
+ * tokens, USD). Providers not listed here leave cost unmeasured (NaN); the
+ * registry is a convenience table, not an exhaustive catalog.
  *
  * Live mode prefers real usage reported by the provider (see ModelCallResult
  * and createOpenAiCompatibleClient); the pricing table remains the fallback
@@ -72,35 +72,51 @@ export const PROVIDER_KEY_ENVS: Record<string, string> = {
   grok: 'XAI_API_KEY',
 };
 
+export type ProviderClientOptions = {
+  /** Permit endpoint and key-variable overrides from a configuration the operator has reviewed. */
+  trustModelOverrides?: boolean;
+};
+
 /**
- * Resolve the OpenAI-compatible client for a model spec. Uses the model's
- * `baseUrl`/`apiKeyEnv` when provided, falling back to the per-provider
- * defaults, and finally to the legacy `FLUE_EVAL_*` env vars (which keep the
- * original single-provider CLI working). Throws an actionable error when the
- * provider is unknown or its key is missing.
+ * Resolve the OpenAI-compatible client for a model spec. Model-specific
+ * `baseUrl`/`apiKeyEnv` overrides require an explicit trust decision because
+ * an untrusted config could otherwise select a sensitive environment variable
+ * and send it to an arbitrary endpoint. Provider defaults and Flowly-wide
+ * environment fallbacks do not require that opt-in.
  */
 export function createProviderClient(
   model: ModelSpec,
   env: Record<string, string | undefined> = process.env,
+  options: ProviderClientOptions = {},
 ): ModelCallFn {
+  if ((model.baseUrl || model.apiKeyEnv) && !options.trustModelOverrides) {
+    throw new Error(
+      'Model-specific baseUrl and apiKeyEnv values require an explicit trusted configuration.',
+    );
+  }
   const provider = model.provider.toLowerCase();
-  const baseUrl = model.baseUrl ?? PROVIDER_BASE_URLS[provider] ?? env.FLUE_EVAL_BASE_URL;
+  const baseUrl =
+    model.baseUrl ??
+    PROVIDER_BASE_URLS[provider] ??
+    env.FLOWLY_EVAL_BASE_URL ??
+    env.FLUE_EVAL_BASE_URL;
   if (!baseUrl) {
     throw new Error(
       `No base URL for provider "${model.provider}". Add a known provider or set "baseUrl" on the model spec.`,
     );
   }
-  const keyEnv = model.apiKeyEnv ?? PROVIDER_KEY_ENVS[provider] ?? 'FLUE_EVAL_API_KEY';
-  const apiKey = env[keyEnv] ?? env.FLUE_EVAL_API_KEY ?? env.OPENROUTER_API_KEY;
+  const keyEnv = model.apiKeyEnv ?? PROVIDER_KEY_ENVS[provider] ?? 'FLOWLY_EVAL_API_KEY';
+  const apiKey =
+    env[keyEnv] ?? env.FLOWLY_EVAL_API_KEY ?? env.FLUE_EVAL_API_KEY ?? env.OPENROUTER_API_KEY;
   if (!apiKey) {
     throw new Error(
-      `No API key for provider "${model.provider}". Set ${keyEnv} (or FLUE_EVAL_API_KEY / OPENROUTER_API_KEY).`,
+      `No API key for provider "${model.provider}". Set ${keyEnv} (or FLOWLY_EVAL_API_KEY / OPENROUTER_API_KEY).`,
     );
   }
   return createOpenAiCompatibleClient({ apiKey, baseUrl, model: model.id });
 }
 
-/** Look up pricing for a provider, falling back to undefined (no cost). */
+/** Look up pricing for a provider, falling back to undefined (cost unknown). */
 export function pricingForProvider(provider: string): ModelPricing | undefined {
   return PROVIDER_PRICING[provider.toLowerCase()];
 }

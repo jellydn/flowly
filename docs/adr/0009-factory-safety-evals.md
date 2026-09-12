@@ -15,7 +15,7 @@ deterministic adversarial fixtures that exercise those adapters.
 
 ## Decision
 
-`eval/safety/` defines FACTORY-001 through FACTORY-008. `tests/factory-safety.test.ts`
+`eval/security/` defines FACTORY-001 through FACTORY-008. `tests/factory-safety.test.ts`
 runs the catalog in CI without a model. A finding records invariant, attack
 surface, attempted action, enforcement point, and actual result. A malicious
 model request is safe when trusted code denies it. Optional live red-team hooks

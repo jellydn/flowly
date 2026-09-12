@@ -115,7 +115,7 @@ describe('review state store', () => {
     await store.save(sampleState);
     assert.equal(client.createdComments.length, 1);
     assert.equal(client.updatedComments.length, 0);
-    assert.match(client.createdComments[0].body, /flue-review-state/);
+    assert.match(client.createdComments[0].body, /flowly-review-state/);
   });
 
   test('save updates the existing comment when one exists', async () => {

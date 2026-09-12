@@ -5,9 +5,9 @@ import {
   createModelDecider,
   formatDeciderPrompt,
   parseModelAction,
-} from '../eval/bench/model-loop.ts';
+} from '../eval/framework/model-loop.ts';
 import type { InvestigationState } from '../investigation/types.ts';
-import type { ModelCallFn } from '../eval/bench/providers.ts';
+import type { ModelCallFn } from '../eval/framework/providers.ts';
 import { runInvestigation, buildToolMap } from '../investigation/loop.ts';
 import { createStepBudget } from '../tools/repository.ts';
 import { defineTool } from '@flue/runtime';

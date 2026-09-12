@@ -20,7 +20,8 @@ import { createSampleRepo, removeRepo } from './helpers.ts';
  * supported by the tool contracts, that structured results feed back into the
  * next step, and that the shared budget bounds the sequence.
  *
- * The live model-driven sequence can be observed with `eval/run-eval.sh` and
+ * The live model-driven sequence can be observed with
+ * `eval/repository/run-live-tool-selection.sh` and
  * REPO_ASSISTANT_DEBUG=true, which logs one line per tool call.
  */
 

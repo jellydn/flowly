@@ -36,15 +36,20 @@ export function evaluateBenchmarkGate(
       checks.push({ metric, passed: actual >= threshold, actual, threshold });
   }
   for (const [metric, actual, threshold] of maximums) {
-    if (threshold !== undefined)
-      checks.push({ metric, passed: actual <= threshold, actual, threshold });
+    if (threshold === undefined) continue;
+    checks.push({
+      metric,
+      passed: !Number.isNaN(actual) && actual <= threshold,
+      actual,
+      threshold,
+    });
   }
   return { passed: checks.every((check) => check.passed), checks };
 }
 
-/** Estimate USD cost from token usage and per-1K pricing. */
+/** Estimate USD cost from token usage and per-1K pricing. Missing pricing is NaN, not zero. */
 export function estimateCost(tokensIn: number, tokensOut: number, pricing?: ModelPricing): number {
-  if (!pricing) return 0;
+  if (!pricing) return Number.NaN;
   return (tokensIn / 1000) * pricing.inputPer1kUsd + (tokensOut / 1000) * pricing.outputPer1kUsd;
 }
 
@@ -76,7 +81,9 @@ export function computeSummary(results: ScenarioResult[]): BenchmarkSummary {
       results.reduce((sum, r) => sum + r.metrics.latencyMs, 0) / results.length,
     ),
     totalTokens: results.reduce((sum, r) => sum + r.metrics.tokensIn + r.metrics.tokensOut, 0),
-    costUsd: results.reduce((sum, r) => sum + r.metrics.costUsd, 0),
+    costUsd: results.some((r) => Number.isNaN(r.metrics.costUsd))
+      ? Number.NaN
+      : results.reduce((sum, r) => sum + r.metrics.costUsd, 0),
     toolSuccessRate: passRate(results, (r) => r.metrics.toolSuccess),
     patchApplicabilityRate: passRate(results, (r) => r.metrics.patchApplicability),
     // Only reviewed scenarios count; unreviewed runs report NaN.

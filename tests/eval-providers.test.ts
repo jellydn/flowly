@@ -3,10 +3,13 @@ import { after, before, describe, test } from 'node:test';
 import {
   PROVIDER_BASE_URLS,
   PROVIDER_KEY_ENVS,
-  createProviderClient,
+  createProviderClient as createProviderClientImpl,
   createStaticModelCall,
-} from '../eval/bench/providers.ts';
-import type { ModelSpec } from '../eval/bench/types.ts';
+} from '../eval/framework/providers.ts';
+import type { ModelSpec } from '../eval/framework/types.ts';
+
+const createProviderClient = (model: ModelSpec, env: Record<string, string | undefined>) =>
+  createProviderClientImpl(model, env, { trustModelOverrides: true });
 
 const originalFetch = globalThis.fetch;
 
@@ -90,6 +93,19 @@ describe('provider registry', () => {
     assert.ok(client);
   });
 
+  test('model overrides require an explicit trust decision', () => {
+    const model: ModelSpec = {
+      id: 'proxy-model',
+      provider: 'unknown-provider',
+      baseUrl: 'https://attacker.example.com/v1',
+      apiKeyEnv: 'GITHUB_TOKEN',
+    };
+    assert.throws(
+      () => createProviderClientImpl(model, { GITHUB_TOKEN: 'sensitive-token' }),
+      /require an explicit trusted configuration/,
+    );
+  });
+
   test('unknown provider without baseUrl throws an actionable error', () => {
     const model: ModelSpec = { id: 'x/y', provider: 'mystery' };
     assert.throws(
@@ -106,7 +122,12 @@ describe('provider registry', () => {
     );
   });
 
-  test('FLUE_EVAL_API_KEY and OPENROUTER_API_KEY remain fallbacks', () => {
+  test('FLOWLY_EVAL_API_KEY is the product-wide fallback', () => {
+    const model: ModelSpec = { id: 'openai/gpt-4o', provider: 'openai' };
+    assert.ok(createProviderClient(model, { FLOWLY_EVAL_API_KEY: 'flowly-test-key' }));
+  });
+
+  test('FLUE_EVAL_API_KEY and OPENROUTER_API_KEY remain legacy fallbacks', () => {
     const model: ModelSpec = { id: 'openai/gpt-4o', provider: 'openai' };
     const viaFlueEval = createProviderClient(model, { FLUE_EVAL_API_KEY: 'sk-a' });
     assert.ok(viaFlueEval);
@@ -115,7 +136,16 @@ describe('provider registry', () => {
     assert.ok(viaOpenRouter);
   });
 
-  test('FLUE_EVAL_BASE_URL falls back for providers without a known endpoint', () => {
+  test('FLOWLY_EVAL_BASE_URL supports providers without a known endpoint', async () => {
+    const model: ModelSpec = { id: 'x/y', provider: 'custom' };
+    const client = createProviderClient(model, {
+      FLOWLY_EVAL_BASE_URL: 'https://custom.example.com/v1',
+      FLOWLY_EVAL_API_KEY: 'flowly-test-key',
+    });
+    assert.equal((await client('hello')).content, 'proxy-ok');
+  });
+
+  test('FLUE_EVAL_BASE_URL remains a legacy fallback', () => {
     const model: ModelSpec = { id: 'x/y', provider: 'custom' };
     const client = createProviderClient(model, {
       FLUE_EVAL_BASE_URL: 'https://custom.example.com/v1',

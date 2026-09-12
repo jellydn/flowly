@@ -6,7 +6,7 @@ import { FileRepositoryMemoryStore } from '../memory/store.ts';
 
 const [command, id] = process.argv.slice(2);
 const store = new FileRepositoryMemoryStore(
-  path.resolve(process.env.FLOWLY_MEMORY_STORE ?? '.flue/repository-instincts.json'),
+  path.resolve(process.env.FLOWLY_MEMORY_STORE ?? '.flowly/repository-instincts.json'),
 );
 
 async function main(): Promise<void> {

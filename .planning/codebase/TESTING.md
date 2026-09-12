@@ -1,6 +1,6 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-09-06
+**Analysis Date:** 2026-09-12
 
 ## Test Framework
 
@@ -19,6 +19,7 @@
 npm test                        # all tests (tsx --test tests/*.test.ts)
 npm run check                   # typecheck + test + deterministic eval gate + build + docs (CI runs this)
 npx tsx --test tests/<file>.test.ts   # single file
+npx tsx --test tests/factory-{capabilities,workspace,events,safety}.test.ts
 ```
 
 ## Test File Organization
@@ -29,7 +30,7 @@ npx tsx --test tests/<file>.test.ts   # single file
 
 **Naming:**
 
-- `<module-or-area>.test.ts` (e.g. `repository.test.ts`, `event-router.test.ts`, `bench-runner.test.ts`, `flue-eval-cli.test.ts`)
+- `<module-or-area>.test.ts` (e.g. `repository.test.ts`, `event-router.test.ts`, `bench-runner.test.ts`, `flowly-eval-cli.test.ts`)
 
 **Structure:**
 
@@ -118,13 +119,13 @@ export async function createSampleRepo(): Promise<string> {
 
 **Integration Tests:**
 
-- Scope: tool pipelines against the sample fixture (`tools.test.ts`, `eval-scenarios.test.ts`, `doc-aware.test.ts`, `repository-search.test.ts`, `relationship-index.test.ts`), full event-router flow (`event-router.test.ts`), benchmark runner end-to-end (`bench-runner.test.ts`, `flue-eval-cli.test.ts` — the latter spawns the actual CLI via `spawnSync`), GitHub adapter (mock fetch)
+- Scope: tool pipelines against the sample fixture (`tools.test.ts`, `eval-scenarios.test.ts`, `doc-aware.test.ts`, `repository-search.test.ts`, `relationship-index.test.ts`), full event-router flow (`event-router.test.ts`), benchmark runner end-to-end (`bench-runner.test.ts`, `flowly-eval-cli.test.ts` — the latter spawns the actual CLI via `spawnSync`), GitHub adapter (mock fetch)
 - Approach: deterministic deciders and static model calls keep them key-free and reproducible
 - Factory Git integration uses temporary real repositories and a local bare remote; no network or shared branch is touched (`factory-git.test.ts`). Controlled implementation and verification use dependency fakes plus real subprocess execution (`factory-implementation.test.ts`, `factory-verification.test.ts`). Independent review isolation uses a distinctive scratch token that must not appear in reviewer input (`factory-review.test.ts`). The draft-PR publisher uses an in-memory GitHub client fake (`factory-publisher.test.ts`). `runFactoryPipeline` covers classify → plan → gated implement → verify → gated draft PR, including interrupted-run recovery (`factory-run.test.ts`). Autonomy policy promotion, demotion, caps, confirmations, and gate assertions are covered in `factory-autonomy.test.ts`. Least-capability stage manifests, restrict-only overlays, and adapter denials are covered in `factory-capabilities.test.ts`. Workspace allocation, resume, GC, and confinement are covered in `factory-workspace.test.ts`. Append-only run events, projection, and explain are covered in `factory-events.test.ts`. Adversarial factory trust-boundary evals are covered in `factory-safety.test.ts`. Migration plan digests, ordering, approval, resumability, blocked dependencies, and batch execution are covered in `factory-campaign.test.ts`. Provider-backed classifier/planner/reviewer adapters are covered with static model calls in `factory-model-adapters.test.ts`.
 
 **E2E Tests:**
 
-- Not used; live model runs are opt-in scripts/demos (`eval/run-eval.sh`, `demo/*.sh`, `npm run eval -- run --live`), not CI tests
+- Not used; live model runs are opt-in scripts (`eval/repository/run-live-tool-selection.sh`, `demo/reliability.sh`, `npm run eval -- run --live`), not CI tests
 
 ## Common Patterns
 
@@ -152,7 +153,7 @@ await assert.rejects(
 **CLI smoke test:**
 
 ```typescript
-const result = spawnSync('npx', ['tsx', 'scripts/flue-eval.ts', 'run', configPath, '--json'], {
+const result = spawnSync('npx', ['tsx', 'scripts/flowly-eval.ts', 'run', configPath, '--json'], {
   cwd,
   env,
   timeout,
@@ -163,4 +164,4 @@ const output = JSON.parse(result.stdout);
 
 ---
 
-_Testing analysis: 2026-09-06_
+_Testing analysis: 2026-09-12_

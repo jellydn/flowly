@@ -367,7 +367,7 @@ describe('createEventRouter', () => {
 
 describe('delivery stores', () => {
   test('file store persists across instances', async () => {
-    const dir = await mkdtemp(path.join(tmpdir(), 'flue-events-'));
+    const dir = await mkdtemp(path.join(tmpdir(), 'flowly-events-'));
     const file = path.join(dir, 'deliveries.json');
     try {
       const first = createFileDeliveryStore(file);
@@ -383,7 +383,7 @@ describe('delivery stores', () => {
   });
 
   test('file store tolerates a missing or corrupt file', async () => {
-    const dir = await mkdtemp(path.join(tmpdir(), 'flue-events-'));
+    const dir = await mkdtemp(path.join(tmpdir(), 'flowly-events-'));
     const file = path.join(dir, 'missing.json');
     try {
       const store = createFileDeliveryStore(file);
@@ -400,7 +400,7 @@ describe('loadConfigFromFile integration', () => {
   let dir: string;
 
   before(async () => {
-    dir = await mkdtemp(path.join(tmpdir(), 'flue-events-'));
+    dir = await mkdtemp(path.join(tmpdir(), 'flowly-events-'));
     await writeFile(
       path.join(dir, 'routes.json'),
       JSON.stringify({ routes: { 'pull_request.opened': 'review' } }),

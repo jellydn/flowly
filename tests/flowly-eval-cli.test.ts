@@ -3,12 +3,12 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { loadBenchmarkConfigFromFile } from '../eval/bench/config.ts';
-import { createMemoryBenchmarkStore } from '../eval/bench/store.ts';
-import type { BenchmarkReport } from '../eval/bench/types.ts';
+import { loadBenchmarkConfigFromFile } from '../eval/framework/config.ts';
+import { createMemoryBenchmarkStore } from '../eval/framework/store.ts';
+import type { BenchmarkReport } from '../eval/framework/types.ts';
 
-test('sample benchmark config loads and validates', async () => {
-  const loaded = await loadBenchmarkConfigFromFile('eval/benchmarks/sample.json');
+test('Flowly sample benchmark config loads and validates', async () => {
+  const loaded = await loadBenchmarkConfigFromFile('eval/suites/sample.json');
   assert.ok(loaded.ok);
   if (loaded.ok) {
     assert.equal(loaded.suite.id, 'capstone');
@@ -23,7 +23,7 @@ test('sample benchmark config loads and validates', async () => {
 });
 
 test('parseModelSpecString accepts a provider-qualified id and a JSON spec', async () => {
-  const { parseModelSpecString } = await import('../eval/bench/schema.ts');
+  const { parseModelSpecString } = await import('../eval/framework/schema.ts');
   const fromId = parseModelSpecString('openrouter/qwen/qwen3-coder');
   assert.ok(fromId.ok);
   if (fromId.ok) {
@@ -40,12 +40,13 @@ test('parseModelSpecString accepts a provider-qualified id and a JSON spec', asy
   }
   assert.ok(!parseModelSpecString('not-json-{').ok);
   assert.ok(!parseModelSpecString('no-provider').ok);
+  assert.ok(!parseModelSpecString('openrouter/').ok);
   assert.ok(!parseModelSpecString('{"id":"x"}').ok);
 });
 
 test('sample benchmark suite scenario ids match capstone decider ids', async () => {
-  const { capstoneScenarios } = await import('../eval/capstone-eval.ts');
-  const loaded = await loadBenchmarkConfigFromFile('eval/benchmarks/sample.json');
+  const { capstoneScenarios } = await import('../eval/repository/scenarios.ts');
+  const loaded = await loadBenchmarkConfigFromFile('eval/suites/sample.json');
   assert.ok(loaded.ok);
   if (loaded.ok) {
     const deciderIds = new Set(capstoneScenarios.map((s) => s.id));
@@ -79,7 +80,7 @@ function minimalConfig(): object {
 }
 
 test('report store round-trips a full report', async (t) => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'flue-eval-cli-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'flowly-eval-cli-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const store = createMemoryBenchmarkStore();
 
@@ -111,7 +112,7 @@ test('report store round-trips a full report', async (t) => {
 });
 
 test('CLI run command is smoke-testable via tsx without an LLM key', async (t) => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'flue-eval-run-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'flowly-eval-run-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   // Single-model config so stdout is exactly one JSON report.
   const configPath = path.join(dir, 'config.json');
@@ -138,9 +139,9 @@ test('CLI run command is smoke-testable via tsx without an LLM key', async (t) =
     }),
   );
   const { spawnSync } = await import('node:child_process');
-  const result = spawnSync('npx', ['tsx', 'scripts/flue-eval.ts', 'run', configPath, '--json'], {
+  const result = spawnSync('npx', ['tsx', 'scripts/flowly-eval.ts', 'run', configPath, '--json'], {
     cwd: process.cwd(),
-    env: { ...process.env, FLUE_EVAL_RESULTS_DIR: dir },
+    env: { ...process.env, FLOWLY_EVAL_RESULTS_DIR: dir },
     encoding: 'utf8',
     timeout: 120_000,
   });
@@ -154,7 +155,7 @@ test('CLI run command is smoke-testable via tsx without an LLM key', async (t) =
 });
 
 test('CLI gate exits non-zero when a versioned threshold fails', async (t) => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'flue-eval-gate-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'flowly-eval-gate-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const config = minimalConfig() as {
     suite: { gate?: { maxCostUsd: number } };
@@ -167,7 +168,7 @@ test('CLI gate exits non-zero when a versioned threshold fails', async (t) => {
   const { spawnSync } = await import('node:child_process');
   const result = spawnSync(
     'npx',
-    ['tsx', 'scripts/flue-eval.ts', 'gate', configPath, '--no-save'],
+    ['tsx', 'scripts/flowly-eval.ts', 'gate', configPath, '--no-save'],
     {
       cwd: process.cwd(),
       env: { ...process.env, FLUE_EVAL_RESULTS_DIR: dir },
@@ -181,17 +182,17 @@ test('CLI gate exits non-zero when a versioned threshold fails', async (t) => {
 });
 
 test('CLI --judge-model rejects a malformed spec with exit 2 and no key needed', async (t) => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'flue-eval-judge-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'flowly-eval-judge-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const configPath = path.join(dir, 'config.json');
   await writeFile(configPath, JSON.stringify(minimalConfig()));
   const { spawnSync } = await import('node:child_process');
   const result = spawnSync(
     'npx',
-    ['tsx', 'scripts/flue-eval.ts', 'run', configPath, '--judge-model', 'not-json-{'],
+    ['tsx', 'scripts/flowly-eval.ts', 'run', configPath, '--judge-model', 'not-json-{'],
     {
       cwd: process.cwd(),
-      env: { ...process.env, FLUE_EVAL_RESULTS_DIR: dir },
+      env: { ...process.env, FLOWLY_EVAL_RESULTS_DIR: dir },
       encoding: 'utf8',
       timeout: 120_000,
     },
@@ -201,7 +202,7 @@ test('CLI --judge-model rejects a malformed spec with exit 2 and no key needed',
 });
 
 test('CLI --judge-model with a valid spec fails with the actionable key error before any run', async (t) => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'flue-eval-judge-key-'));
+  const dir = await mkdtemp(path.join(tmpdir(), 'flowly-eval-judge-key-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const configPath = path.join(dir, 'config.json');
   await writeFile(configPath, JSON.stringify(minimalConfig()));
@@ -210,7 +211,7 @@ test('CLI --judge-model with a valid spec fails with the actionable key error be
     'npx',
     [
       'tsx',
-      'scripts/flue-eval.ts',
+      'scripts/flowly-eval.ts',
       'run',
       configPath,
       '--judge-model',
@@ -218,7 +219,7 @@ test('CLI --judge-model with a valid spec fails with the actionable key error be
     ],
     {
       cwd: process.cwd(),
-      env: { ...process.env, FLUE_EVAL_RESULTS_DIR: dir },
+      env: { ...process.env, FLOWLY_EVAL_RESULTS_DIR: dir },
       encoding: 'utf8',
       timeout: 120_000,
     },
@@ -227,4 +228,16 @@ test('CLI --judge-model with a valid spec fails with the actionable key error be
   // actionable message instead of silently running the keyword judge.
   assert.equal(result.status, 1, result.stderr);
   assert.match(result.stderr, /No API key for provider "openrouter"/);
+});
+
+test('legacy eval script forwards to the Flowly CLI', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const result = spawnSync('npx', ['tsx', 'scripts/flue-eval.ts'], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    timeout: 120_000,
+  });
+
+  assert.equal(result.status, 2, result.stderr);
+  assert.match(result.stderr, /Usage:/);
 });

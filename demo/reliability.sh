@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Day 18 reliability demo: injects failures to show retry, timeout, and
+# Reliability demo: injects failures to show retry, timeout, and
 # fallback behaviour.
 #
 # Usage:
-#   demo/reliability-demo.sh          # run all scenarios
-#   demo/reliability-demo.sh 1        # run only scenario 1
+#   demo/reliability.sh          # run all scenarios
+#   demo/reliability.sh 1        # run only scenario 1
 #
 # Requires a provider API key (e.g. OPENROUTER_API_KEY) in the environment
 # for live LLM runs. Without a key, the deterministic tests in

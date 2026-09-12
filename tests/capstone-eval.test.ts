@@ -7,7 +7,7 @@ import {
   runCapstoneEval,
   type EvalReport,
   type ScenarioResult,
-} from '../eval/capstone-eval.ts';
+} from '../eval/repository/scenarios.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const fixture = path.resolve(__dirname, '..', 'eval', 'fixtures', 'sample-repo');

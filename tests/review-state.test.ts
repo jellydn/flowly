@@ -34,17 +34,17 @@ const sampleState: ReviewState = {
 describe('encodeReviewState', () => {
   test('wraps JSON in an HTML comment with the state marker', () => {
     const body = encodeReviewState(sampleState);
-    assert.match(body, /<!--\s*flue-review-state/);
+    assert.match(body, /<!--\s*flowly-review-state/);
     assert.match(body, /-->/);
     assert.ok(body.includes('abc123def456'));
   });
 
   test('includes the visible placeholder after the hidden block', () => {
     const body = encodeReviewState(sampleState);
-    assert.ok(body.includes('_Flue review state (automated; do not edit)._'));
+    assert.ok(body.includes('_Flowly review state (automated; do not edit)._'));
     // Hidden block comes before the placeholder.
     const markerEnd = body.indexOf('-->');
-    const placeholder = body.indexOf('_Flue review state');
+    const placeholder = body.indexOf('_Flowly review state');
     assert.ok(markerEnd > -1 && placeholder > markerEnd);
   });
 
@@ -70,18 +70,18 @@ describe('parseReviewState', () => {
   });
 
   test('returns null for malformed JSON inside the marker', () => {
-    const body = '<!-- flue-review-state\n{not valid json}\n-->';
+    const body = '<!-- flowly-review-state\n{not valid json}\n-->';
     assert.equal(parseReviewState(body), null);
   });
 
   test('returns null for a state with invalid findings', () => {
     const body =
-      '<!-- flue-review-state\n{"reviewedHeadSha":"abc","findings":[{"bad":true}],"reviewedAt":1}\n-->';
+      '<!-- flowly-review-state\n{"reviewedHeadSha":"abc","findings":[{"bad":true}],"reviewedAt":1}\n-->';
     assert.equal(parseReviewState(body), null);
   });
 
   test('returns null for a state missing reviewedHeadSha', () => {
-    const body = '<!-- flue-review-state\n{"findings":[],"reviewedAt":1}\n-->';
+    const body = '<!-- flowly-review-state\n{"findings":[],"reviewedAt":1}\n-->';
     assert.equal(parseReviewState(body), null);
   });
 
@@ -96,7 +96,7 @@ describe('parseReviewState', () => {
     assert.deepEqual(parsed, state);
   });
 
-  test('parses a legacy HTML-comment-only body (no visible placeholder)', () => {
+  test('parses a legacy Flue marker without a visible placeholder', () => {
     const legacy = `<!-- flue-review-state\n${JSON.stringify(sampleState)}\n-->`;
     const parsed = parseReviewState(legacy);
     assert.deepEqual(parsed, sampleState);
@@ -112,7 +112,7 @@ describe('isReviewStateComment', () => {
     assert.equal(isReviewStateComment(encodeReviewState(sampleState)), true);
   });
 
-  test('returns true for a legacy HTML-comment-only body', () => {
+  test('returns true for a legacy Flue marker', () => {
     const legacy = `<!-- flue-review-state\n${JSON.stringify(sampleState)}\n-->`;
     assert.equal(isReviewStateComment(legacy), true);
   });

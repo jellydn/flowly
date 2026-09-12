@@ -282,7 +282,14 @@ describe('repository memory', () => {
     const store = createGitHubRepositoryMemoryStore(client, 138);
     const state = learnRepositoryInstincts('jellydn/flowly', null, [observation('1')], policy, NOW);
     await store.save(state);
+    assert.match(comments[1].body, /flowly-repository-memory/);
     assert.deepEqual(await store.load(), state);
+
+    comments[1].body = comments[1].body.replace(
+      'flowly-repository-memory',
+      'flue-repository-memory',
+    );
+    assert.deepEqual(await createGitHubRepositoryMemoryStore(client, 138).load(), state);
     await assert.rejects(
       () => store.save({ ...state, repositoryId: 'other/repository' }),
       /targets other\/repository/,

@@ -19,7 +19,7 @@ repository's checkout and granting the workflow only the GitHub and model creden
 
 - An issue → plan → implementation → verification → independent review → draft PR factory
 - A factory-owned `factory/*` branch per accepted issue; never auto-merges or auto-approves
-- One general-purpose Flue repository agent
+- One general-purpose Flowly repository agent built on Flue 2.0
 - Six typed, read-only tools (`list_files`, `read_file`, `search_code`,
   `search_docs`, `retrieve` — semantic TF-IDF retrieval, and `related_context`
   — cited repository relationships)
@@ -102,6 +102,22 @@ ref. A repository with a different default branch must adapt that base-ref wirin
 the factory; there is not yet an environment-variable override.
 
 ## Quick start
+
+To see the main Flowly capabilities without credentials, use the
+[newcomer examples](./demo/README.md):
+
+```bash
+npm install
+npm run demo:repository -- auth
+npm run demo:factory
+npm run demo:end-to-end
+```
+
+These commands use the bundled fixture. They do not change a repository or call GitHub. See the
+[evaluation guide](./eval/README.md) for deterministic gates, live model comparisons, custom suites,
+and factory security checks.
+
+To inspect a real repository with a model:
 
 ```bash
 git clone https://github.com/jellydn/flowly.git
@@ -278,8 +294,9 @@ and adds review-specific tools backed by a trusted GitHub/git boundary:
   (`git diff prevSha...headSha`), or an empty result on first review.
 - `get_review_context` — reads repository-specific documentation files
   (`AGENTS.md`, `CONTRIBUTING.md`, `.github/pull_request_template.md`,
-  `.flue/review-instructions.md`, `.flue/repository-learnings.md`) to
-  understand conventions, test commands, and past learnings.
+  `.flowly/review-instructions.md`, `.flowly/repository-learnings.md`) to
+  understand conventions, test commands, and past learnings. The old `.flue/`
+  paths remain read-only fallbacks for existing repositories.
 - `submit_review` — posts one structured GitHub review with inline comments.
 
 ### Analysis vs. mutation separation
@@ -299,7 +316,7 @@ After each review, the trusted publisher persists a hidden state comment on the
 PR containing the reviewed head SHA, the findings, and a timestamp:
 
 ```html
-<!-- flue-review-state
+<!-- flowly-review-state
 {"reviewedHeadSha":"abc123","findings":[...],"reviewedAt":1700000000}
 -->
 ```
@@ -326,8 +343,8 @@ at the start of each review. It looks for these files in the checked-out repo:
 | `AGENTS.md`                        | Project conventions, build/test commands, architecture |
 | `CONTRIBUTING.md`                  | Contribution guidelines                                |
 | `.github/pull_request_template.md` | PR template (what the author should provide)           |
-| `.flue/review-instructions.md`     | Review-specific priorities and rules                   |
-| `.flue/repository-learnings.md`    | Durable learnings accumulated from past reviews        |
+| `.flowly/review-instructions.md`   | Review-specific priorities and rules                   |
+| `.flowly/repository-learnings.md`  | Durable learnings accumulated from past reviews        |
 
 Only files that exist are returned; each is capped at 200 lines. The content is
 treated as **data** — it informs the review but never overrides the agent's
@@ -341,22 +358,27 @@ body under a "Proposed repository learnings" section:
 ```markdown
 ### Proposed repository learnings
 
-_Suggestions for `.flue/repository-learnings.md`. Review and apply manually —
+_Suggestions for `.flowly/repository-learnings.md`. Review and apply manually —
 the agent cannot modify files._
 
 - **[convention]** Always use parameterized queries for SQL
   — _SQL injection found in 2 PRs_
 ```
 
-The agent **never writes to `.flue/` directly**. A human reviews the proposed
-learnings and manually adds approved ones to `.flue/repository-learnings.md`.
+The agent **never writes to `.flowly/` directly**. A human reviews the proposed
+learnings and manually adds approved ones to `.flowly/repository-learnings.md`.
 This keeps the learning loop transparent and human-controlled.
+
+For compatibility, the reviewer reads `.flue/review-instructions.md` or
+`.flue/repository-learnings.md` when no readable equivalent `.flowly/` file
+exists. New repositories should use `.flowly/`; when both valid paths exist,
+Flowly uses the `.flowly/` file.
 
 ### Continuous repository learning
 
 Flowly can also convert repeated structured factory and review outcomes into
 typed repository instincts. This path is separate from the hand-authored
-`.flue/repository-learnings.md` file. It is disabled unless
+`.flowly/repository-learnings.md` file. It is disabled unless
 `FLOWLY_LEARNING_POLICY` names a validated policy file and that policy sets
 `enabled` to `true`. Start from [`repository-learning.example.json`](./repository-learning.example.json):
 
@@ -373,7 +395,7 @@ typed repository instincts. This path is separate from the hand-authored
 Production runs set `FLOWLY_MEMORY_ISSUE` to one repository issue whose hidden,
 bot-authored comment holds the bounded state. The store accepts only the
 configured bot identity and the current `owner/repo`. Local development can set
-`FLOWLY_MEMORY_STORE=.flue/repository-instincts.json`; configured paths cannot
+`FLOWLY_MEMORY_STORE=.flowly/repository-instincts.json`; configured paths cannot
 escape the repository.
 
 The trusted learning core extracts only these MVP observations:
@@ -494,11 +516,11 @@ The factory's implementation stage crosses two trusted boundaries in `factory/`:
   and a maximum of 20 commands.
 
 `runControlledImplementation` passes only the issue, structured plan, and
-isolated workspace to the implementer. It commits and pushes the factory-owned
-branch, runs every configured check, records command/exit-code outcomes, and
-enters independent review only when all checks pass and the checkout remains
-clean. Failed or mutating checks persist a failed run instead; this stage never
-creates a PR, approves a review, or merges.
+isolated workspace to the implementer. Trusted code commits the changes, runs
+every configured check, records command/exit-code outcomes, and pushes the
+factory-owned branch only when all checks pass and the checkout remains clean.
+Failed or mutating checks persist a failed run instead; this stage never creates
+a PR, approves a review, or merges.
 
 The production implementer is a separate Flue agent backed by just-bash's
 root-confined `ReadWriteFs`. It can mutate only the isolated clone through a
@@ -535,6 +557,32 @@ selects a local JSON directory for development only. The job can push
 `factory/*` branches and open a draft PR; it never merges or approves.
 Classifier, planner, implementer, and reviewer use `FACTORY_MODEL` (falling
 back to `REPO_ASSISTANT_MODEL`); the workflow supplies its provider key.
+
+### Factory workspaces and run inspection
+
+`FactoryWorkspaceManager` persists one workspace record per run attempt in
+`FACTORY_WORKSPACE_STORE` (by default, `.lifecycle` under `FACTORY_WORKSPACE_ROOT`).
+It validates ownership, repository, branch, base SHA, and current HEAD before
+reuse. Each factory invocation also removes expired terminal workspaces while
+leaving active and unexpired retained workspaces intact. Default retention is
+one hour for completed or cancelled workspaces and one day for failed workspaces.
+
+Factory state includes an append-only event timeline. Inspect it without
+changing the run:
+
+```bash
+GITHUB_REPOSITORY=owner/repo npm run factory -- runs list
+GITHUB_REPOSITORY=owner/repo npm run factory -- runs show <run-id>
+GITHUB_REPOSITORY=owner/repo npm run factory -- runs timeline <run-id>
+GITHUB_REPOSITORY=owner/repo npm run factory -- runs explain <run-id>
+```
+
+GitHub-backed inspection also requires `GITHUB_TOKEN` and reads only run
+comments from `REVIEW_BOT_LOGIN` (default `github-actions[bot]`). For local
+development, set `FACTORY_RUN_STORE` to the same JSON directory used by the
+factory pipeline. `show` returns the current projection, `timeline` returns
+ordered events, and `explain` summarizes the recorded outcome and gate reasons.
+The CLI has no mutation, approval, merge, deployment, or capability-grant path.
 
 ### Graduated factory autonomy
 
@@ -708,7 +756,7 @@ activate).
 
 ## Model evaluation benchmark
 
-`eval/bench/` is a built-in evaluation framework inspired by
+`eval/framework/` is a built-in evaluation framework inspired by
 [OpenRouter ORI Eval](https://openrouter.ai/ori/eval): it compares models on
 real repository-assistant workloads. A named suite of scenarios runs against
 one or more models and produces reports with a quality score, latency, token
@@ -731,13 +779,19 @@ Deterministic mode reuses the capstone decision functions, so it is fully
 reproducible without a provider key — safe for CI. `--live` calls a real model
 through an OpenAI-compatible client; each model in the config resolves its own
 provider, key env, and base URL (fields `provider`, `apiKeyEnv`, `baseUrl`)
-with per-provider defaults in `eval/bench/providers.ts`. In live mode the
+with per-provider defaults in `eval/framework/providers.ts`. In live mode the
 model drives the real investigation loop — each tool result is fed back to the
 provider, which replies with the next action until it decides to answer —
 rather than a single scripted retrieval. Results persist as JSON under
-`eval/results/` (override with `FLUE_EVAL_RESULTS_DIR`). Every new report also
+`eval/results/` (override with `FLOWLY_EVAL_RESULTS_DIR`; the old
+`FLUE_EVAL_RESULTS_DIR` name remains a fallback). Every new report also
 records SHA-256 digests of the suite and the repository corpus visible to the
 inspection tools, so a result can be tied to its exact evaluation inputs.
+
+Per-model `baseUrl` and `apiKeyEnv` values control where credentials are sent.
+Flowly rejects these overrides unless the operator has reviewed the config and
+passes `--trust-model-overrides`. Prefer provider defaults or the operator-owned
+`FLOWLY_EVAL_BASE_URL` and `FLOWLY_EVAL_API_KEY` environment variables.
 
 The `review` subcommand records human accept/reject verdicts on a saved
 report (ORI-Eval-style human-in-the-loop scoring) and recomputes the
@@ -746,12 +800,12 @@ acceptance rate; use `report` to see each scenario's reviewed status.
 ### Benchmark suites
 
 A suite is a JSON file with a `suite` (scenarios + expected sources/keywords)
-and `models` list. The bundled `eval/benchmarks/sample.json` runs the seven
+and `models` list. The bundled `eval/suites/sample.json` runs the seven
 capstone scenarios. Each `models[]` entry names its own `provider` (and
 optionally `apiKeyEnv`/`baseUrl`), so one config can benchmark openrouter,
 anthropic, and deepseek models against their own endpoints and keys. Custom
 suites define their own prompts and expectations; scenario ids must map to
-decision functions in deterministic mode (see `eval/bench/runner.ts` and the
+decision functions in deterministic mode (see `eval/framework/runner.ts` and the
 bundled capstone deciders).
 
 Suites can define a versioned `gate` with minimum pass, quality, and tool
@@ -774,7 +828,7 @@ quality score. Reports record the judge used (`keyword` or the judge model id)
 and each scenario's judge rationale. Token usage and cost prefer values reported by the
 provider in `--live` mode (reported `prompt_tokens`/`completion_tokens` and
 billed `total_cost`); they fall back to estimates from the pricing table in
-`eval/bench/providers.ts` when a provider reports no usage. Each report
+`eval/framework/providers.ts` when a provider reports no usage. Each report
 records `usageSource: provider | estimated` so you can tell which applied.
 See `.github/workflows/eval.example` for a CI integration example.
 
@@ -792,11 +846,10 @@ and isolated code changes; Actions concurrency, durable factory leases, and
 the existing `just-bash` workspace isolation are the appropriately scaled
 mechanisms until measured queue or data-volume pressure justifies more.
 
-## Day 16: Tools for agents
+## Repository inspection tools
 
-This section documents the Day 16 learning focus: **file tools, search tools,
-API/tool contracts, correct tool selection, and feeding tool results back into
-the agent loop.**
+The repository assistant uses file tools, search tools, explicit contracts, and structured results
+to select evidence and feed it back into the agent loop.
 
 ### When to select each tool
 
@@ -862,7 +915,7 @@ The expected tool sequences are simulated deterministically in
 `tests/eval-scenarios.test.ts`. Run the live model-driven version with:
 
 ```bash
-./eval/run-eval.sh   # requires a provider key; logs the observed tool sequence
+./eval/repository/run-live-tool-selection.sh # requires provider keys; logs tool calls
 ```
 
 ### Safe debug logs
@@ -887,12 +940,10 @@ keys, file contents, absolute repository paths, or model reasoning.
 3. Agent safety depends on controls outside the model, including path
    confinement, output bounds, timeouts, and a shared tool budget.
 
-## Day 17: Planning vs Execution
+## Plan, execute, and reflect
 
-This section documents the Day 17 learning focus: **separating reasoning from
-execution**. Before calling any inspection tool, the agent declares a short
-3–5 step plan, executes each step, then reflects on whether the plan was
-optimal.
+The agent separates reasoning from execution. Before it calls an inspection tool, it declares a
+short 3–5 step plan, executes each step, and then reflects on whether the plan was optimal.
 
 ### Architecture
 
@@ -951,7 +1002,7 @@ the model uses.
 
 ### Evaluation scenarios
 
-The Day 16 evaluation scenarios still apply, now with a planning step first:
+The repository-tool evaluation scenarios also include a planning step first:
 
 | Scenario               | Plan                                             | Execution                                                      |
 | ---------------------- | ------------------------------------------------ | -------------------------------------------------------------- |
@@ -1084,11 +1135,11 @@ logs secrets, tokens, file contents, or sensitive prompts.
 ### Failure-injection demo
 
 ```bash
-./demo/reliability-demo.sh        # run all scenarios
-./demo/reliability-demo.sh 1      # recover from transient failure
-./demo/reliability-demo.sh 2      # timeout simulation
-./demo/reliability-demo.sh 3      # malformed response
-./demo/reliability-demo.sh 4      # baseline (no failures)
+./demo/reliability.sh        # run all scenarios
+./demo/reliability.sh 1      # recover from transient failure
+./demo/reliability.sh 2      # timeout simulation
+./demo/reliability.sh 3      # malformed response
+./demo/reliability.sh 4      # baseline (no failures)
 ```
 
 Environment variables for failure injection:
@@ -1116,11 +1167,10 @@ multiplying budget consumption.
 3. A search→read fallback preserved usefulness when the primary tool failed,
    while permanent errors failed fast instead of hiding configuration problems.
 
-## Day 21: Doc-aware repository agent
+## Grounded repository analysis
 
-This section documents the Day 21 learning focus: **combining documentation
-search, source-code search, and file-reading into a bounded investigation loop
-that produces grounded answers with citations.**
+The assistant combines documentation search, source-code search, and file reading in a bounded
+investigation loop that produces grounded answers with citations.
 
 ### What the doc-aware agent does
 
@@ -1218,9 +1268,9 @@ hallucinating.
 ### How to run the demo
 
 ```bash
-./demo/doc-aware-demo.sh              # all scenarios
-./demo/doc-aware-demo.sh auth         # only auth-related scenarios
-./demo/doc-aware-demo.sh payment      # only the negative-search scenario
+./demo/repository-analysis.sh              # all scenarios
+./demo/repository-analysis.sh auth         # only auth-related scenarios
+./demo/repository-analysis.sh payment      # only the negative-search scenario
 ```
 
 The demo uses deterministic decision functions (no LLM required) and the
@@ -1241,10 +1291,10 @@ Scenario: Authentication flow (docs + code)
 
 ```bash
 npm test                              # all tests
-npx tsx --test tests/doc-aware.test.ts  # only Day 21 tests
+npx tsx --test tests/doc-aware.test.ts  # only grounded-analysis tests
 ```
 
-The Day 21 test suite covers:
+The grounded-analysis test suite covers:
 
 1. Documentation search finds relevant Markdown files.
 2. Documentation search excludes irrelevant directories.
@@ -1331,7 +1381,8 @@ flowly/
 │   └── schema.ts               # ReviewResult Valibot schema
 ├── scripts/
 │   ├── factory.ts              # operator run inspection CLI (npm run factory)
-│   ├── flue-eval.ts            # eval benchmark CLI (npm run eval)
+│   ├── flowly-eval.ts          # eval benchmark CLI (npm run eval)
+│   ├── flue-eval.ts            # legacy compatibility entrypoint
 │   ├── memory.ts               # inspect or explicitly reject/deprecate instincts
 │   ├── review-pr.ts            # CI entrypoint (npm run review-pr)
 │   ├── run-factory.ts          # issues.labeled.factory pipeline (npm run run-factory)
@@ -1387,19 +1438,17 @@ flowly/
 │   ├── repository.test.ts
 │   └── tools.test.ts
 ├── demo/
-│   ├── capstone-demo.sh
-│   ├── capstone-demo.ts        # index → retrieve → cite → evaluate
-│   ├── doc-aware-demo.sh
-│   ├── doc-aware-demo.ts
-│   └── reliability-demo.sh
+│   ├── README.md               # newcomer path and example guide
+│   ├── repository-analysis.ts/.sh
+│   ├── factory-controls.ts/.sh # read-only factory control tour
+│   ├── reliability.sh          # live failure-injection scenarios
+│   └── end-to-end.ts/.sh       # index → retrieve → cite → evaluate
 ├── eval/
 │   ├── README.md
-│   ├── bench/                  # ORI-Eval-inspired benchmark framework
-│   ├── benchmarks/sample.json  # bundled 7-scenario suite
-│   ├── capstone-eval.ts        # Day 30 capstone evaluation
-│   ├── safety/                 # factory trust-boundary eval catalog
-│   ├── run-capstone-eval.sh
-│   ├── run-eval.sh
+│   ├── framework/              # config, model loop, metrics, reports, gates
+│   ├── repository/             # deterministic suite + live tool-selection runner
+│   ├── security/               # factory trust-boundary eval catalog
+│   ├── suites/sample.json      # bundled 7-scenario suite
 │   └── fixtures/sample-repo/   # bundled evaluation fixture
 ├── docs/
 │   ├── adr/                    # architecture decision records (0001–0009)

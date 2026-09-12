@@ -38,7 +38,8 @@ export function createPatchCheck(
   } = {},
 ): (scenario: BenchmarkScenario, answer: string) => Promise<MetricPass | null> {
   const validate: PatchValidator =
-    input.validate ?? (async (_patch, expectedPaths) => expectedPaths.length > 0);
+    input.validate ??
+    (async (patch, expectedPaths) => expectedPaths.some((expected) => patch.includes(expected)));
 
   return async (scenario, answer) => {
     const expectedPaths = scenario.expectedSources ?? [];

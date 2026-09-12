@@ -9,7 +9,8 @@ import { parseFactoryRun } from './schema.ts';
 import { assertRunVersion, type FactoryRunStore } from './store.ts';
 import type { FactoryRun } from './types.ts';
 
-const STATE_MARKER = 'flue-factory-run';
+const STATE_MARKER = 'flowly-factory-run';
+const LEGACY_STATE_MARKER = 'flue-factory-run';
 
 export type FactoryRunCommentClient = {
   owner: string;
@@ -21,18 +22,22 @@ export type FactoryRunCommentClient = {
 };
 
 export function encodeFactoryRunComment(run: FactoryRun): string {
-  return `<!-- ${STATE_MARKER}\n${JSON.stringify(run)}\n-->\n\n_Flue factory run (automated; do not edit)._`;
+  return `<!-- ${STATE_MARKER}\n${JSON.stringify(run)}\n-->\n\n_Flowly factory run (automated; do not edit)._`;
 }
 
 export function isFactoryRunComment(body: string): boolean {
-  return body.startsWith(`<!-- ${STATE_MARKER}\n`);
+  return [STATE_MARKER, LEGACY_STATE_MARKER].some((marker) => body.startsWith(`<!-- ${marker}\n`));
 }
 
 export function parseFactoryRunComment(body: string): FactoryRun | null {
-  if (!isFactoryRunComment(body)) return null;
+  const marker = [STATE_MARKER, LEGACY_STATE_MARKER].find((candidate) =>
+    body.startsWith(`<!-- ${candidate}\n`),
+  );
+  if (!marker) return null;
+  const prefix = `<!-- ${marker}\n`;
   const commentEnd = body.indexOf('\n-->');
   if (commentEnd < 0) return null;
-  const snapshot = body.slice(`<!-- ${STATE_MARKER}\n`.length, commentEnd);
+  const snapshot = body.slice(prefix.length, commentEnd);
   try {
     return parseFactoryRun(JSON.parse(snapshot));
   } catch {

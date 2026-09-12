@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, test } from 'node:test';
-import type { ModelCallFn } from '../eval/bench/providers.ts';
+import type { ModelCallFn } from '../eval/framework/providers.ts';
 import {
   createModelFactoryClassifier,
   createModelFactoryPlanner,

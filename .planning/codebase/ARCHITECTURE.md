@@ -1,6 +1,6 @@
 # Architecture
 
-**Analysis Date:** 2026-09-06
+**Analysis Date:** 2026-09-12
 
 ## Pattern Overview
 
@@ -13,7 +13,10 @@
 - Trusted boundary: GitHub token, git diff, and review posting live in application code (`github/`, `review/pr-data.ts`), never in sandbox tools
 - Factory writes occur only in an isolated clone through a root-confined `just-bash` sandbox; trusted orchestration verifies, commits, pushes, and opens a draft PR
 - Factory autonomy defaults to `plan-only`; policy evidence or an explicit one-run confirmation must open implementation and publication gates
+- Every factory stage receives a built-in least-capability manifest; optional policy overlays can only remove access
+- Factory workspace identity and append-only run events persist across retries; projections and explanations are derived from those events
 - Deterministic, key-free evaluation paths for CI alongside live provider-backed paths
+- FACTORY-001–008 adversarial tests exercise trusted factory boundaries without a live model or GitHub mutation
 - Factory-function composition everywhere (`createXxx`) with Valibot schema validation at the edges
 
 ## Decisions
@@ -25,7 +28,7 @@ map, record an ADR and keep both documents in sync:
 | ADR                                                                                      | Decision                                                                                                                                                                                                                                                                                             | Status   |
 | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
 | [0001 – Event router](../../docs/adr/0001-event-router.md)                               | Declarative Valibot route config, normalized event model, first-match routing with AND-ed filters, duplicate-delivery stores, decision-only dispatch (agent execution wired by workflows)                                                                                                            | Accepted |
-| [0002 – Model evaluation benchmark](../../docs/adr/0002-model-eval-benchmark.md)         | `eval/bench/` framework with deterministic + live runner modes, versioned quality gates and input-lineage digests, keyword judge with an LLM-as-a-judge seam, provider pricing, `npm run eval` CLI                                                                                                   | Accepted |
+| [0002 – Model evaluation benchmark](../../docs/adr/0002-model-eval-benchmark.md)         | `eval/framework/` with deterministic + live runner modes, versioned quality gates and input-lineage digests, keyword judge with an LLM-as-a-judge seam, provider pricing, `npm run eval` CLI                                                                                                       | Accepted |
 | [0003 – Tool composition seam](../../docs/adr/0003-tool-composition-seam.md)             | Pure `(repository) => ToolDefinition` factories composed by one seam: `withInspectionBudget` / `wrapToolWithReliability` in `reliability/resilient-tool.ts`, scope-parameterized `createSearchTool`, shared `createLineLogger` sink, `inspection-registry.ts` as the single tool-set source of truth | Accepted |
 | [0004 – Live-eval provider seam](../../docs/adr/0004-live-eval-provider-seam.md)         | Per-model provider registry (`createProviderClient`) resolving each config model's own provider/key/base URL, `createModelDecider` driving the live investigation loop, LLM-as-a-judge wired via `--judge-model`                                                                                     | Accepted |
 | [0005 – Transcript-based showcase](../../docs/adr/0005-transcript-based-showcase.md)     | `showcase/` is plain static HTML/CSS whose "screenshots" are verbatim output of the deterministic key-free demos (no build step, no fabricated UI); all assets under `docs/` use relative paths because Pages serves a project subpath                                                               | Accepted |
@@ -74,7 +77,7 @@ See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to 
 
 - Purpose: Cross-cutting resilience — retry (transient only), timeout via `AbortController`, output validation, failure injection
 - Location: `reliability/`
-- Contains: `resilient-tool.ts`, `retry.ts`, `timeout`/`fallback.ts`, `fallback-tool.ts` (search→read fallback seam), `errors.ts`, `validation.ts`, `observability.ts`, `failure-injection.ts`, `tool-invocation.ts`
+- Contains: `resilient-tool.ts`, `retry.ts`, `fallback.ts`, `fallback-tool.ts` (search→read fallback seam), `errors.ts`, `validation.ts`, `observability.ts`, `failure-injection.ts`, `tool-invocation.ts`
 - Depends on: tools contracts
 - Used by: every inspection tool wrapper
 
@@ -90,7 +93,7 @@ See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to 
 
 - Purpose: Take an actionable GitHub issue through policy-gated planning, isolated implementation, verification, independent review, and a reviewed draft PR; also coordinate approved multi-batch migration campaigns
 - Location: `factory/`
-- Contains: run/state types and stores, orchestrator, autonomy policy and gates, per-stage capability manifests and adapter guards, classifier/planner/reviewer model adapters, isolated agent implementer, trusted Git mutation, verification, independent review evidence, draft-PR publisher, and migration-campaign planning/execution/storage
+- Contains: run/state and append-only event stores, deterministic event projections, orchestrator, autonomy gates, per-stage capability manifests and adapter guards, persisted workspace lifecycle, classifier/planner/reviewer model adapters, isolated agent implementer, trusted Git mutation, verification, independent review evidence, draft-PR publisher, and migration-campaign planning/execution/storage
 - Depends on: `github/client.ts` for draft PRs; never auto-merges or auto-approves
 - Used by: `scripts/run-factory.ts`; `issues.labeled.factory` is the event-router entrypoint
 
@@ -105,9 +108,9 @@ See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to 
 
 - Purpose: Benchmark models on repo-assistant workloads
 - Location: `eval/`
-- Contains: `capstone-eval.ts` (Day-30 suite), `bench/` (framework: `types.ts`, `schema.ts`, `config.ts`, `metrics.ts`, `store.ts`, `runner.ts`, `judge.ts`, `providers.ts`, `model-loop.ts`, `patch.ts`, `index.ts`), `benchmarks/sample.json`, `fixtures/sample-repo/`
+- Contains: `repository/` (deterministic scenarios and live tool-selection runner), `framework/` (model benchmark framework), `security/` (versioned factory invariant catalog and adversarial runner), `suites/sample.json`, `fixtures/sample-repo/`
 - Depends on: investigation, tools, index
-- Used by: `scripts/flue-eval.ts` (CLI), `eval/run-capstone-eval.sh`, CI example
+- Used by: `scripts/flowly-eval.ts` (CLI), `demo/`, CI, and the optional evaluation workflow
 
 ## Data Flow
 
@@ -132,9 +135,11 @@ See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to 
 1. `event-router.yml` routes `issues.labeled.factory` to the factory job
 2. `scripts/run-factory.ts` loads or resumes the hidden-comment run state and computes the autonomy audit
 3. Provider-backed adapters classify and plan against read-only repository evidence
-4. The implementation gate either stops the run or starts the isolated writable Flue implementer
-5. Trusted code verifies the real diff and commands; an independent reviewer sees only the issue, plan criteria, diff, and verification evidence
-6. The publication gate either stops the run or lets trusted code commit, push a `factory/*` branch, and create or reuse one draft PR
+4. Trusted code records least-capability manifests; the implementation gate either stops the run or allocates/reuses the run-owned isolated workspace
+5. The writable Flue implementer changes that workspace; trusted code commits, verifies the exact commit, then pushes the `factory/*` branch only after checks pass
+6. An independent reviewer sees only the issue, plan criteria, diff, and verification evidence
+7. The publication gate either stops the run or lets trusted code create or reuse one draft PR
+8. State and workspace transitions append sanitized events to the durable run snapshot; startup garbage collection removes only expired terminal workspaces
 
 **Migration campaign:**
 
@@ -161,7 +166,7 @@ See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to 
 
 **State Management:**
 
-- No application database. Persistent state: PR review and production factory runs in hidden GitHub comments, local development factory/campaign JSON stores, benchmark reports as JSON files, and event-router dedupe in an optional file store
+- No application database. Persistent state: PR review and production factory runs (including events) in bot-authored hidden GitHub comments; local factory run, workspace, campaign, memory, and dedupe JSON stores; benchmark reports as JSON files
 
 ## Key Abstractions
 
@@ -180,7 +185,7 @@ See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to 
 **`DecisionFn`:**
 
 - Purpose: Given investigation state, choose next tool call or stop
-- Examples: `investigation/types.ts`; mock deciders in `eval/capstone-eval.ts` and `eval/bench/runner.ts`
+- Examples: `investigation/types.ts`; mock deciders in `eval/repository/scenarios.ts` and `eval/framework/runner.ts`
 - Pattern: Deterministic function; enables key-free testing and CI evaluation
 
 **`FactoryOrchestrator` and autonomy audit:**
@@ -189,10 +194,22 @@ See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to 
 - Examples: `factory/orchestrator.ts`, `factory/store.ts`, `factory/autonomy.ts`
 - Pattern: persisted state machine plus evidence-based policy capped by a configured maximum level
 
+**Factory capability and workspace boundaries:**
+
+- Purpose: Make each stage's maximum authority explicit and bind writable work to one run attempt
+- Examples: `factory/capabilities.ts`, `factory/capability-guard.ts`, `factory/workspace-lifecycle.ts`, `factory/workspace-store.ts`
+- Pattern: immutable built-in maximum + restrict-only overlay; optimistic workspace records with ownership, SHA, path, and retention checks
+
+**Factory event log and projection:**
+
+- Purpose: Explain run state without exposing model scratch or adding a mutation path
+- Examples: `factory/events.ts`, `scripts/factory.ts`
+- Pattern: schema-validated append-only events stored atomically with snapshots; deterministic `list`, `show`, `timeline`, and `explain` views
+
 **`Valibot` schemas:**
 
 - Purpose: Validate everything at the edges (tool input/output, review result, event config, benchmark suites, factory policy/state)
-- Examples: `tools/contracts.ts`, `reliability/validation.ts`, `review/schema.ts`, `github/events/config.ts`, `eval/bench/schema.ts`, `factory/schema.ts`
+- Examples: `tools/contracts.ts`, `reliability/validation.ts`, `review/schema.ts`, `github/events/config.ts`, `eval/framework/schema.ts`, `factory/schema.ts`
 - Pattern: `safeParse` with field-path error messages
 
 ## Entry Points
@@ -219,19 +236,25 @@ See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to 
 
 - Location: `scripts/run-factory.ts`
 - Triggers: the `factory` job in `.github/workflows/event-router.yml`; `npm run run-factory`
-- Responsibilities: compose production classifier, planner, implementer, verifier, reviewer, run store, autonomy policy, and draft-PR publisher
+- Responsibilities: compose production stages, capability policy, workspace manager and GC, event log, run store, autonomy policy, repository learning, and draft-PR publisher
 
-**`scripts/flue-eval.ts`:**
+**`scripts/factory.ts`:**
 
-- Location: `scripts/flue-eval.ts`
+- Location: `scripts/factory.ts`
+- Triggers: `npm run factory -- runs list|show|timeline|explain`
+- Responsibilities: read stored factory events and print run projections or explanations; never mutate a run
+
+**`scripts/flowly-eval.ts`:**
+
+- Location: `scripts/flowly-eval.ts`
 - Triggers: `npm run eval` (run/compare/leaderboard/report)
 - Responsibilities: benchmark execution and reporting
 
-**`eval/capstone-eval.ts`:**
+**`eval/repository/scenarios.ts`:**
 
-- Location: `eval/capstone-eval.ts`
-- Triggers: `npm run capstone:eval`, `eval/run-capstone-eval.sh`
-- Responsibilities: Day-30 deterministic evaluation suite; entrypoint guarded by an is-main check so imports don't run it
+- Location: `eval/repository/scenarios.ts`
+- Triggers: `npm run eval:repository`, `eval/repository/run-deterministic.sh`
+- Responsibilities: deterministic repository evaluation suite; entrypoint guarded by an is-main check so imports do not run it
 
 ## Error Handling
 
@@ -248,12 +271,12 @@ See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to 
 
 **Logging:** Debug-gated structured logs (`REPO_ASSISTANT_DEBUG`, `EVENT_ROUTER_DEBUG`) — one safe line per tool call; never secrets, file contents, or payloads
 
-**Validation:** Valibot at every edge: tool inputs, tool outputs, review results, event-router config, benchmark suites, factory state, autonomy policy, and migration manifests
+**Validation:** Valibot at every edge: tool inputs, tool outputs, review results, event-router config, benchmark suites, factory state/events/capability policy, autonomy policy, and migration manifests
 
 **Authentication:** API keys in env; GitHub token held only by trusted `github/` code; model never sees it
 
-**Security:** Read-only assistant access, path confinement, symlink checks, size limits, empty assistant sandbox, isolated factory clone, root-confined factory filesystem, no factory network tools, and trusted publication gates
+**Security:** Read-only assistant access, path and symlink confinement, empty assistant sandbox, isolated factory clone, stage-specific least-capability manifests, root-confined factory filesystem, network deny-by-default, sanitized event metadata, and trusted draft-only publication gates
 
 ---
 
-_Architecture analysis: 2026-09-06_
+_Architecture analysis: 2026-09-12_

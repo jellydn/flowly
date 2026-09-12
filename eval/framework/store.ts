@@ -44,11 +44,49 @@ export function createMemoryBenchmarkStore(): BenchmarkStore {
  * Creating a new store instance re-reads the directory, so a restarted
  * process sees previously saved reports.
  */
+const SAFE_REPORT_ID = /^[A-Za-z0-9._-]+$/;
+
+function isSafeReportId(value: string): boolean {
+  return SAFE_REPORT_ID.test(value) && !value.includes('..');
+}
+
+function confinedReportFile(resultsDir: string, suiteId: string, runId: string): string {
+  if (!isSafeReportId(suiteId) || !isSafeReportId(runId)) {
+    throw new Error(`Unsafe benchmark report identity: ${suiteId}/${runId}`);
+  }
+  const root = path.resolve(resultsDir);
+  const file = path.resolve(root, suiteId, `${runId}.json`);
+  const relative = path.relative(root, file);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error('Benchmark report path escapes the results directory');
+  }
+  return file;
+}
+
+function reviveUnmeasuredRates(report: BenchmarkReport): BenchmarkReport {
+  return {
+    ...report,
+    results: report.results.map((result) => ({
+      ...result,
+      metrics: {
+        ...result.metrics,
+        costUsd: result.metrics.costUsd ?? Number.NaN,
+      },
+    })),
+    summary: {
+      ...report.summary,
+      costUsd: report.summary.costUsd ?? Number.NaN,
+      patchApplicabilityRate: report.summary.patchApplicabilityRate ?? Number.NaN,
+      humanAcceptanceRate: report.summary.humanAcceptanceRate ?? Number.NaN,
+    },
+  };
+}
+
 export function createFileBenchmarkStore(resultsDir: string): BenchmarkStore {
   async function reportPath(runId: string, suiteId: string): Promise<string> {
-    const dir = path.join(resultsDir, suiteId);
-    await mkdir(dir, { recursive: true });
-    return path.join(dir, `${runId}.json`);
+    const file = confinedReportFile(resultsDir, suiteId, runId);
+    await mkdir(path.dirname(file), { recursive: true });
+    return file;
   }
 
   return {
@@ -81,7 +119,7 @@ export function createFileBenchmarkStore(resultsDir: string): BenchmarkStore {
           if (!file.endsWith('.json')) continue;
           try {
             const text = await readFile(path.join(resultsDir, suiteDir, file), 'utf8');
-            reports.push(JSON.parse(text) as BenchmarkReport);
+            reports.push(reviveUnmeasuredRates(JSON.parse(text) as BenchmarkReport));
           } catch {
             // Corrupt report file: skip rather than fail the whole listing.
           }

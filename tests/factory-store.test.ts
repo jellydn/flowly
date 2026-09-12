@@ -97,7 +97,7 @@ describe('GitHub factory run store', () => {
     const created = await first.createOrGet(queuedRun('run-1'));
     assert.equal(created.created, true);
     assert.equal(client.created.length, 1);
-    assert.match(client.created[0] ?? '', /flue-factory-run/);
+    assert.match(client.created[0] ?? '', /flowly-factory-run/);
 
     const second = createGitHubFactoryRunStore(client, 94);
     const duplicate = await second.createOrGet(queuedRun('run-2'));
@@ -141,7 +141,7 @@ describe('GitHub factory run store', () => {
   });
 
   test('skips malformed and mismatched bot snapshots', async () => {
-    const malformed = '<!-- flue-factory-run\nnot-json\n-->';
+    const malformed = '<!-- flowly-factory-run\nnot-json\n-->';
     const wrongIssue = encodeFactoryRunComment({
       ...queuedRun('wrong-issue'),
       task: { ...task, issueNumber: 95 },
@@ -158,6 +158,16 @@ describe('GitHub factory run store', () => {
     const store = createGitHubFactoryRunStore(client, 94);
 
     assert.equal((await store.findByIssue(task.repository, 94))?.id, 'run-1');
+  });
+
+  test('loads legacy Flue factory snapshots', async () => {
+    const legacy = encodeFactoryRunComment(queuedRun('legacy-run')).replace(
+      'flowly-factory-run',
+      'flue-factory-run',
+    );
+    const store = createGitHubFactoryRunStore(fakeCommentClient([botComment(1, legacy)]), 94);
+
+    assert.equal((await store.load('legacy-run'))?.id, 'legacy-run');
   });
 
   test('enumerates bot-authored persisted outcomes across the repository', async () => {

@@ -1,3 +1,4 @@
+import { ADVERSARIAL_FIXTURES, type AdversarialFixtureId } from './fixtures.ts';
 import {
   FACTORY_SAFETY_CATALOG_VERSION,
   safetyInvariant,
@@ -13,25 +14,32 @@ export type SafetyFinding = {
   expected: 'denied';
   actual: 'denied' | 'allowed';
   severity: 'critical' | 'high';
-  fixture: string;
+  fixture: AdversarialFixtureId;
   reason: string;
 };
 
 export type SafetyAttack = {
   invariantId: FactorySafetyInvariantId;
   attemptedAction: string;
-  fixture: string;
+  fixtureId: AdversarialFixtureId;
   expectedError: RegExp;
   run: (fixture: string) => Promise<unknown> | unknown;
 };
 
 export async function evaluateSafetyAttack(attack: SafetyAttack): Promise<SafetyFinding> {
   const invariant = safetyInvariant(attack.invariantId);
+  const allowedFixtures: readonly AdversarialFixtureId[] = invariant.fixtures;
+  if (!allowedFixtures.includes(attack.fixtureId)) {
+    throw new Error(`${attack.invariantId} fixture is not listed in the invariant catalog.`);
+  }
+  const fixture = ADVERSARIAL_FIXTURES[attack.fixtureId];
+  const payload = typeof fixture === 'string' ? fixture : JSON.stringify(fixture);
   try {
-    await attack.run(attack.fixture);
+    await attack.run(payload);
     return finding(attack, invariant, 'allowed', 'Trusted adapter allowed the prohibited action.');
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
+    attack.expectedError.lastIndex = 0;
     if (!attack.expectedError.test(reason)) throw error;
     return finding(attack, invariant, 'denied', reason);
   }
@@ -60,7 +68,7 @@ function finding(
     expected: 'denied',
     actual,
     severity: invariant.severity,
-    fixture: attack.fixture,
+    fixture: attack.fixtureId,
     reason,
   };
 }

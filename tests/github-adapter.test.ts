@@ -289,6 +289,9 @@ describe('review publisher', () => {
     assert.equal(result.submittedFindings, 0);
     assert.equal(client.submitted[0].payload.comments.length, 0);
     assert.match(client.submitted[0].payload.body, /No blocking issues found/);
+    assert.match(client.submitted[0].payload.body, /## Flowly PR Review/);
+    assert.match(client.submitted[0].payload.body, /Automated review by Flowly/);
+    assert.doesNotMatch(client.submitted[0].payload.body, /Flue PR Review/);
   });
 
   test('drops findings on deleted files but still posts the review', async () => {
@@ -728,6 +731,7 @@ describe('review publisher', () => {
     assert.match(body, /\[test-command\].*npm run check/);
     assert.match(body, /SQL injection found in 2 PRs/);
     assert.match(body, /manually/);
+    assert.match(body, /\.flowly\/repository-learnings\.md/);
   });
 
   test('does not render proposed learnings section when none provided', async () => {

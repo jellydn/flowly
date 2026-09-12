@@ -14,7 +14,7 @@ against a configured GitHub repository. Explain the benchmark as evidence for
 choosing models for that factory; do not imply that Flowly is a hosted service,
 installs itself into repositories, or auto-merges and auto-approves changes.
 
-Facts to cover (verify against `eval/README.md` and `scripts/flue-eval.ts`):
+Facts to cover (verify against `eval/README.md` and `scripts/flowly-eval.ts`):
 - ORI-Eval-inspired framework; 7 capstone scenarios; deterministic mode needs
   no LLM key (safe for CI); `--live` uses an OpenAI-compatible client.
 - CLI: `npm run eval -- run | compare | leaderboard | report | review`.
