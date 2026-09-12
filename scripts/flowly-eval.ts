@@ -404,6 +404,7 @@ async function main(): Promise<number> {
     }
     case 'leaderboard': {
       const suiteId = values.suite;
+      if (suiteId === '') usage();
       const rows = await store.leaderboard(suiteId);
       if (rows.length === 0) {
         console.error('[flowly-eval] No saved reports yet. Run `npm run eval -- run` first.');

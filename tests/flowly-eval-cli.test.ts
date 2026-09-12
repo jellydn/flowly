@@ -335,6 +335,7 @@ test('CLI rejects missing option values, unknown flags, and extra positionals as
     ['run', '--typo'],
     ['report', 'one', 'two'],
     ['report', 'one', '--live'],
+    ['leaderboard', '--suite='],
   ]) {
     const result = spawnSync(
       process.execPath,
