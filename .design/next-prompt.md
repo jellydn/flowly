@@ -3,7 +3,7 @@ page: benchmark
 layout: standard
 ---
 Build `docs/benchmark.html`, a reference page for the model evaluation
-benchmark (`eval/bench`). Same single-file pattern as `docs/index.html` —
+benchmark (`eval/framework`). Same single-file pattern as `docs/index.html` —
 copy the header/nav/footer from `docs/index.html` verbatim and mark
 "Benchmark" (or "Docs") as the active section. Update the nav on
 `docs/index.html` too if a new link is added, and keep the design system
