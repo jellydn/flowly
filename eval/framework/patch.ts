@@ -3,15 +3,14 @@
  *
  * "Patch applicability" asks whether a model's proposed code change applies
  * cleanly to the repository. The benchmark framework wires this as an
- * optional `measurePatch` hook on the runner, so suites opt in per scenario.
+ * default `git apply --check` measurement for coding-task workloads. A caller
+ * can replace it through the runner's optional `measurePatch` hook.
  *
- * The bundled check is a conservative, deterministic heuristic: it extracts
- * fenced code blocks from the model answer and passes them to a validator.
- * The default validator is a keyword check (does the answer propose a change
- * to the expected file?), which suites can replace with a real `git apply
- * --check` when a patch string is available.
+ * `createPatchCheck` remains as a lightweight programmatic seam for callers
+ * that need their own validator.
  */
 
+import { spawn } from 'node:child_process';
 import type { BenchmarkScenario, MetricPass } from './types.ts';
 
 export type PatchValidator = (patch: string, expectedPaths: string[]) => Promise<boolean>;
@@ -25,6 +24,60 @@ export function extractFencedBlocks(answer: string): string[] {
     blocks.push(match[1].trim());
   }
   return blocks;
+}
+
+/** Extract a unified diff from a diff/patch fence or an unfenced answer. */
+export function extractUnifiedDiff(answer: string): string | null {
+  const fenced = /```(?:diff|patch)\n([\s\S]*?)```/i.exec(answer)?.[1]?.trim();
+  if (fenced?.startsWith('diff --git ')) return `${fenced}\n`;
+  const start = answer.indexOf('diff --git ');
+  return start === -1
+    ? null
+    : `${answer
+        .slice(start)
+        .replace(/```\s*$/, '')
+        .trim()}\n`;
+}
+
+/**
+ * Check a coding-task answer with `git apply --check`. The command reads the
+ * patch from stdin and does not change the working tree.
+ */
+export function createGitPatchCheck(
+  repositoryPath: string,
+): (scenario: BenchmarkScenario, answer: string) => Promise<MetricPass | null> {
+  return async (scenario, answer) => {
+    if (scenario.workload?.type !== 'coding-task') return null;
+    const patch = extractUnifiedDiff(answer);
+    if (!patch) return { passed: false, detail: 'No unified diff found in the answer' };
+
+    return new Promise((resolve) => {
+      const child = spawn(
+        'git',
+        ['-C', repositoryPath, 'apply', '--check', '--whitespace=nowarn', '-'],
+        { stdio: ['pipe', 'ignore', 'pipe'] },
+      );
+      let error = '';
+      child.stderr.setEncoding('utf8');
+      child.stderr.on('data', (chunk: string) => {
+        error += chunk;
+      });
+      child.on('error', (cause) => {
+        resolve({ passed: false, detail: `Patch check could not run: ${cause.message}` });
+      });
+      child.on('close', (code) => {
+        resolve(
+          code === 0
+            ? { passed: true, detail: 'Unified diff passes git apply --check' }
+            : {
+                passed: false,
+                detail: `Unified diff does not apply: ${error.trim().split('\n')[0] || 'git apply failed'}`,
+              },
+        );
+      });
+      child.stdin.end(patch);
+    });
+  };
 }
 
 /**

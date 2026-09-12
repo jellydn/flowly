@@ -41,6 +41,7 @@ import type {
   ModelSpec,
   ScenarioResult,
 } from './types.ts';
+import { createGitPatchCheck } from './patch.ts';
 
 /** Approximate tokens from text length (4 chars/token heuristic). */
 export function estimateTokens(text: string): number {
@@ -153,12 +154,53 @@ function buildTools(repository: RepositoryReader, maxSteps: number) {
 }
 
 /** Live mode: the model drives the investigation loop, then answers. */
+export function formatScenarioPrompt(scenario: BenchmarkScenario): string {
+  const workload = scenario.workload;
+  if (!workload || workload.type === 'repository-question') return scenario.prompt;
+  if (workload.type === 'github-issue') {
+    return [
+      scenario.prompt,
+      '',
+      `GitHub issue: ${workload.repository}#${workload.number}`,
+      `Title: ${workload.title}`,
+      'Body:',
+      workload.body,
+    ].join('\n');
+  }
+  if (workload.type === 'pull-request-review') {
+    return [
+      scenario.prompt,
+      '',
+      `Pull request: ${workload.repository}#${workload.number}`,
+      `Title: ${workload.title}`,
+      workload.body ? `Body:\n${workload.body}` : '',
+      'Diff:',
+      workload.diff,
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+  return [
+    scenario.prompt,
+    '',
+    workload.repository
+      ? `Coding task: ${workload.repository}${workload.issueNumber ? `#${workload.issueNumber}` : ''}`
+      : 'Coding task:',
+    `Title: ${workload.title}`,
+    'Body:',
+    workload.body,
+    '',
+    'Return the proposed change as a unified diff in a ```diff fenced block.',
+  ].join('\n');
+}
+
 async function runLive(
   scenario: BenchmarkScenario,
   repository: RepositoryReader,
   modelCall: ModelCallFn,
   maxSteps: number,
 ): Promise<{ result: InvestigationResult; usage?: ModelUsage }> {
+  const taskPrompt = formatScenarioPrompt(scenario);
   const { budget, tools } = buildTools(repository, maxSteps);
   const toolNames = [...tools.keys()];
   const decide: DecisionFn = createModelDecider({ modelCall, toolNames });
@@ -166,7 +208,7 @@ async function runLive(
   // Tool-requiring scenarios gather evidence through the model-driven loop;
   // conceptual scenarios answer directly from the model with no tool calls.
   const investigation = scenario.requiresToolCall
-    ? await runInvestigation(scenario.prompt, tools, budget, decide)
+    ? await runInvestigation(taskPrompt, tools, budget, decide)
     : {
         answer: {
           answer: '',
@@ -186,7 +228,7 @@ async function runLive(
 
   const evidenceText = investigation.evidence.map((e) => e.excerpt).join('\n');
   const prompt = [
-    scenario.prompt,
+    taskPrompt,
     '',
     evidenceText
       ? `Repository evidence:\n${evidenceText}`
@@ -268,7 +310,8 @@ export async function runScenario(input: {
   return {
     id: scenario.id,
     prompt: scenario.prompt,
-    passed,
+    workloadType: scenario.workload?.type ?? 'repository-question',
+    passed: passed && (patchApplicability?.passed ?? true),
     metrics: {
       qualityScore,
       latencyMs,
@@ -370,6 +413,7 @@ export async function runBenchmark(
   const judge = options.judge ?? createKeywordJudge();
   const defaultSteps = suite.maxSteps ?? 8;
   const lineage = await createBenchmarkLineage(suite, repository);
+  const measurePatch = options.measurePatch ?? createGitPatchCheck(repository.root);
 
   const results: ScenarioResult[] = [];
   for (const scenario of suite.scenarios) {
@@ -382,7 +426,7 @@ export async function runBenchmark(
       judge,
       model,
       maxSteps: scenario.maxSteps ?? options.maxSteps ?? defaultSteps,
-      measurePatch: options.measurePatch,
+      measurePatch,
     });
     results.push(result);
   }
