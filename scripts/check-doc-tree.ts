@@ -37,6 +37,7 @@ const ADR_INDEX = 'docs/adr/README.md';
 const README = 'README.md';
 const DEMO_README = 'demo/README.md';
 const EVAL_README = 'eval/README.md';
+const DESIGN_PROMPT = '.design/next-prompt.md';
 
 /**
  * The layout sections the guard validates. STRUCTURE.md also contains
@@ -185,6 +186,12 @@ function main(): void {
   const readme = readFileSync(README, 'utf8');
   const demoReadme = readFileSync(DEMO_README, 'utf8');
   const evalReadme = readFileSync(EVAL_README, 'utf8');
+  const designPrompt = readFileSync(DESIGN_PROMPT, 'utf8');
+  for (const [, reference] of designPrompt.matchAll(/`(eval\/[^`]+)`/g)) {
+    // Report output is created at runtime and need not exist in a fresh checkout.
+    if (reference === 'eval/results/') continue;
+    assertExists(errors, DESIGN_PROMPT, reference, reference, reference.endsWith('/'));
+  }
   for (const required of ['./demo/README.md', './eval/README.md']) {
     if (!readme.includes(required)) errors.push(`${README}: missing newcomer link \`${required}\``);
   }

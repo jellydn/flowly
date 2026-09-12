@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { describe, test } from 'node:test';
 import os from 'node:os';
 import path from 'node:path';
@@ -36,6 +37,53 @@ const policy: RepositoryLearningPolicy = {
 };
 
 describe('repository memory', () => {
+  test('memory CLI reads and updates legacy stores without overriding canonical or explicit stores', async (t) => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'flowly-memory-cli-'));
+    t.after(() => rm(directory, { recursive: true, force: true }));
+    const script = path.resolve('scripts/memory.ts');
+    const loader = import.meta.resolve('tsx');
+    const cli = (args: string[], storePath?: string) => {
+      const env = { ...process.env };
+      delete env.FLOWLY_MEMORY_STORE;
+      if (storePath !== undefined) env.FLOWLY_MEMORY_STORE = storePath;
+      return spawnSync(process.execPath, ['--import', loader, script, ...args], {
+        cwd: directory,
+        env,
+        encoding: 'utf8',
+      });
+    };
+    const legacy = new FileRepositoryMemoryStore(
+      path.join(directory, '.flue/repository-instincts.json'),
+    );
+    const canonicalPath = path.join(directory, '.flowly/repository-instincts.json');
+    const canonical = new FileRepositoryMemoryStore(canonicalPath);
+    const state = learnRepositoryInstincts('jellydn/flowly', null, [observation('1')], policy, NOW);
+    const id = state.instincts[0].id;
+    assert.deepEqual(JSON.parse(cli(['list']).stdout), []);
+    await legacy.save(state);
+    const listed = cli(['list']);
+    assert.equal(listed.status, 0, listed.stderr);
+    assert.equal(JSON.parse(listed.stdout)[0].id, id);
+    assert.deepEqual(JSON.parse(cli(['explain', id]).stdout), state.instincts[0]);
+    for (const [command, status] of [
+      ['reject', 'rejected'],
+      ['deprecate', 'deprecated'],
+    ]) {
+      const result = cli([command, id]);
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal((await legacy.load())!.instincts[0].status, status);
+      assert.equal(await canonical.load(), null);
+    }
+    await canonical.save({ ...state, instincts: [] });
+    assert.deepEqual(JSON.parse(cli(['list']).stdout), []);
+    assert.deepEqual(JSON.parse(cli(['list'], 'missing.json').stdout), []);
+    const explicit = new FileRepositoryMemoryStore(path.join(directory, 'explicit.json'));
+    await explicit.save(state);
+    assert.equal(JSON.parse(cli(['list'], 'explicit.json').stdout)[0].id, id);
+    await writeFile(canonicalPath, 'invalid JSON');
+    assert.equal(cli(['list']).status, 1);
+  });
+
   test('validates observations, deduplicates equivalent lessons, and promotes deterministically', () => {
     const observations = [
       observation('run-1', 'API inputs require schema validation.'),

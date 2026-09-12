@@ -5,13 +5,17 @@ import { setRepositoryInstinctStatus } from '../memory/engine.ts';
 import { FileRepositoryMemoryStore } from '../memory/store.ts';
 
 const [command, id] = process.argv.slice(2);
-const store = new FileRepositoryMemoryStore(
-  path.resolve(process.env.FLOWLY_MEMORY_STORE ?? '.flowly/repository-instincts.json'),
-);
 
 async function main(): Promise<void> {
+  let store = new FileRepositoryMemoryStore(
+    path.resolve(process.env.FLOWLY_MEMORY_STORE ?? '.flowly/repository-instincts.json'),
+  );
+  let state = await store.load();
+  if (state === null && process.env.FLOWLY_MEMORY_STORE === undefined) {
+    store = new FileRepositoryMemoryStore(path.resolve('.flue/repository-instincts.json'));
+    state = await store.load();
+  }
   if (command === 'list') {
-    const state = await store.load();
     console.log(
       JSON.stringify(
         (state?.instincts ?? []).map(({ id: instinctId, kind, statement, confidence, status }) => ({
@@ -27,7 +31,6 @@ async function main(): Promise<void> {
     );
     return;
   }
-  const state = await store.load();
   if (!state) throw new Error('Repository memory is empty.');
   if (command === 'explain' && id) {
     const instinct = state.instincts.find((item) => item.id === id);

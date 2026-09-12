@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -284,4 +285,91 @@ test('legacy eval script forwards to the Flowly CLI', async () => {
 
   assert.equal(result.status, 2, result.stderr);
   assert.match(result.stderr, /Usage:/);
+});
+
+test('CLI separates option values from config paths for each execution command', async (t) => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'flowly-eval-options-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const configPath = path.join(dir, 'config.json');
+  await writeFile(configPath, JSON.stringify(minimalConfig()));
+  for (const command of ['run', 'gate', 'compare']) {
+    for (const args of [
+      ['--judge-model', 'not-json-{', configPath],
+      [configPath, '--judge-model=not-json-{'],
+      ['--judge-model', 'not-json-{'],
+    ]) {
+      const result = spawnSync(
+        process.execPath,
+        ['--import', 'tsx', 'scripts/flowly-eval.ts', command, ...args],
+        {
+          env: { ...process.env, FLOWLY_EVAL_RESULTS_DIR: dir },
+          encoding: 'utf8',
+        },
+      );
+      assert.equal(result.status, 2, result.stderr);
+      assert.match(result.stderr, /Invalid --judge-model spec/);
+    }
+  }
+});
+
+test('CLI rejects missing option values, unknown flags, and extra positionals as usage errors', () => {
+  for (const [command, flag] of [
+    ['run', '--judge-model'],
+    ['gate', '--judge-model'],
+    ['compare', '--judge-model'],
+    ['leaderboard', '--suite'],
+    ['review', '--accept'],
+    ['review', '--reject'],
+  ]) {
+    for (const suffix of [[], ['--json']]) {
+      const result = spawnSync(
+        process.execPath,
+        ['--import', 'tsx', 'scripts/flowly-eval.ts', command, flag, ...suffix],
+        { encoding: 'utf8' },
+      );
+      assert.equal(result.status, 2, result.stderr);
+      assert.match(result.stderr, /argument missing|argument is ambiguous/);
+    }
+  }
+  for (const args of [
+    ['run', '--typo'],
+    ['report', 'one', 'two'],
+    ['report', 'one', '--live'],
+    ['leaderboard', '--suite='],
+  ]) {
+    const result = spawnSync(
+      process.execPath,
+      ['--import', 'tsx', 'scripts/flowly-eval.ts', ...args],
+      { encoding: 'utf8' },
+    );
+    assert.equal(result.status, 2, result.stderr);
+  }
+});
+
+test('CLI review supports option-first verdicts and persists the selected report', async (t) => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'flowly-eval-review-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const configPath = path.join(dir, 'config.json');
+  await writeFile(configPath, JSON.stringify(minimalConfig()));
+  const cli = (...args: string[]) =>
+    spawnSync(process.execPath, ['--import', 'tsx', 'scripts/flowly-eval.ts', ...args], {
+      env: { ...process.env, FLOWLY_EVAL_RESULTS_DIR: dir },
+      encoding: 'utf8',
+    });
+  const run = cli('run', '--json', configPath);
+  assert.equal(run.status, 0, run.stderr);
+  const report = JSON.parse(run.stdout) as BenchmarkReport;
+  for (const [flag, expected] of [
+    ['--accept', 1],
+    ['--reject', 0],
+  ] as const) {
+    const review = cli('review', flag, 'cap-1', report.runId);
+    assert.equal(review.status, 0, review.stderr);
+    const saved = cli('report', '--json', report.runId);
+    assert.equal(saved.status, 0, saved.stderr);
+    assert.equal(JSON.parse(saved.stdout).summary.humanAcceptanceRate, expected);
+  }
+  const leaderboard = cli('leaderboard', '--suite', 'capstone');
+  assert.equal(leaderboard.status, 0, leaderboard.stderr);
+  assert.ok(leaderboard.stdout.includes(report.runId));
 });
