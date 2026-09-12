@@ -91,6 +91,12 @@ export type BenchmarkGateResult = {
   checks: BenchmarkGateCheck[];
 };
 
+export type BenchmarkRegressionResult = BenchmarkGateResult & {
+  baselineRunId: string;
+  candidateRunId: string;
+  regressedScenarioIds: string[];
+};
+
 /** Pass/fail for one metric dimension, with an explanation. */
 export type MetricPass = {
   passed: boolean;

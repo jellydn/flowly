@@ -772,6 +772,7 @@ npm run eval -- run --judge-model openrouter/qwen/qwen3-coder  # score with an L
 npm run eval -- compare <config.json>
 npm run eval -- leaderboard
 npm run eval -- report <runId>
+npm run eval -- regression <baselineId> <candidateId> --json
 npm run eval -- review <runId> --accept cap-1,cap-2 --reject cap-3
 ```
 
@@ -796,6 +797,14 @@ passes `--trust-model-overrides`. Prefer provider defaults or the operator-owned
 The `review` subcommand records human accept/reject verdicts on a saved
 report (ORI-Eval-style human-in-the-loop scoring) and recomputes the
 acceptance rate; use `report` to see each scenario's reviewed status.
+
+The `regression` subcommand compares two saved model versions without provider
+calls or writes. It requires matching suite/corpus lineage, mode, judge, and
+scenario IDs. Any loss in pass rate, quality, or tool success fails, including
+individual scenario losses hidden by aggregate gains. It exits 0 on success,
+1 on regression or incompatible reports, and 2 on invalid usage. See the
+[evaluation guide](eval/README.md#compare-saved-model-versions) for CI use and
+the [issue #38 audit](eval/README.md#issue-38-implementation-audit) for scope limits.
 
 ### Benchmark suites
 

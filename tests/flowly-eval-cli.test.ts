@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { loadBenchmarkConfigFromFile } from '../eval/framework/config.ts';
-import { createMemoryBenchmarkStore } from '../eval/framework/store.ts';
+import { createFileBenchmarkStore, createMemoryBenchmarkStore } from '../eval/framework/store.ts';
 import type { BenchmarkReport } from '../eval/framework/types.ts';
 
 test('Flowly sample benchmark config loads and validates', async () => {
@@ -228,6 +228,50 @@ test('CLI --judge-model with a valid spec fails with the actionable key error be
   // actionable message instead of silently running the keyword judge.
   assert.equal(result.status, 1, result.stderr);
   assert.match(result.stderr, /No API key for provider "openrouter"/);
+});
+
+test('CLI regression checks persisted reports without changing them or requiring a key', async (t) => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'flowly-eval-regression-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const configPath = path.join(dir, 'config.json');
+  await writeFile(configPath, JSON.stringify(minimalConfig()));
+  const { spawnSync } = await import('node:child_process');
+  const invoke = (...args: string[]) =>
+    spawnSync(process.execPath, ['--import', 'tsx', 'scripts/flowly-eval.ts', ...args], {
+      encoding: 'utf8',
+      env: { ...process.env, FLOWLY_EVAL_RESULTS_DIR: dir },
+      timeout: 120_000,
+    });
+  const run = invoke('run', configPath, '--json');
+  assert.equal(run.status, 0, run.stderr);
+  const baseline = JSON.parse(run.stdout) as BenchmarkReport;
+  const candidate = structuredClone(baseline);
+  candidate.runId = 'candidate';
+  candidate.model.id = 'new-version';
+  const store = createFileBenchmarkStore(dir);
+  await store.save(candidate);
+  const reportPath = path.join(dir, candidate.suiteId, 'candidate.json');
+  const before = await readFile(reportPath, 'utf8');
+  const equal = invoke('regression', baseline.runId, candidate.runId, '--json');
+  assert.equal(equal.status, 0, equal.stderr);
+  assert.equal(JSON.parse(equal.stdout).passed, true);
+  assert.equal(await readFile(reportPath, 'utf8'), before);
+  candidate.results[0].metrics.qualityScore = 0.5;
+  await store.save(candidate);
+  const failed = invoke('regression', baseline.runId, candidate.runId);
+  assert.equal(failed.status, 1, failed.stderr);
+  assert.match(failed.stdout, /FAIL minQualityScore/);
+  assert.match(failed.stdout, /FAIL scenario: cap-1/);
+  candidate.lineage!.repositoryDigest = 'f'.repeat(64);
+  await store.save(candidate);
+  const incompatible = invoke('regression', baseline.runId, candidate.runId, '--json');
+  assert.equal(incompatible.status, 1);
+  assert.match(incompatible.stderr, /matching repositoryDigest/);
+  assert.equal(incompatible.stdout, '');
+  assert.equal(invoke('regression', baseline.runId).status, 2);
+  assert.equal(invoke('regression', baseline.runId, '--json').status, 2);
+  assert.equal(invoke('regression', baseline.runId, candidate.runId, '--live').status, 2);
+  assert.match(invoke('regression', baseline.runId, 'missing').stderr, /No saved report/);
 });
 
 test('legacy eval script forwards to the Flowly CLI', async () => {
