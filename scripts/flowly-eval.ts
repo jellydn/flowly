@@ -42,6 +42,7 @@
 
 import { mkdir } from 'node:fs/promises';
 import process from 'node:process';
+import { parseArgs } from 'node:util';
 import { loadBenchmarkConfigFromFile } from '../eval/framework/config.ts';
 import { createFileBenchmarkStore } from '../eval/framework/store.ts';
 import { runBenchmark } from '../eval/framework/runner.ts';
@@ -75,20 +76,8 @@ function formatCostUsd(costUsd: number): string {
   return Number.isNaN(costUsd) ? 'unknown' : `$${costUsd.toFixed(4)}`;
 }
 
-/** First positional argument, skipping flags (e.g. `run --json` -> config path). */
-function positional(rest: string[]): string | undefined {
-  return rest.find((arg) => !arg.startsWith('--'));
-}
-
-/** Value following a `--flag` (undefined when the flag or its value is absent). */
-function flagValue(rest: string[], flag: string): string | undefined {
-  const index = rest.indexOf(flag);
-  return index === -1 ? undefined : rest[index + 1];
-}
-
-/** Value of a `--flag <csv>` flag as a trimmed, non-empty id list. */
-function csvFlag(rest: string[], flag: string): string[] {
-  const value = flagValue(rest, flag);
+/** Convert a CSV option value to a trimmed, non-empty id list. */
+function csvIds(value: string | undefined): string[] {
   if (value === undefined) return [];
   return value
     .split(',')
@@ -294,23 +283,42 @@ function printComparison(comparison: ModelComparison): void {
 }
 
 async function main(): Promise<number> {
-  const args = process.argv.slice(2);
-  const [command, ...rest] = args;
+  const [command, ...args] = process.argv.slice(2);
+  let parsed;
+  try {
+    parsed = parseArgs({
+      args,
+      allowPositionals: true,
+      options: {
+        live: { type: 'boolean' },
+        json: { type: 'boolean' },
+        'no-save': { type: 'boolean' },
+        'trust-model-overrides': { type: 'boolean' },
+        'judge-model': { type: 'string' },
+        suite: { type: 'string' },
+        accept: { type: 'string' },
+        reject: { type: 'string' },
+      },
+    });
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error), 2);
+  }
+  const { values, positionals } = parsed;
+  if (positionals.length > (command === 'leaderboard' ? 0 : 1)) usage();
   const resultsDir =
     process.env.FLOWLY_EVAL_RESULTS_DIR ?? process.env.FLUE_EVAL_RESULTS_DIR ?? DEFAULT_RESULTS_DIR;
   const store = createFileBenchmarkStore(resultsDir);
 
   switch (command) {
     case 'run': {
-      const configPath = positional(rest) ?? DEFAULT_CONFIG;
-      const live = rest.includes('--live');
-      const json = rest.includes('--json');
-      const judgeModel = flagValue(rest, '--judge-model');
-      if (rest.includes('--judge-model') && judgeModel === undefined) usage();
+      const configPath = positionals[0] ?? DEFAULT_CONFIG;
+      const live = values.live ?? false;
+      const json = values.json ?? false;
+      const judgeModel = values['judge-model'];
       const { reports } = await runAll(configPath, {
         live,
         judgeModelSpec: judgeModel,
-        trustModelOverrides: rest.includes('--trust-model-overrides'),
+        trustModelOverrides: values['trust-model-overrides'],
       });
       if (json) {
         // Emit a single JSON document: an array when multiple models ran.
@@ -322,15 +330,14 @@ async function main(): Promise<number> {
       return 0;
     }
     case 'gate': {
-      const configPath = positional(rest) ?? DEFAULT_CONFIG;
-      const live = rest.includes('--live');
-      const judgeModel = flagValue(rest, '--judge-model');
-      if (rest.includes('--judge-model') && judgeModel === undefined) usage();
+      const configPath = positionals[0] ?? DEFAULT_CONFIG;
+      const live = values.live ?? false;
+      const judgeModel = values['judge-model'];
       const { reports, gate } = await runAll(configPath, {
         live,
         judgeModelSpec: judgeModel,
-        save: !rest.includes('--no-save'),
-        trustModelOverrides: rest.includes('--trust-model-overrides'),
+        save: !values['no-save'],
+        trustModelOverrides: values['trust-model-overrides'],
       });
       if (!gate) {
         console.error(
@@ -346,14 +353,13 @@ async function main(): Promise<number> {
       return results.every((result) => result.gate.passed) ? 0 : 1;
     }
     case 'compare': {
-      const configPath = positional(rest) ?? DEFAULT_CONFIG;
-      const live = rest.includes('--live');
-      const judgeModel = flagValue(rest, '--judge-model');
-      if (rest.includes('--judge-model') && judgeModel === undefined) usage();
+      const configPath = positionals[0] ?? DEFAULT_CONFIG;
+      const live = values.live ?? false;
+      const judgeModel = values['judge-model'];
       const { suiteName, suiteId, reports } = await runAll(configPath, {
         live,
         judgeModelSpec: judgeModel,
-        trustModelOverrides: rest.includes('--trust-model-overrides'),
+        trustModelOverrides: values['trust-model-overrides'],
       });
       const comparison: ModelComparison = {
         suiteId,
@@ -371,8 +377,7 @@ async function main(): Promise<number> {
       return 0;
     }
     case 'leaderboard': {
-      const suiteId = flagValue(rest, '--suite');
-      if (rest.includes('--suite') && suiteId === undefined) usage();
+      const suiteId = values.suite;
       const rows = await store.leaderboard(suiteId);
       if (rows.length === 0) {
         console.error('[flowly-eval] No saved reports yet. Run `npm run eval -- run` first.');
@@ -391,15 +396,15 @@ async function main(): Promise<number> {
       return 0;
     }
     case 'report': {
-      const report = await loadReportOrExit(store, positional(rest));
-      printReport(report, rest.includes('--json'));
+      const report = await loadReportOrExit(store, positionals[0]);
+      printReport(report, values.json ?? false);
       return 0;
     }
     case 'review': {
-      const runId = positional(rest);
+      const runId = positionals[0];
       if (!runId) usage();
-      const accept = csvFlag(rest, '--accept');
-      const reject = csvFlag(rest, '--reject');
+      const accept = csvIds(values.accept);
+      const reject = csvIds(values.reject);
       if (accept.length === 0 && reject.length === 0) {
         console.error(
           '[flowly-eval] review requires --accept and/or --reject with comma-separated scenario ids.',
