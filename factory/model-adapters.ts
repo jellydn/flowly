@@ -1,7 +1,7 @@
 /** Provider-backed classifier, repository analyst, and independent reviewer. */
 
 import * as v from 'valibot';
-import type { ModelCallFn } from '../eval/bench/providers.ts';
+import type { ModelCallFn } from '../eval/framework/providers.ts';
 import type { FactoryClassifier } from './intake.ts';
 import type { FactoryPlanner } from './plan.ts';
 import type {

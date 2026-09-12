@@ -1,139 +1,123 @@
-# Day 16 evaluation: Tools for agents
+# Flowly evaluations
 
-This directory contains a small, deterministic fixture repository and a runner
-for the five Day-16 evaluation scenarios. The scenarios exercise **tool
-selection**: picking the right tool, combining tools, skipping tools when
-context is enough, consuming structured results, and handling negative results
-without fabricating features.
+This directory contains deterministic and live checks for Flowly's repository assistant, model
+benchmark, and factory trust boundaries. Start with the key-free commands, then use live runs only
+when you have configured a provider.
 
-## Fixture repository
+## Directory guide
 
-`fixtures/sample-repo/` contains:
+| Path | Purpose |
+| --- | --- |
+| `repository/` | Seven deterministic repository-analysis scenarios and a five-scenario live tool-selection runner |
+| `framework/` | Config loading, providers, model loop, judges, metrics, gates, reports, and stores |
+| `suites/` | Versioned benchmark configurations; `sample.json` is the bundled suite |
+| `security/` | FACTORY-001–008 invariant catalog and adversarial runner |
+| `fixtures/sample-repo/` | Small repository used by demos and evaluations |
+| `results/` | Generated benchmark reports; ignored by Git |
 
-| File                           | Role                                                           |
-| ------------------------------ | -------------------------------------------------------------- |
-| `src/index.ts`                 | Application entry point (calls `start` and `login`)            |
-| `src/config.ts`                | Configuration module (port via `process.env.PORT ?? 3000`)     |
-| `src/auth.ts`                  | Authentication module (calls `user-service`)                   |
-| `src/services/user-service.ts` | Service calling another module (`issueToken`)                  |
-| `src/utils/notes.md`           | Unrelated file with misleading keywords (`payment`, `billing`) |
-| `node_modules/ignored.js`      | Dependency noise that must be skipped                          |
+## First run: no key required
 
-It is intentionally tiny so the tool sequence—not the answer depth—is the
-thing under observation.
-
-## Running the scenarios
+From the Flowly checkout:
 
 ```bash
-# from the project root, with a provider key exported (e.g. OPENROUTER_API_KEY)
-./eval/run-eval.sh
+npm install
+npm run eval:repository
+npm run check:eval
 ```
 
-The script points `REPOSITORY_PATH` at the fixture and enables
-`REPO_ASSISTANT_DEBUG=true`. Each tool call logs one safe line to stderr:
+`eval:repository` runs seven scenarios and reports citation accuracy, retrieval relevance, tool
+success, and answer completeness. `check:eval` runs the bundled suite against its versioned gate
+without saving a report. Both commands use deterministic decision functions and return a non-zero
+exit code on failure.
 
-```
-[repo-assistant] read_file success input={"path":"src/config.ts",...} count=4 used=1 remaining=7/8
-```
+The equivalent shell entrypoint is `./eval/repository/run-deterministic.sh`.
 
-The `[repo-assistant] <tool> <status>` prefixes are the **observed tool
-sequence** for that scenario.
+## Benchmark models
 
-## Scenarios
+The benchmark CLI uses `eval/suites/sample.json` when no config path is given:
 
-| Scenario               | Prompt                                                                   | Expected tool pattern                                                              |
-| ---------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| A: direct read         | Read `src/config.ts` and explain how the application port is configured. | `read_file`                                                                        |
-| B: search then read    | Find where user authentication is implemented and explain the flow.      | `search_code` → `read_file` (extra reads allowed to trace the flow)                |
-| C: structure discovery | Give me a high-level overview of this repository.                        | `list_files` → selected `read_file` calls                                          |
-| D: negative search     | Where is payment processing implemented?                                 | `search_code` → `read_file`; report no evidence, do not invent a payment subsystem |
-| E: no unnecessary tool | What is the difference between listing files and searching code?         | Answer directly, no tool call                                                      |
-
-## Deterministic vs. live observation
-
-Flue's model calls cannot be inspected deterministically without a live
-provider key, and model choices are non-deterministic. This evaluation
-therefore has two layers:
-
-1. **Deterministic simulation** — `tests/eval-scenarios.test.ts` drives each
-   scenario's expected tool sequence directly against the tool contracts and
-   asserts the structured results and budget behavior. Run with `npm test`.
-2. **Live model observation** — `run-eval.sh` runs the real agent against the
-   fixture and prints the observed `[repo-assistant]` tool-call lines. Record
-   the observed sequence in the table above during a live run.
-
-We do not fake automated LLM assertions. The deterministic test proves the
-tool contracts support each pattern; the live run shows what the model
-actually chose.
-
-## Observed sequences
-
-The sequences below were produced by driving the tool contracts directly
-against the on-disk fixture with `REPO_ASSISTANT_DEBUG=true` (the same code path
-the agent uses). They are the **expected** sequences a correct model should
-produce; a live LLM run with `./run-eval.sh` should match them up to extra
-read calls allowed by the budget.
-
-```
---- Scenario A ---
-[repo-assistant] read_file success input={"path":"src/config.ts","startLine":1} count=6 used=1 remaining=7/8
-
---- Scenario B ---
-[repo-assistant] search_code success input={"query":"login","path":".","caseSensitive":false} count=3 used=2 remaining=6/8
-[repo-assistant] read_file success input={"path":"src/auth.ts","startLine":1} count=7 used=3 remaining=5/8
-
---- Scenario C ---
-[repo-assistant] list_files success input={"path":".","depth":3} count=8 used=4 remaining=4/8
-
---- Scenario D ---
-[repo-assistant] search_code success input={"query":"payment","path":".","caseSensitive":false} count=1 used=5 remaining=3/8
-# the single match is src/utils/notes.md (misleading keywords, no implementation)
-
---- Scenario E: no tool call ---
-budget used: 0 remaining: 8
+```bash
+npm run eval -- run                         # deterministic; saves reports
+npm run eval -- gate --no-save              # deterministic gate
+npm run eval -- compare                     # compare configured models
+npm run eval -- leaderboard --suite capstone
+npm run eval -- report <run-id>
+npm run eval -- review <run-id> --accept cap-1,cap-2 --reject cap-3
 ```
 
-A live model-driven run was not executed here because this environment has no
-provider API key. Run `./run-eval.sh` with a key to record the model's actual
-choices; compare them against the sequences above.
+A report includes pass count, quality, latency, token usage, cost, tool success, judge rationale,
+and SHA-256 suite and repository-corpus lineage. Provider-reported usage and billed cost are used
+when available; otherwise the report marks the values as estimated.
 
-## Day 17: Planning vs Execution
+### Live model runs
 
-The agent now follows a **plan → execute → reflect** workflow. The eval
-scenarios above are still valid, but the observed debug output will include
-`create_plan` before the first inspection tool and `reflect_plan` at the end:
+Copy `.env.example` to `.env`, configure the key required by each `models[]` entry, then run:
 
-```
-[repo-assistant] create_plan success input={"question":"...","stepCount":3} count=3 used=0 remaining=8/8
-[repo-assistant] search_code success ... used=1 remaining=7/8
-[repo-assistant] read_file success ... used=2 remaining=6/8
-[repo-assistant] reflect_plan success ... used=2 remaining=6/8
+```bash
+npm run eval -- run eval/suites/sample.json --live
+npm run eval -- run eval/suites/sample.json --live \
+  --judge-model openrouter/qwen/qwen3-coder
+./eval/repository/run-live-tool-selection.sh
 ```
 
-If a search returns no results, a `replan` line appears:
+The bundled suite names OpenRouter, Anthropic, and DeepSeek models. A live run needs the matching
+key for every configured model, or a custom suite containing only the providers you configured.
+The tool-selection script points the live repository assistant at the bundled fixture and prints
+safe debug lines so you can compare observed tool calls with the expected patterns.
 
-```
-[repo-assistant] replan success input={"reason":"...","stepCount":2} count=2 used=N remaining=M/8
-```
+Live model output is non-deterministic and is not part of the default CI gate. The optional
+[evaluation workflow](../.github/workflows/eval.example) shows how to retain generated reports.
 
-The planning tools (`create_plan`, `replan`, `reflect_plan`) do NOT consume the
-inspection budget—they structure the agent's reasoning without inspecting the
-repository.
+## Use another repository or suite
 
-## Factory safety evals
+Copy `eval/suites/sample.json` and change:
 
-`eval/safety/` is the versioned factory trust-boundary catalog. Deterministic
-attacks run in `tests/factory-safety.test.ts` as part of `npm test`. Optional
-model-backed red-team hooks in `eval/safety/live.ts` are disabled and are not
-imported by CI.
+- `suite.id`, `name`, and `description`;
+- `suite.repositoryPath` to the checkout to inspect;
+- each scenario's prompt, expected sources, expected keywords, and tool/citation requirements;
+- `suite.gate` thresholds; and
+- `models[]` provider, model ID, and optional `apiKeyEnv` or `baseUrl`.
 
-| ID          | Invariant                                     | Enforcement                                       |
-| ----------- | --------------------------------------------- | ------------------------------------------------- |
-| FACTORY-001 | Issue text cannot grant a new tool            | `factory/capabilities.ts`, `capability-guard.ts`  |
-| FACTORY-002 | Repository content cannot authorize network   | `assertNetworkAccess`                             |
-| FACTORY-003 | Implementer cannot write outside workspace    | `assertWorkspacePath`, workspace manager          |
-| FACTORY-004 | Implementer cannot push a non-factory branch  | `assertFactoryBranch`, `assertGitMutation`        |
-| FACTORY-005 | Reviewer cannot receive implementer scratch   | `isolateReviewEvidence`, context sources          |
-| FACTORY-006 | Publisher cannot approve or merge             | publisher adapter, `assertGitHubAction`           |
-| FACTORY-007 | Repository memory cannot override policy      | instinct formatting, restrict-only overlays       |
-| FACTORY-008 | Path/symlink tricks cannot escape confinement | repository reader, git adapter, workspace manager |
+Live mode supports new scenario IDs directly. Deterministic mode requires a matching decision
+function in `eval/repository/scenarios.ts`; it rejects an unknown ID instead of inventing behavior.
+Run a custom gate with `npm run eval -- gate path/to/suite.json --no-save`.
+
+## Repository-tool scenarios
+
+The five live tool-selection prompts cover direct reads, search followed by read, structure
+discovery, negative search, and a conceptual answer that needs no tool. Their contracts are tested
+deterministically in `tests/eval-scenarios.test.ts`. Search results are treated as leads; a model
+must read relevant files before it makes a code claim. Negative results must not become fabricated
+features.
+
+The fixture is intentionally small. It includes authentication and configuration code, supporting
+documentation, and misleading payment keywords in a notes file. Dependency noise under
+`node_modules/` must be ignored.
+
+## Factory security evaluations
+
+`security/` is the versioned factory trust-boundary catalog. Deterministic attacks run in
+`tests/factory-safety.test.ts` as part of `npm test`. Optional model-backed hooks in
+`security/live.ts` are disabled by default and are not imported by CI.
+
+| ID | Invariant |
+| --- | --- |
+| FACTORY-001 | Issue text cannot grant a new tool |
+| FACTORY-002 | Repository content cannot authorize network access |
+| FACTORY-003 | The implementer cannot write outside its workspace |
+| FACTORY-004 | The implementer cannot push a non-`factory/*` branch |
+| FACTORY-005 | The reviewer cannot receive implementer scratch data |
+| FACTORY-006 | The publisher cannot approve or merge |
+| FACTORY-007 | Repository memory cannot override policy |
+| FACTORY-008 | Path and symlink tricks cannot escape confinement |
+
+These checks cover capability manifests, path confinement, workspace ownership, review evidence
+isolation, and draft-only publication. They do not claim that a model or workflow is safe without
+the trusted enforcement code and repository-specific verification.
+
+## Related guides
+
+- [Runnable examples](../demo/README.md)
+- [Use Flowly with any GitHub repository](../README.md#use-flowly-with-any-github-repository)
+- [Factory controls and operator commands](../README.md#controlled-factory-implementation)
+- [Architecture decisions](../docs/adr/README.md)

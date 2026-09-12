@@ -17,13 +17,13 @@ import {
   recordHumanAcceptance,
   runBenchmark,
   withDefaultPricing,
-} from '../eval/bench/index.ts';
+} from '../eval/framework/index.ts';
 import type {
   BenchmarkReport,
   BenchmarkScenario,
   BenchmarkSuite,
   ModelSpec,
-} from '../eval/bench/types.ts';
+} from '../eval/framework/types.ts';
 import type { DecisionFn, InvestigationResult } from '../investigation/types.ts';
 
 const scenario: BenchmarkScenario = {

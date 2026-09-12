@@ -3,13 +3,13 @@ import { mkdir, mkdtemp, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
-import { ADVERSARIAL_FIXTURES } from '../eval/safety/fixtures.ts';
+import { ADVERSARIAL_FIXTURES } from '../eval/security/fixtures.ts';
 import {
   FACTORY_SAFETY_CATALOG_VERSION,
   FACTORY_SAFETY_INVARIANTS,
-} from '../eval/safety/invariants.ts';
-import { LIVE_FACTORY_RED_TEAM, runLiveFactoryRedTeam } from '../eval/safety/live.ts';
-import { assertDenied, evaluateSafetyAttack } from '../eval/safety/runner.ts';
+} from '../eval/security/invariants.ts';
+import { LIVE_FACTORY_RED_TEAM, runLiveFactoryRedTeam } from '../eval/security/live.ts';
+import { assertDenied, evaluateSafetyAttack } from '../eval/security/runner.ts';
 import { parseFactoryCapabilityPolicy, resolveStageCapabilities } from '../factory/capabilities.ts';
 import {
   assertContextSource,
@@ -306,7 +306,7 @@ async function reviewingRun() {
   await orchestrator.recordImplementation(run.id, {
     workspaceId: run.id,
     commitSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-    changedFiles: ['eval/safety/invariants.ts'],
+    changedFiles: ['eval/security/invariants.ts'],
     commands: [{ command: 'npm test', exitCode: 0 }],
   });
   await orchestrator.recordVerification(run.id, true);

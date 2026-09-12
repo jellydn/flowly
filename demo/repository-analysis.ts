@@ -1,5 +1,5 @@
 /**
- * Day 21 demo: doc-aware repository agent.
+ * Deterministic repository-analysis demo.
  *
  * Runs the bounded investigation loop against the bundled fixture repository
  * with deterministic decision functions (no LLM required). Shows how the agent
@@ -7,9 +7,9 @@
  * with citations and confidence.
  *
  * Run with:
- *   npx tsx demo/doc-aware-demo.ts
- *   npx tsx demo/doc-aware-demo.ts auth    # only the auth scenario
- *   npx tsx demo/doc-aware-demo.ts payment # only the negative search
+ *   npm run demo:repository
+ *   npm run demo:repository -- auth    # only the auth scenario
+ *   npm run demo:repository -- payment # only the negative search
  */
 
 import path from 'node:path';

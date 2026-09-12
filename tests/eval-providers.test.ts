@@ -5,8 +5,8 @@ import {
   PROVIDER_KEY_ENVS,
   createProviderClient,
   createStaticModelCall,
-} from '../eval/bench/providers.ts';
-import type { ModelSpec } from '../eval/bench/types.ts';
+} from '../eval/framework/providers.ts';
+import type { ModelSpec } from '../eval/framework/types.ts';
 
 const originalFetch = globalThis.fetch;
 

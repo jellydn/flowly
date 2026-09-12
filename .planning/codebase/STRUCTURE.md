@@ -17,8 +17,8 @@ flowly/
 ├── index/             # TF-IDF and relationship repository indexes
 ├── memory/            # Repository-instinct schema, evidence engine, stores, and stage context
 ├── scripts/           # CI and operator CLI entrypoints
-├── eval/              # Capstone eval + benchmark framework + fixtures
-├── demo/              # Deterministic demos (bash + ts)
+├── eval/              # Repository, model, and factory-security evaluations
+├── demo/              # Feature-oriented runnable examples
 ├── docs/              # Hand-maintained docs page + ADRs
 ├── skills/            # Flue skills (analyzing-repositories)
 ├── tests/             # Node test-runner tests (54 files + helpers)
@@ -94,15 +94,15 @@ flowly/
 
 **`eval/`:**
 
-- Purpose: Evaluation — capstone suite + benchmark framework + fixture
-- Contains: `capstone-eval.ts`, `bench/` (types, schema, config, metrics, store, runner, judge, providers, model-loop, patch, index), `safety/` (invariants, fixtures, runner, live), `benchmarks/sample.json`, `fixtures/sample-repo/`, `run-eval.sh`, `run-capstone-eval.sh`, `README.md`
-- Key files: `bench/runner.ts`, `bench/schema.ts`, `capstone-eval.ts`
+- Purpose: Feature-oriented repository, model, and factory-security evaluation
+- Contains: `repository/` (scenarios, run-deterministic.sh, run-live-tool-selection.sh), `framework/` (types, schema, config, metrics, store, runner, judge, providers, model-loop, patch, index), `security/` (invariants, fixtures, runner, live), `suites/sample.json`, `fixtures/sample-repo/`, `README.md`
+- Key files: `repository/scenarios.ts`, `framework/runner.ts`, `framework/schema.ts`, `security/invariants.ts`
 
 **`demo/`:**
 
-- Purpose: Deterministic, key-free demos
-- Contains: `doc-aware-demo.ts/.sh`, `reliability-demo.sh`, `capstone-demo.ts/.sh`
-- Key files: `doc-aware-demo.ts`
+- Purpose: Runnable examples organized by Flowly capability
+- Contains: `repository-analysis.ts/.sh`, `factory-controls.ts/.sh`, `end-to-end.ts/.sh`, `reliability.sh`, `README.md`
+- Key files: `README.md`, `repository-analysis.ts`, `factory-controls.ts`, `end-to-end.ts`
 
 **`docs/`:**
 
@@ -129,7 +129,7 @@ flowly/
 - `scripts/factory.ts`: read-only factory run list/show/timeline/explain CLI
 - `scripts/flue-eval.ts`: benchmark CLI
 - `scripts/memory.ts`: local repository-instinct inspection and trusted status mutation CLI
-- `eval/capstone-eval.ts`: capstone suite entrypoint
+- `eval/repository/scenarios.ts`: deterministic repository-evaluation entrypoint
 - `app.ts`: Flue route map
 
 **Configuration:**
@@ -156,7 +156,7 @@ flowly/
 - `factory/git.ts`: trusted factory Git mutation boundary
 - `factory/pipeline.ts`: independent review + draft PR stage
 - `github/adapter.ts`: trusted review publisher
-- `eval/bench/runner.ts`: benchmark execution
+- `eval/framework/runner.ts`: benchmark execution
 
 **Testing:**
 
@@ -172,7 +172,7 @@ flowly/
 
 **Directories:**
 
-- Singular lowercase (`tools/`, `agents/`, `review/`); `github/events/` nests the event-router subdomain; `eval/bench/` nests the framework
+- Singular lowercase (`tools/`, `agents/`, `review/`); `github/events/` nests the event-router subdomain; `eval/framework/`, `eval/repository/`, and `eval/security/` separate evaluation concerns
 
 ## Where to Add New Code
 
@@ -183,7 +183,7 @@ flowly/
 
 **New Component/Module:**
 
-- Implementation: its own directory with an `index.ts` barrel (e.g. `github/events/`, `eval/bench/`) or a single file in the matching domain dir
+- Implementation: its own directory with an `index.ts` barrel (e.g. `github/events/`, `eval/framework/`) or a single file in the matching domain dir
 
 **Utilities:**
 

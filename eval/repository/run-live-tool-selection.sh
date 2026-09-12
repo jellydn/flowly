@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run the five Day-16 evaluation scenarios against the bundled fixture repo.
+# Observe five repository-tool selection scenarios with a live model.
 #
 # Each scenario prints its prompt and expected tool pattern, then invokes the
 # Flowly agent with REPOSITORY_PATH pointed at the fixture and
@@ -7,16 +7,16 @@
 # (one safe line per tool call: tool name, sanitized input, status, budget).
 #
 # Usage:
-#   eval/run-eval.sh                 # uses .env / defaults
-#   REPO_ASSISTANT_MODEL=... eval/run-eval.sh
+#   eval/repository/run-live-tool-selection.sh
+#   REPO_ASSISTANT_MODEL=... eval/repository/run-live-tool-selection.sh
 #
 # Requires a provider API key (e.g. OPENROUTER_API_KEY) in the environment.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-FIXTURE="${SCRIPT_DIR}/fixtures/sample-repo"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+FIXTURE="${SCRIPT_DIR}/../fixtures/sample-repo"
 
 cd "${REPO_ROOT}"
 

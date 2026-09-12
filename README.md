@@ -103,6 +103,22 @@ the factory; there is not yet an environment-variable override.
 
 ## Quick start
 
+To see the main Flowly capabilities without credentials, use the
+[newcomer examples](./demo/README.md):
+
+```bash
+npm install
+npm run demo:repository -- auth
+npm run demo:factory
+npm run demo:end-to-end
+```
+
+These commands use the bundled fixture. They do not change a repository or call GitHub. See the
+[evaluation guide](./eval/README.md) for deterministic gates, live model comparisons, custom suites,
+and factory security checks.
+
+To inspect a real repository with a model:
+
 ```bash
 git clone https://github.com/jellydn/flowly.git
 git clone --depth 1 https://github.com/jellydn/oak.git
@@ -734,7 +750,7 @@ activate).
 
 ## Model evaluation benchmark
 
-`eval/bench/` is a built-in evaluation framework inspired by
+`eval/framework/` is a built-in evaluation framework inspired by
 [OpenRouter ORI Eval](https://openrouter.ai/ori/eval): it compares models on
 real repository-assistant workloads. A named suite of scenarios runs against
 one or more models and produces reports with a quality score, latency, token
@@ -757,7 +773,7 @@ Deterministic mode reuses the capstone decision functions, so it is fully
 reproducible without a provider key — safe for CI. `--live` calls a real model
 through an OpenAI-compatible client; each model in the config resolves its own
 provider, key env, and base URL (fields `provider`, `apiKeyEnv`, `baseUrl`)
-with per-provider defaults in `eval/bench/providers.ts`. In live mode the
+with per-provider defaults in `eval/framework/providers.ts`. In live mode the
 model drives the real investigation loop — each tool result is fed back to the
 provider, which replies with the next action until it decides to answer —
 rather than a single scripted retrieval. Results persist as JSON under
@@ -772,12 +788,12 @@ acceptance rate; use `report` to see each scenario's reviewed status.
 ### Benchmark suites
 
 A suite is a JSON file with a `suite` (scenarios + expected sources/keywords)
-and `models` list. The bundled `eval/benchmarks/sample.json` runs the seven
+and `models` list. The bundled `eval/suites/sample.json` runs the seven
 capstone scenarios. Each `models[]` entry names its own `provider` (and
 optionally `apiKeyEnv`/`baseUrl`), so one config can benchmark openrouter,
 anthropic, and deepseek models against their own endpoints and keys. Custom
 suites define their own prompts and expectations; scenario ids must map to
-decision functions in deterministic mode (see `eval/bench/runner.ts` and the
+decision functions in deterministic mode (see `eval/framework/runner.ts` and the
 bundled capstone deciders).
 
 Suites can define a versioned `gate` with minimum pass, quality, and tool
@@ -800,7 +816,7 @@ quality score. Reports record the judge used (`keyword` or the judge model id)
 and each scenario's judge rationale. Token usage and cost prefer values reported by the
 provider in `--live` mode (reported `prompt_tokens`/`completion_tokens` and
 billed `total_cost`); they fall back to estimates from the pricing table in
-`eval/bench/providers.ts` when a provider reports no usage. Each report
+`eval/framework/providers.ts` when a provider reports no usage. Each report
 records `usageSource: provider | estimated` so you can tell which applied.
 See `.github/workflows/eval.example` for a CI integration example.
 
@@ -818,11 +834,10 @@ and isolated code changes; Actions concurrency, durable factory leases, and
 the existing `just-bash` workspace isolation are the appropriately scaled
 mechanisms until measured queue or data-volume pressure justifies more.
 
-## Day 16: Tools for agents
+## Repository inspection tools
 
-This section documents the Day 16 learning focus: **file tools, search tools,
-API/tool contracts, correct tool selection, and feeding tool results back into
-the agent loop.**
+The repository assistant uses file tools, search tools, explicit contracts, and structured results
+to select evidence and feed it back into the agent loop.
 
 ### When to select each tool
 
@@ -888,7 +903,7 @@ The expected tool sequences are simulated deterministically in
 `tests/eval-scenarios.test.ts`. Run the live model-driven version with:
 
 ```bash
-./eval/run-eval.sh   # requires a provider key; logs the observed tool sequence
+./eval/repository/run-live-tool-selection.sh # requires provider keys; logs tool calls
 ```
 
 ### Safe debug logs
@@ -913,12 +928,10 @@ keys, file contents, absolute repository paths, or model reasoning.
 3. Agent safety depends on controls outside the model, including path
    confinement, output bounds, timeouts, and a shared tool budget.
 
-## Day 17: Planning vs Execution
+## Plan, execute, and reflect
 
-This section documents the Day 17 learning focus: **separating reasoning from
-execution**. Before calling any inspection tool, the agent declares a short
-3–5 step plan, executes each step, then reflects on whether the plan was
-optimal.
+The agent separates reasoning from execution. Before it calls an inspection tool, it declares a
+short 3–5 step plan, executes each step, and then reflects on whether the plan was optimal.
 
 ### Architecture
 
@@ -977,7 +990,7 @@ the model uses.
 
 ### Evaluation scenarios
 
-The Day 16 evaluation scenarios still apply, now with a planning step first:
+The repository-tool evaluation scenarios also include a planning step first:
 
 | Scenario               | Plan                                             | Execution                                                      |
 | ---------------------- | ------------------------------------------------ | -------------------------------------------------------------- |
@@ -1110,11 +1123,11 @@ logs secrets, tokens, file contents, or sensitive prompts.
 ### Failure-injection demo
 
 ```bash
-./demo/reliability-demo.sh        # run all scenarios
-./demo/reliability-demo.sh 1      # recover from transient failure
-./demo/reliability-demo.sh 2      # timeout simulation
-./demo/reliability-demo.sh 3      # malformed response
-./demo/reliability-demo.sh 4      # baseline (no failures)
+./demo/reliability.sh        # run all scenarios
+./demo/reliability.sh 1      # recover from transient failure
+./demo/reliability.sh 2      # timeout simulation
+./demo/reliability.sh 3      # malformed response
+./demo/reliability.sh 4      # baseline (no failures)
 ```
 
 Environment variables for failure injection:
@@ -1142,11 +1155,10 @@ multiplying budget consumption.
 3. A search→read fallback preserved usefulness when the primary tool failed,
    while permanent errors failed fast instead of hiding configuration problems.
 
-## Day 21: Doc-aware repository agent
+## Grounded repository analysis
 
-This section documents the Day 21 learning focus: **combining documentation
-search, source-code search, and file-reading into a bounded investigation loop
-that produces grounded answers with citations.**
+The assistant combines documentation search, source-code search, and file reading in a bounded
+investigation loop that produces grounded answers with citations.
 
 ### What the doc-aware agent does
 
@@ -1244,9 +1256,9 @@ hallucinating.
 ### How to run the demo
 
 ```bash
-./demo/doc-aware-demo.sh              # all scenarios
-./demo/doc-aware-demo.sh auth         # only auth-related scenarios
-./demo/doc-aware-demo.sh payment      # only the negative-search scenario
+./demo/repository-analysis.sh              # all scenarios
+./demo/repository-analysis.sh auth         # only auth-related scenarios
+./demo/repository-analysis.sh payment      # only the negative-search scenario
 ```
 
 The demo uses deterministic decision functions (no LLM required) and the
@@ -1267,10 +1279,10 @@ Scenario: Authentication flow (docs + code)
 
 ```bash
 npm test                              # all tests
-npx tsx --test tests/doc-aware.test.ts  # only Day 21 tests
+npx tsx --test tests/doc-aware.test.ts  # only grounded-analysis tests
 ```
 
-The Day 21 test suite covers:
+The grounded-analysis test suite covers:
 
 1. Documentation search finds relevant Markdown files.
 2. Documentation search excludes irrelevant directories.
@@ -1413,19 +1425,17 @@ flowly/
 │   ├── repository.test.ts
 │   └── tools.test.ts
 ├── demo/
-│   ├── capstone-demo.sh
-│   ├── capstone-demo.ts        # index → retrieve → cite → evaluate
-│   ├── doc-aware-demo.sh
-│   ├── doc-aware-demo.ts
-│   └── reliability-demo.sh
+│   ├── README.md               # newcomer path and example guide
+│   ├── repository-analysis.ts/.sh
+│   ├── factory-controls.ts/.sh # read-only factory control tour
+│   ├── reliability.sh          # live failure-injection scenarios
+│   └── end-to-end.ts/.sh       # index → retrieve → cite → evaluate
 ├── eval/
 │   ├── README.md
-│   ├── bench/                  # ORI-Eval-inspired benchmark framework
-│   ├── benchmarks/sample.json  # bundled 7-scenario suite
-│   ├── capstone-eval.ts        # Day 30 capstone evaluation
-│   ├── safety/                 # factory trust-boundary eval catalog
-│   ├── run-capstone-eval.sh
-│   ├── run-eval.sh
+│   ├── framework/              # config, model loop, metrics, reports, gates
+│   ├── repository/             # deterministic suite + live tool-selection runner
+│   ├── security/               # factory trust-boundary eval catalog
+│   ├── suites/sample.json      # bundled 7-scenario suite
 │   └── fixtures/sample-repo/   # bundled evaluation fixture
 ├── docs/
 │   ├── adr/                    # architecture decision records (0001–0009)

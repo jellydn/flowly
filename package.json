@@ -7,7 +7,7 @@
   "scripts": {
     "build": "vite build",
     "check": "npm run typecheck && npm test && npm run check:eval && npm run build && npm run check:docs",
-    "check:eval": "tsx scripts/flue-eval.ts gate eval/benchmarks/sample.json --no-save",
+    "check:eval": "tsx scripts/flue-eval.ts gate eval/suites/sample.json --no-save",
     "check:docs": "tsx scripts/check-doc-tree.ts",
     "start": "flue run agents/repo-assistant.ts",
     "review-pr": "node --import tsx scripts/review-pr.ts",
@@ -17,8 +17,12 @@
     "route-event": "node --import tsx scripts/route-event.ts",
     "test": "tsx --test tests/*.test.ts",
     "typecheck": "tsc",
-    "capstone:eval": "tsx eval/capstone-eval.ts",
-    "capstone:demo": "tsx demo/capstone-demo.ts",
+    "eval:repository": "tsx eval/repository/scenarios.ts",
+    "demo:repository": "tsx demo/repository-analysis.ts",
+    "demo:factory": "tsx demo/factory-controls.ts",
+    "demo:end-to-end": "tsx demo/end-to-end.ts",
+    "capstone:eval": "npm run eval:repository",
+    "capstone:demo": "npm run demo:end-to-end",
     "eval": "tsx scripts/flue-eval.ts"
   },
   "dependencies": {

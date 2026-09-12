@@ -14,7 +14,7 @@
 **Large orchestration and parsing modules:**
 
 - Issue: several modules combine many policies or parsing cases.
-- Files: `eval/capstone-eval.ts`, `index/repository-relationship-index.ts`, `eval/bench/runner.ts`, `scripts/flue-eval.ts`, `review/pr-data.ts`, `reliability/validation.ts`
+- Files: `eval/repository/scenarios.ts`, `index/repository-relationship-index.ts`, `eval/framework/runner.ts`, `scripts/flue-eval.ts`, `review/pr-data.ts`, `reliability/validation.ts`
 - Impact: changes have a wide review surface and can couple unrelated behavior.
 - Direction: split only at stable domain seams. Good candidates are relationship extractors by source type and benchmark CLI subcommands by command.
 
@@ -38,7 +38,7 @@
 
 - Previous behavior: `prek run --all-files` reported unused imports, unnecessary escapes, and repository-wide format differences.
 - Resolution: remove the stale imports and escapes, then normalize every file reported by oxfmt.
-- Files: `workspace.ts`, `eval/capstone-eval.ts`, `tests/fallback-tool.test.ts`, and the files in the dedicated format commit
+- Files: `workspace.ts`, `eval/repository/scenarios.ts`, `tests/fallback-tool.test.ts`, and the files in the dedicated format commit
 - Verification: both `oxfmt` and `oxlint` hooks pass.
 
 **Transitive dependency advisories — RESOLVED:**
@@ -60,7 +60,7 @@
 **Live services are outside deterministic CI:**
 
 - Behavior: CI does not call a real LLM provider or GitHub API and does not run the actual Flue agent loop.
-- Files: `agents/*.ts`, `factory/model-adapters.ts`, `eval/bench/providers.ts`, `github/client.ts`
+- Files: `agents/*.ts`, `factory/model-adapters.ts`, `eval/framework/providers.ts`, `github/client.ts`
 - Impact: provider response changes, authentication, rate limits, and runtime integration can fail only in live use.
 - Direction: retain deterministic contract tests and add a scheduled, low-cost smoke workflow if production usage requires stronger detection.
 
@@ -113,7 +113,7 @@
 **File-backed report listing is linear:**
 
 - Problem: benchmark leaderboard/report operations parse saved result files on demand.
-- Files: `eval/bench/store.ts`
+- Files: `eval/framework/store.ts`
 - Impact: command latency grows with retained benchmark runs.
 - Direction: add a suite index or retention policy if result volume becomes material.
 
@@ -143,7 +143,7 @@
 **Benchmark scenario lineage:**
 
 - Why fragile: deterministic scenarios need matching deciders, and gate reports depend on suite and corpus digests.
-- Files: `eval/capstone-eval.ts`, `eval/bench/runner.ts`, `eval/benchmarks/sample.json`
+- Files: `eval/repository/scenarios.ts`, `eval/framework/runner.ts`, `eval/suites/sample.json`
 - Safe change rule: update deciders and expected lineage together; do not bypass the deterministic gate.
 - Test coverage: `capstone-eval.test.ts`, `bench-runner.test.ts`, `flue-eval-cli.test.ts`
 

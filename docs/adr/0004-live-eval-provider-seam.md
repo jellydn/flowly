@@ -36,19 +36,19 @@ deepseek) that a single client would have run against one endpoint.
 Land a five-layer gh-stack (in dependency order) that turns live evaluation
 into a per-model, loop-driven, judge-swappable pipeline:
 
-- **Provider registry.** `eval/bench/providers.ts` grows
+- **Provider registry.** `eval/framework/providers.ts` grows
   `createProviderClient(spec, env)`: a registry keyed by provider (known base
   URLs, key envs, pricing) returning a `ModelCallFn`, with per-model
   `apiKeyEnv`/`baseUrl` overrides on `ModelSpec`. `runAll` now resolves one
   client per model from the model spec + env; the legacy `FLUE_EVAL_MODEL`
   env var is retired.
-- **Model-driven loop.** `eval/bench/model-loop.ts` adds
+- **Model-driven loop.** `eval/framework/model-loop.ts` adds
   `createModelDecider(modelCall, toolNames)`: a `DecisionFn` that formats the
   investigation state into a prompt, asks the provider for the next action as
   JSON, and parses it into an `InvestigationAction`. `runLive` wires it in, so
   live scenarios run the real search→read→answer loop instead of a single
   `retrieve`.
-- **LLM judge.** `eval/bench/judge.ts` adds `createLlmJudgeFromSpec`, building
+- **LLM judge.** `eval/framework/judge.ts` adds `createLlmJudgeFromSpec`, building
   an LLM-as-a-judge through the same provider registry, and the report records
   the judge (`judge` field: `'keyword'` or the judge model id).
 - **CLI wiring.** `scripts/flue-eval.ts` gains `--judge-model <spec>` (a

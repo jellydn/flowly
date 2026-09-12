@@ -1,5 +1,5 @@
 /**
- * Day 30 Capstone Demo.
+ * End-to-end repository analysis demo.
  *
  * Demonstrates the complete end-to-end flow:
  *   GitHub repository → indexing → chat question → RAG retrieval →
@@ -14,8 +14,8 @@
  *   5. Evaluation report with pass/fail metrics
  *
  * Run with:
- *   npx tsx demo/capstone-demo.ts
- *   npx tsx demo/capstone-demo.ts --json
+ *   npm run demo:end-to-end
+ *   npm run demo:end-to-end -- --json
  */
 
 import path from 'node:path';
@@ -32,7 +32,7 @@ import { DEFAULT_RETRY_CONFIG } from '../reliability/retry.ts';
 import { buildToolMap, runInvestigation } from '../investigation/loop.ts';
 import type { DecisionFn } from '../investigation/types.ts';
 import { buildRepositoryIndex } from '../index/repository-indexer.ts';
-import { runCapstoneEval } from '../eval/capstone-eval.ts';
+import { runCapstoneEval } from '../eval/repository/scenarios.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const fixture = path.resolve(__dirname, '..', 'eval', 'fixtures', 'sample-repo');
@@ -42,7 +42,7 @@ async function main() {
   const jsonMode = args.includes('--json');
 
   console.log('╔══════════════════════════════════════════════════════════════════════╗');
-  console.log('║     Flue Repo Assistant — Day 30 Capstone Demo                        ║');
+  console.log('║     Flowly — End-to-End Repository Analysis                           ║');
   console.log('║     RAG + Tool-Augmented Repository Analysis                          ║');
   console.log('╚══════════════════════════════════════════════════════════════════════╝');
   console.log();

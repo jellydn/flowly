@@ -1,4 +1,4 @@
-import { createProviderClient, type ModelCallFn } from '../eval/bench/providers.ts';
+import { createProviderClient, type ModelCallFn } from '../eval/framework/providers.ts';
 
 /** Resolve the configured provider/model specifier used by every factory stage. */
 export function createFactoryModelCall(

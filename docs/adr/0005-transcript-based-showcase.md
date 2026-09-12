@@ -29,8 +29,8 @@ Two related conventions for web artifacts in this repository:
 
 - **Showcase site (`docs/showcase/`) is plain static HTML/CSS with verbatim demo
   transcripts instead of screenshots.** The "screenshots" are the real output
-  of the deterministic, key-free demos (`demo/doc-aware-demo.ts`,
-  `demo/capstone-demo.ts`) rendered in styled terminal frames. There is no
+  of the deterministic, key-free demos (`demo/repository-analysis.ts`,
+  `demo/end-to-end.ts`) rendered in styled terminal frames. There is no
   build step, no framework, no external requests, and no JavaScript; the
   three pages share one stylesheet using the project brand palette. Anything
   the demos do not print is not claimed. It lives under `docs/`, the GitHub

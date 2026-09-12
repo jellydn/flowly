@@ -28,7 +28,7 @@ map, record an ADR and keep both documents in sync:
 | ADR                                                                                      | Decision                                                                                                                                                                                                                                                                                             | Status   |
 | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
 | [0001 – Event router](../../docs/adr/0001-event-router.md)                               | Declarative Valibot route config, normalized event model, first-match routing with AND-ed filters, duplicate-delivery stores, decision-only dispatch (agent execution wired by workflows)                                                                                                            | Accepted |
-| [0002 – Model evaluation benchmark](../../docs/adr/0002-model-eval-benchmark.md)         | `eval/bench/` framework with deterministic + live runner modes, versioned quality gates and input-lineage digests, keyword judge with an LLM-as-a-judge seam, provider pricing, `npm run eval` CLI                                                                                                   | Accepted |
+| [0002 – Model evaluation benchmark](../../docs/adr/0002-model-eval-benchmark.md)         | `eval/framework/` with deterministic + live runner modes, versioned quality gates and input-lineage digests, keyword judge with an LLM-as-a-judge seam, provider pricing, `npm run eval` CLI                                                                                                       | Accepted |
 | [0003 – Tool composition seam](../../docs/adr/0003-tool-composition-seam.md)             | Pure `(repository) => ToolDefinition` factories composed by one seam: `withInspectionBudget` / `wrapToolWithReliability` in `reliability/resilient-tool.ts`, scope-parameterized `createSearchTool`, shared `createLineLogger` sink, `inspection-registry.ts` as the single tool-set source of truth | Accepted |
 | [0004 – Live-eval provider seam](../../docs/adr/0004-live-eval-provider-seam.md)         | Per-model provider registry (`createProviderClient`) resolving each config model's own provider/key/base URL, `createModelDecider` driving the live investigation loop, LLM-as-a-judge wired via `--judge-model`                                                                                     | Accepted |
 | [0005 – Transcript-based showcase](../../docs/adr/0005-transcript-based-showcase.md)     | `showcase/` is plain static HTML/CSS whose "screenshots" are verbatim output of the deterministic key-free demos (no build step, no fabricated UI); all assets under `docs/` use relative paths because Pages serves a project subpath                                                               | Accepted |
@@ -108,9 +108,9 @@ See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to 
 
 - Purpose: Benchmark models on repo-assistant workloads
 - Location: `eval/`
-- Contains: `capstone-eval.ts` (Day-30 suite), `bench/` (model benchmark framework), `safety/` (versioned factory invariant catalog and adversarial runner), `benchmarks/sample.json`, `fixtures/sample-repo/`
+- Contains: `repository/` (deterministic scenarios and live tool-selection runner), `framework/` (model benchmark framework), `security/` (versioned factory invariant catalog and adversarial runner), `suites/sample.json`, `fixtures/sample-repo/`
 - Depends on: investigation, tools, index
-- Used by: `scripts/flue-eval.ts` (CLI), `eval/run-capstone-eval.sh`, CI example
+- Used by: `scripts/flue-eval.ts` (CLI), `demo/`, CI, and the optional evaluation workflow
 
 ## Data Flow
 
@@ -185,7 +185,7 @@ See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to 
 **`DecisionFn`:**
 
 - Purpose: Given investigation state, choose next tool call or stop
-- Examples: `investigation/types.ts`; mock deciders in `eval/capstone-eval.ts` and `eval/bench/runner.ts`
+- Examples: `investigation/types.ts`; mock deciders in `eval/repository/scenarios.ts` and `eval/framework/runner.ts`
 - Pattern: Deterministic function; enables key-free testing and CI evaluation
 
 **`FactoryOrchestrator` and autonomy audit:**
@@ -209,7 +209,7 @@ See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to 
 **`Valibot` schemas:**
 
 - Purpose: Validate everything at the edges (tool input/output, review result, event config, benchmark suites, factory policy/state)
-- Examples: `tools/contracts.ts`, `reliability/validation.ts`, `review/schema.ts`, `github/events/config.ts`, `eval/bench/schema.ts`, `factory/schema.ts`
+- Examples: `tools/contracts.ts`, `reliability/validation.ts`, `review/schema.ts`, `github/events/config.ts`, `eval/framework/schema.ts`, `factory/schema.ts`
 - Pattern: `safeParse` with field-path error messages
 
 ## Entry Points
@@ -250,11 +250,11 @@ See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to 
 - Triggers: `npm run eval` (run/compare/leaderboard/report)
 - Responsibilities: benchmark execution and reporting
 
-**`eval/capstone-eval.ts`:**
+**`eval/repository/scenarios.ts`:**
 
-- Location: `eval/capstone-eval.ts`
-- Triggers: `npm run capstone:eval`, `eval/run-capstone-eval.sh`
-- Responsibilities: Day-30 deterministic evaluation suite; entrypoint guarded by an is-main check so imports don't run it
+- Location: `eval/repository/scenarios.ts`
+- Triggers: `npm run eval:repository`, `eval/repository/run-deterministic.sh`
+- Responsibilities: deterministic repository evaluation suite; entrypoint guarded by an is-main check so imports do not run it
 
 ## Error Handling
 

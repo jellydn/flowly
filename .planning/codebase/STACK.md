@@ -10,7 +10,7 @@
 
 **Secondary:**
 
-- Shell (bash) — demo and eval runners (`demo/*.sh`, `eval/run-eval.sh`, `eval/run-capstone-eval.sh`)
+- Shell (bash) — example and evaluation launchers (`demo/*.sh`, `eval/repository/*.sh`)
 - HTML — hand-maintained docs page (`docs/index.html`)
 - Markdown — docs, ADRs, skills (`docs/adr/`, `skills/analyzing-repositories/SKILL.md`, `.planning/codebase/`)
 

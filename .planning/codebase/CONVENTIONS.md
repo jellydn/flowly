@@ -78,7 +78,7 @@
 **When to Comment:**
 
 - File-level and exported-symbol docblocks explain important module purposes, conventions, and constraints
-- Explain the _why_ for non-obvious decisions (e.g. is-main guard in `eval/capstone-eval.ts`, live-mode model wiring)
+- Explain the _why_ for non-obvious decisions (e.g. is-main guard in `eval/repository/scenarios.ts`, live-mode model wiring)
 - Budget/safety invariants are documented inline (e.g. "retries do not consume extra budget")
 
 **JSDoc/TSDoc:**
@@ -98,7 +98,7 @@
 
 **Exports:** Named exports only (no default exports); factory functions exported alongside their types
 
-**Barrel Files:** Yes — domain dirs expose `index.ts` barrels (`github/events/index.ts`, `eval/bench/index.ts`) re-exporting the module's public surface
+**Barrel Files:** Yes — domain dirs expose `index.ts` barrels (`github/events/index.ts`, `eval/framework/index.ts`) re-exporting the module's public surface
 
 **Dependency direction:** Agents and scripts are composition roots. Repository tools depend on indexes and reliability wrappers. Factory orchestration depends on trusted GitHub/Git adapters, while model-facing factory code has no publication authority.
 

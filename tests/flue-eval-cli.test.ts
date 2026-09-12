@@ -3,12 +3,12 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { loadBenchmarkConfigFromFile } from '../eval/bench/config.ts';
-import { createMemoryBenchmarkStore } from '../eval/bench/store.ts';
-import type { BenchmarkReport } from '../eval/bench/types.ts';
+import { loadBenchmarkConfigFromFile } from '../eval/framework/config.ts';
+import { createMemoryBenchmarkStore } from '../eval/framework/store.ts';
+import type { BenchmarkReport } from '../eval/framework/types.ts';
 
 test('sample benchmark config loads and validates', async () => {
-  const loaded = await loadBenchmarkConfigFromFile('eval/benchmarks/sample.json');
+  const loaded = await loadBenchmarkConfigFromFile('eval/suites/sample.json');
   assert.ok(loaded.ok);
   if (loaded.ok) {
     assert.equal(loaded.suite.id, 'capstone');
@@ -23,7 +23,7 @@ test('sample benchmark config loads and validates', async () => {
 });
 
 test('parseModelSpecString accepts a provider-qualified id and a JSON spec', async () => {
-  const { parseModelSpecString } = await import('../eval/bench/schema.ts');
+  const { parseModelSpecString } = await import('../eval/framework/schema.ts');
   const fromId = parseModelSpecString('openrouter/qwen/qwen3-coder');
   assert.ok(fromId.ok);
   if (fromId.ok) {
@@ -44,8 +44,8 @@ test('parseModelSpecString accepts a provider-qualified id and a JSON spec', asy
 });
 
 test('sample benchmark suite scenario ids match capstone decider ids', async () => {
-  const { capstoneScenarios } = await import('../eval/capstone-eval.ts');
-  const loaded = await loadBenchmarkConfigFromFile('eval/benchmarks/sample.json');
+  const { capstoneScenarios } = await import('../eval/repository/scenarios.ts');
+  const loaded = await loadBenchmarkConfigFromFile('eval/suites/sample.json');
   assert.ok(loaded.ok);
   if (loaded.ok) {
     const deciderIds = new Set(capstoneScenarios.map((s) => s.id));

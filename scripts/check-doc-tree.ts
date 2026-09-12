@@ -9,7 +9,7 @@
  *   2. every real source file/dir is documented (new files can't silently
  *      rot the layout docs).
  *
- * It also validates parenthetical subdir lists (e.g. `eval/bench/` and
+ * It also validates parenthetical subdir lists (e.g. `eval/framework/` and
  * `github/events/` — the lists that twice missed a new module), and checks
  * the documented test-file counts in STRUCTURE.md (tree line and `tests/`
  * section) and `.planning/codebase/TESTING.md` against the real
@@ -35,6 +35,8 @@ const LANDING = 'docs/index.html';
 const ADR_DIR = 'docs/adr';
 const ADR_INDEX = 'docs/adr/README.md';
 const README = 'README.md';
+const DEMO_README = 'demo/README.md';
+const EVAL_README = 'eval/README.md';
 
 /**
  * The layout sections the guard validates. STRUCTURE.md also contains
@@ -130,9 +132,10 @@ function assertExists(
 }
 
 /**
- * Validate a `subdir/ (name, name, …)` parenthetical list (e.g. eval/bench,
- * github/events). Only applies to subdirs whose real contents are `.ts`
- * modules; descriptive parentheticals over other formats (e.g. `docs/adr/`
+ * Validate a `subdir/ (name, name, …)` parenthetical list (e.g. eval/framework,
+ * github/events). It validates TypeScript module names without extensions and
+ * accepts explicit extensions for mixed directories such as `eval/repository/`.
+ * Descriptive parentheticals over other formats (e.g. `docs/adr/`
  * `(0001–0004, README, template)` over `.md` files) are skipped.
  */
 function validateParenthetical(errors: string[], dir: string, contains: string): void {
@@ -158,11 +161,12 @@ function validateParenthetical(errors: string[], dir: string, contains: string):
     const realNames = rawEntries.map((n) => (n.endsWith('.ts') ? n.slice(0, -3) : n));
 
     for (const name of names) {
+      const documentedFile = name.includes('.') ? name : `${name}.ts`;
       try {
-        statSync(path.join(subPath, `${name}.ts`));
+        statSync(path.join(subPath, documentedFile));
       } catch {
         errors.push(
-          `${STRUCTURE} ${dir}: \`${subdir}${name}.ts\` is documented but does not exist`,
+          `${STRUCTURE} ${dir}: \`${subdir}${documentedFile}\` is documented but does not exist`,
         );
       }
     }
@@ -178,6 +182,31 @@ function main(): void {
   const structure = readFileSync(STRUCTURE, 'utf8');
   const testing = readFileSync(TESTING, 'utf8');
   const errors: string[] = [];
+
+  const readme = readFileSync(README, 'utf8');
+  const demoReadme = readFileSync(DEMO_README, 'utf8');
+  const evalReadme = readFileSync(EVAL_README, 'utf8');
+  for (const required of ['./demo/README.md', './eval/README.md']) {
+    if (!readme.includes(required)) errors.push(`${README}: missing newcomer link \`${required}\``);
+  }
+  for (const required of [
+    'npm run demo:repository',
+    'npm run demo:factory',
+    'npm run demo:end-to-end',
+  ]) {
+    if (!demoReadme.includes(required)) {
+      errors.push(`${DEMO_README}: missing command \`${required}\``);
+    }
+  }
+  for (const required of [
+    'npm run eval:repository',
+    'npm run check:eval',
+    'eval/suites/sample.json',
+  ]) {
+    if (!evalReadme.includes(required)) {
+      errors.push(`${EVAL_README}: missing command or path \`${required}\``);
+    }
+  }
 
   const sections = parseContainsLines(structure);
   const seenDirs = new Set<string>();
@@ -288,7 +317,6 @@ function main(): void {
     }
 
     // README tree: `adr/ # architecture decision records (0001–0004)` must span the records.
-    const readme = readFileSync(README, 'utf8');
     const rangeMatch = readme.match(
       /adr\/\s*# architecture decision records \((\d{4})[–-](\d{4})\)/,
     );

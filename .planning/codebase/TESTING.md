@@ -125,7 +125,7 @@ export async function createSampleRepo(): Promise<string> {
 
 **E2E Tests:**
 
-- Not used; live model runs are opt-in scripts/demos (`eval/run-eval.sh`, `demo/*.sh`, `npm run eval -- run --live`), not CI tests
+- Not used; live model runs are opt-in scripts (`eval/repository/run-live-tool-selection.sh`, `demo/reliability.sh`, `npm run eval -- run --live`), not CI tests
 
 ## Common Patterns
 

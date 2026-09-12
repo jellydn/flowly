@@ -14,9 +14,13 @@ import {
   parseBenchmarkConfig,
   parseModel,
   parseSuite,
-} from '../eval/bench/index.ts';
-import { buildReport, computeSummary, scoreScenario } from '../eval/bench/index.ts';
-import type { BenchmarkReport, BenchmarkScenario, MetricPass } from '../eval/bench/types.ts';
+} from '../eval/framework/index.ts';
+import { buildReport, computeSummary, scoreScenario } from '../eval/framework/index.ts';
+import type {
+  BenchmarkReport,
+  BenchmarkScenario,
+  MetricPass,
+} from '../eval/framework/types.ts';
 
 const pass = (detail: string): MetricPass => ({ passed: true, detail });
 const fail = (detail: string): MetricPass => ({ passed: false, detail });

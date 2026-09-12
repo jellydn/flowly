@@ -7,7 +7,7 @@
     <title>Features: Flowly</title>
     <meta
       name="description"
-      content="Flowly's GitHub factory, five read-only tools, independent PR review, event routing, and deterministic model benchmark."
+      content="Flowly's GitHub factory, six read-only tools, independent PR review, event routing, and deterministic model benchmark."
     />
     <meta property="og:title" content="Flowly features" />
     <meta property="og:type" content="website" />
@@ -44,11 +44,12 @@
           <div class="feature">
             <div class="feature-copy">
               <p class="section-label">Toolkit</p>
-              <h2>Five read-only tools, one budget</h2>
+              <h2>Six read-only tools, one budget</h2>
               <p>
                 List, read, search code, search docs, and semantic <code>retrieve</code> over a lazy
-                TF-IDF index. Every call consumes one step of a shared budget (1–20, default 8);
-                retries never multiply the cost.
+                TF-IDF index. <code>related_context</code> follows cited repository relationships.
+                Every call consumes one step of a shared budget (1–20, default 8); retries never
+                multiply the cost.
               </p>
               <ul>
                 <li>Path-confinement rejects <code>..</code> and absolute paths</li>

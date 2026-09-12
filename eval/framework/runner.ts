@@ -318,7 +318,7 @@ export type RunBenchmarkOptions = {
   repositoryPath?: string;
   /** Per-scenario inspection budget; defaults to the suite maxSteps or 8. */
   maxSteps?: number;
-  /** Optional patch-applicability measurer (see eval/bench/patch.ts). */
+  /** Optional patch-applicability measurer (see eval/framework/patch.ts). */
   measurePatch?: (scenario: BenchmarkScenario, answer: string) => Promise<MetricPass | null>;
 };
 

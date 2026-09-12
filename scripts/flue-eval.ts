@@ -22,7 +22,7 @@
  * key required, so CI runs are reproducible. `--live` uses a provider model
  * call, resolved per model from the config's `models[]` entries (each model
  * names its own provider, key env, and base URL via the provider registry in
- * eval/bench/providers.ts). `--judge-model <spec>` swaps the keyword judge
+ * eval/framework/providers.ts). `--judge-model <spec>` swaps the keyword judge
  * for an LLM-as-a-judge through the same provider seam.
  *
  * Environment:
@@ -39,28 +39,28 @@
 
 import { mkdir } from 'node:fs/promises';
 import process from 'node:process';
-import { loadBenchmarkConfigFromFile } from '../eval/bench/config.ts';
-import { createFileBenchmarkStore } from '../eval/bench/store.ts';
-import { runBenchmark } from '../eval/bench/runner.ts';
-import { createProviderClient, withDefaultPricing } from '../eval/bench/providers.ts';
-import type { ModelCallFn } from '../eval/bench/providers.ts';
-import { createLlmJudgeFromSpec } from '../eval/bench/judge.ts';
-import type { Judge } from '../eval/bench/judge.ts';
-import { parseModelSpecString } from '../eval/bench/schema.ts';
-import { recordHumanAcceptance } from '../eval/bench/metrics.ts';
-import { evaluateBenchmarkGate } from '../eval/bench/metrics.ts';
+import { loadBenchmarkConfigFromFile } from '../eval/framework/config.ts';
+import { createFileBenchmarkStore } from '../eval/framework/store.ts';
+import { runBenchmark } from '../eval/framework/runner.ts';
+import { createProviderClient, withDefaultPricing } from '../eval/framework/providers.ts';
+import type { ModelCallFn } from '../eval/framework/providers.ts';
+import { createLlmJudgeFromSpec } from '../eval/framework/judge.ts';
+import type { Judge } from '../eval/framework/judge.ts';
+import { parseModelSpecString } from '../eval/framework/schema.ts';
+import { recordHumanAcceptance } from '../eval/framework/metrics.ts';
+import { evaluateBenchmarkGate } from '../eval/framework/metrics.ts';
 import type {
   BenchmarkGate,
   BenchmarkGateResult,
   BenchmarkReport,
   ModelComparison,
   ModelSpec,
-} from '../eval/bench/types.ts';
-import type { BenchmarkStore } from '../eval/bench/store.ts';
-import { capstoneScenarios } from '../eval/capstone-eval.ts';
+} from '../eval/framework/types.ts';
+import type { BenchmarkStore } from '../eval/framework/store.ts';
+import { capstoneScenarios } from '../eval/repository/scenarios.ts';
 import type { DecisionFn } from '../investigation/types.ts';
 
-const DEFAULT_CONFIG = 'eval/benchmarks/sample.json';
+const DEFAULT_CONFIG = 'eval/suites/sample.json';
 const DEFAULT_RESULTS_DIR = 'eval/results';
 
 function fail(message: string, code = 1): never {
