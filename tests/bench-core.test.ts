@@ -51,6 +51,57 @@ test('parseSuite accepts a valid suite', () => {
   if (result.ok) assert.equal(result.suite.id, 'sample');
 });
 
+test('parseSuite accepts typed issue, pull request, and coding workloads', () => {
+  const result = parseSuite({
+    ...sampleSuite,
+    scenarios: [
+      {
+        id: 'issue',
+        prompt: 'Plan this issue.',
+        workload: {
+          type: 'github-issue',
+          repository: 'jellydn/flowly',
+          number: 38,
+          title: 'Add model evaluation benchmarks',
+          body: 'Compare models on repository workloads.',
+        },
+      },
+      {
+        id: 'pr',
+        prompt: 'Review this pull request.',
+        workload: {
+          type: 'pull-request-review',
+          repository: 'jellydn/flowly',
+          number: 151,
+          title: 'Check saved model versions',
+          diff: 'diff --git a/a.ts b/a.ts',
+        },
+      },
+      {
+        id: 'code',
+        prompt: 'Implement this task.',
+        workload: { type: 'coding-task', title: 'Change the port', body: 'Use port 4000.' },
+      },
+    ],
+  });
+  assert.ok(result.ok);
+});
+
+test('parseSuite rejects incomplete or unknown workload shapes', () => {
+  assert.ok(
+    !parseSuite({
+      ...sampleSuite,
+      scenarios: [{ id: 'issue', prompt: 'p', workload: { type: 'github-issue', number: 38 } }],
+    }).ok,
+  );
+  assert.ok(
+    !parseSuite({
+      ...sampleSuite,
+      scenarios: [{ id: 'unknown', prompt: 'p', workload: { type: 'deployment' } }],
+    }).ok,
+  );
+});
+
 test('parseSuite rejects missing scenarios with a field-path issue', () => {
   const result = parseSuite({ id: 'x', name: 'X' });
   assert.ok(!result.ok);
@@ -150,6 +201,34 @@ test('loadBenchmarkConfigFromFile loads suite + models together', async (t) => {
     assert.equal(loaded.suite.id, 'sample');
     assert.equal(loaded.models[0].id, 'openrouter/qwen/qwen3-coder');
   }
+});
+
+test('loadBenchmarkConfigFromFile loads YAML with typed workloads', async (t) => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'bench-core-yaml-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'config.yaml');
+  await writeFile(
+    file,
+    `suite:
+  id: sample
+  name: Sample benchmark
+  scenarios:
+    - id: issue
+      prompt: Plan the issue.
+      workload:
+        type: github-issue
+        repository: jellydn/flowly
+        number: 38
+        title: Add model evaluation benchmarks
+        body: Compare models on repository workloads.
+models:
+  - id: openrouter/qwen/qwen3-coder
+    provider: openrouter
+`,
+  );
+  const loaded = await loadBenchmarkConfigFromFile(file);
+  assert.ok(loaded.ok);
+  if (loaded.ok) assert.equal(loaded.suite.scenarios[0].workload?.type, 'github-issue');
 });
 
 test('loadSuiteFromFile reports a readable error for a missing file', async () => {
@@ -435,6 +514,16 @@ test('saved-run regression detects tool failures even when quality and pass stat
   assert.equal(result.passed, false);
   assert.deepEqual(result.regressedScenarioIds, ['s1']);
   assert.equal(result.checks.find((check) => check.metric === 'minToolSuccessRate')?.actual, 0.5);
+});
+
+test('saved-run regression detects a coding patch that no longer applies', () => {
+  const baseline = regressionReport();
+  const candidate = regressionReport();
+  baseline.results[0].metrics.patchApplicability = pass('applies');
+  candidate.results[0].metrics.patchApplicability = fail('does not apply');
+  const result = evaluateBenchmarkRegression(baseline, candidate);
+  assert.equal(result.passed, false);
+  assert.deepEqual(result.regressedScenarioIds, ['s0']);
 });
 
 test('saved-run regression rejects incompatible inputs and missing lineage', () => {

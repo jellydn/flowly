@@ -108,7 +108,8 @@ export function evaluateBenchmarkRegression(
         !Number.isFinite(previous.metrics.qualityScore) ||
         !Number.isFinite(result.metrics.qualityScore) ||
         result.metrics.qualityScore < previous.metrics.qualityScore ||
-        (previous.metrics.toolSuccess.passed && !result.metrics.toolSuccess.passed)
+        (previous.metrics.toolSuccess.passed && !result.metrics.toolSuccess.passed) ||
+        (previous.metrics.patchApplicability?.passed && !result.metrics.patchApplicability?.passed)
       );
     })
     .map((result) => result.id);

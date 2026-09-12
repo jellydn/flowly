@@ -1,0 +1,63 @@
+suite:
+  id: repository-workloads
+  name: Repository workload examples
+  description: Live examples for captured GitHub issues, pull requests, and coding tasks.
+  repositoryPath: eval/fixtures/sample-repo
+  maxSteps: 8
+  scenarios:
+    - id: issue-plan
+      prompt: Produce a repository-grounded implementation plan for this issue.
+      workload:
+        type: github-issue
+        repository: example/sample-repo
+        number: 12
+        title: Add configurable session expiry
+        body: Make token expiry configurable and document the environment variable.
+      expectedSources:
+        - src/auth.ts
+        - src/config.ts
+      expectedKeywords:
+        - token
+        - configuration
+      requiresCitation: true
+      requiresToolCall: true
+    - id: pull-request-review
+      prompt: Review this pull request for correctness and regression risk.
+      workload:
+        type: pull-request-review
+        repository: example/sample-repo
+        number: 13
+        title: Change the default service port
+        body: Use port 4000 when PORT is not set.
+        diff: |
+          diff --git a/src/config.ts b/src/config.ts
+          --- a/src/config.ts
+          +++ b/src/config.ts
+          @@ -1 +1 @@
+          -export const PORT = Number(process.env.PORT ?? 3000);
+          +export const PORT = Number(process.env.PORT ?? 4000);
+      expectedSources:
+        - src/config.ts
+      expectedKeywords:
+        - port
+      requiresCitation: true
+      requiresToolCall: true
+    - id: coding-task
+      prompt: Implement the requested change.
+      workload:
+        type: coding-task
+        repository: example/sample-repo
+        issueNumber: 13
+        title: Change the default service port
+        body: Change the PORT fallback from 3000 to 4000.
+      expectedSources:
+        - src/config.ts
+      expectedKeywords:
+        - PORT
+        - 4000
+      requiresCitation: true
+      requiresToolCall: true
+models:
+  - id: openrouter/qwen/qwen3-coder
+    provider: openrouter
+    label: Qwen3 Coder

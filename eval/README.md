@@ -10,7 +10,7 @@ when you have configured a provider.
 | ----------------------- | ------------------------------------------------------------------------------------------------ |
 | `repository/`           | Seven deterministic repository-analysis scenarios and a five-scenario live tool-selection runner |
 | `framework/`            | Config loading, providers, model loop, judges, metrics, gates, reports, and stores               |
-| `suites/`               | Versioned benchmark configurations; `sample.json` is the bundled suite                           |
+| `suites/`               | Versioned JSON/YAML benchmark configurations and typed workload examples                         |
 | `security/`             | FACTORY-001–008 invariant catalog and adversarial runner                                         |
 | `fixtures/sample-repo/` | Small repository used by demos and evaluations                                                   |
 | `results/`              | Generated benchmark reports; ignored by Git                                                      |
@@ -61,10 +61,11 @@ Reports must have matching suite and repository-corpus digests, suite IDs, execu
 judges, and the same non-empty set of unique scenario IDs. Duplicate, missing, or extra scenario
 IDs are rejected. Model IDs may differ. Reports without lineage must be
 rerun; the command does not guess whether older inputs match. It checks pass rate, quality, and
-tool success, including individual scenario losses that aggregate improvements could hide.
+tool success, and loss of measured patch applicability, including individual scenario losses that
+aggregate improvements could hide.
 There is no loss tolerance. Live scores can vary, so review repeated runs before a model change.
-Latency, tokens, cost, optional patch checks, and human verdicts do not affect this regression
-check. Use explicit `suite.gate` limits for latency and cost.
+Latency, tokens, cost, and human verdicts do not affect this regression check. Use explicit
+`suite.gate` limits for latency and cost.
 
 For CI, retain the baseline JSON artifact, restore it under the results directory, run the same
 suite/corpus with the candidate model, and pass both saved run IDs to `regression`. The existing
@@ -80,24 +81,25 @@ PRs [#67](https://github.com/jellydn/flowly/pull/67)–[#71](https://github.com/
 added per-model clients, the live model loop, and CLI judge support. The September 2026 audit
 found no open PR or remaining eval branch to reuse.
 
-| Requirement                                  | Current support                                                                                                                    |
-| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Run, compare, leaderboard, report            | `npm run eval -- …`; Flowly CLI, not a new upstream Flue command                                                                   |
-| Configurable suites                          | Validated JSON; YAML is not implemented                                                                                            |
-| Multiple providers                           | Provider registry and OpenAI-compatible endpoints, including routed models through OpenRouter                                      |
-| Quality, latency, tokens, cost, tool success | Stored per scenario and aggregated; unknown cost is not zero                                                                       |
-| Human acceptance                             | Persisted accept/reject verdicts through `review`                                                                                  |
-| LLM judge                                    | `--judge-model`; recorded in each report                                                                                           |
-| Model-version regression                     | Saved-run `regression` plus versioned absolute `gate` thresholds                                                                   |
-| CI integration                               | `npm run check` includes the deterministic gate; optional report artifact example                                                  |
-| Patch applicability                          | Programmatic `measurePatch` hook only; the bundled path-reference heuristic does **not** prove a diff applies                      |
-| Real issues, PR reviews, coding tasks        | Custom prompts can cover repository questions; dedicated GitHub task ingestion and executable coding benchmarks remain future work |
-| Stretch goals                                | Historical reports and CLI leaderboard exist; dashboard, routing recommendations, and hosted sharing remain future work            |
+| Requirement                                  | Current support                                                                                                         |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Run, compare, leaderboard, report            | `npm run eval -- …`; Flowly CLI, not a new upstream Flue command                                                        |
+| Configurable suites                          | Validated JSON and YAML                                                                                                 |
+| Multiple providers                           | Provider registry and OpenAI-compatible endpoints, including routed models through OpenRouter                           |
+| Quality, latency, tokens, cost, tool success | Stored per scenario and aggregated; unknown cost is not zero                                                            |
+| Human acceptance                             | Persisted accept/reject verdicts through `review`                                                                       |
+| LLM judge                                    | `--judge-model`; recorded in each report                                                                                |
+| Model-version regression                     | Saved-run `regression` plus versioned absolute `gate` thresholds                                                        |
+| CI integration                               | `npm run check` includes the deterministic gate; optional report artifact example                                       |
+| Patch applicability                          | Coding-task diffs run through non-mutating `git apply --check`; programmatic callers can override the measurement hook  |
+| Real issues, PR reviews, coding tasks        | Typed live-workload context for captured issues, PR metadata/diffs, and coding tasks                                    |
+| Stretch goals                                | Historical reports and CLI leaderboard exist; dashboard, routing recommendations, and hosted sharing remain future work |
 
-The bundled CLI does not measure patch applicability. Applications that need it must supply a
-real validator through `measurePatch`, in an isolated workspace. A passing keyword/path heuristic
-must not be used as evidence that a patch applies. Deterministic runs exercise fixed decisions,
-not model capability; use live runs for actual model comparisons.
+Coding workloads require a unified diff in the model answer. The CLI checks it with `git apply
+--check` against `suite.repositoryPath`, records the result, and fails a scenario whose patch does
+not apply. The command reads the patch through stdin and does not change the working tree.
+Programmatic callers can still replace this check through `measurePatch`. Deterministic runs
+exercise fixed decisions, not model capability; use live runs for actual model comparisons.
 
 ### Live model runs
 
@@ -126,17 +128,35 @@ Live model output is non-deterministic and is not part of the default CI gate. T
 
 ## Use another repository or suite
 
-Copy `eval/suites/sample.json` and change:
+Copy `eval/suites/sample.json` or `eval/suites/workloads.example.yaml` and change:
 
 - `suite.id`, `name`, and `description`;
 - `suite.repositoryPath` to the checkout to inspect;
 - each scenario's prompt, expected sources, expected keywords, and tool/citation requirements;
+- optional typed `workload` context for a captured GitHub issue, pull request, or coding task;
 - `suite.gate` thresholds; and
 - `models[]` provider, model ID, and optional `apiKeyEnv` or `baseUrl`.
 
 Live mode supports new scenario IDs directly. Deterministic mode requires a matching decision
 function in `eval/repository/scenarios.ts`; it rejects an unknown ID instead of inventing behavior.
-Run a custom gate with `npm run eval -- gate path/to/suite.json --no-save`.
+Run a custom gate with `npm run eval -- gate path/to/suite.json --no-save` (YAML paths also work).
+
+### Typed repository workloads
+
+Use `workload.type` to preserve the task shape instead of flattening all context into `prompt`:
+
+- `github-issue`: repository, number, title, and body;
+- `pull-request-review`: repository, number, title, optional body, and unified diff; or
+- `coding-task`: title/body plus optional repository and issue number.
+
+Store a reviewed snapshot in the suite so repeated model runs receive identical issue or PR
+content. Flowly does not fetch mutable GitHub data during a benchmark. This keeps CI runs
+reproducible and avoids giving the evaluation process GitHub credentials. The workload example
+shows all three forms:
+
+```bash
+npm run eval -- run eval/suites/workloads.example.yaml --live
+```
 
 ## Repository-tool scenarios
 

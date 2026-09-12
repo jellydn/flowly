@@ -11,9 +11,38 @@ import type { BenchmarkSuite, ModelSpec } from './types.ts';
 
 const nonEmpty = v.pipe(v.string(), v.minLength(1));
 
+const positiveInteger = v.pipe(v.number(), v.integer(), v.minValue(1));
+
+const workloadSchema = v.variant('type', [
+  v.strictObject({ type: v.literal('repository-question') }),
+  v.strictObject({
+    type: v.literal('github-issue'),
+    repository: nonEmpty,
+    number: positiveInteger,
+    title: nonEmpty,
+    body: nonEmpty,
+  }),
+  v.strictObject({
+    type: v.literal('pull-request-review'),
+    repository: nonEmpty,
+    number: positiveInteger,
+    title: nonEmpty,
+    body: v.optional(nonEmpty),
+    diff: nonEmpty,
+  }),
+  v.strictObject({
+    type: v.literal('coding-task'),
+    repository: v.optional(nonEmpty),
+    issueNumber: v.optional(positiveInteger),
+    title: nonEmpty,
+    body: nonEmpty,
+  }),
+]);
+
 const scenarioSchema = v.strictObject({
   id: nonEmpty,
   prompt: nonEmpty,
+  workload: v.optional(workloadSchema),
   expectedSources: v.optional(v.array(nonEmpty)),
   expectedKeywords: v.optional(v.array(nonEmpty)),
   requiresCitation: v.optional(v.boolean()),
@@ -61,7 +90,7 @@ const modelSchema = v.strictObject({
   baseUrl: v.optional(nonEmpty),
 });
 
-/** JSON config that wires a suite to a model list (used by `npm run eval`). */
+/** JSON/YAML config that wires a suite to a model list (used by `npm run eval`). */
 const benchmarkConfigSchema = v.strictObject({
   suite: suiteSchema,
   models: v.pipe(

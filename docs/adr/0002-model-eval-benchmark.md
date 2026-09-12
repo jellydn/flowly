@@ -20,7 +20,7 @@ The hard constraints were:
    do not depend on a live LLM or spend tokens.
 2. **Live evaluation** against real providers when a key is available, to get
    truthful latency, token usage, and cost.
-3. **Configurable suites** — new benchmarks should be JSON, not code.
+3. **Configurable suites** — new benchmarks should be JSON or YAML, not code.
 4. **Persistence and comparison** — reports must survive across runs so models
    can be ranked on a leaderboard and regressions across model versions caught.
 
@@ -33,15 +33,15 @@ a gh-stack of three PRs (#39–#41):
 
 - **Core** (`eval/framework/types.ts`, `schema.ts`, `config.ts`, `metrics.ts`,
   `store.ts`): the data model (suites, scenarios, reports, leaderboard rows),
-  Valibot validation with field-path issues, JSON config loading, cost/quality
+  Valibot validation with field-path issues, JSON/YAML config loading, cost/quality
   computation, and memory + file-backed report stores.
 - **Runner + judge + providers** (`runner.ts`, `judge.ts`, `providers.ts`,
   `patch.ts`): executes suites through the investigation pipeline. Two modes:
   deterministic (deciders keyed by scenario id, no LLM) and live (a
   `modelCall` builds a prompt from question + evidence and uses the reply as
   the answer). Scoring is keyword-based by default with an LLM-as-a-judge
-  seam; provider pricing drives cost estimation; `measurePatch` is an opt-in
-  patch-applicability hook.
+  seam; provider pricing drives cost estimation; typed coding workloads run
+  returned unified diffs through non-mutating `git apply --check` by default.
 - **CLI + wiring** (`scripts/flowly-eval.ts`): `npm run eval` with `run`,
   `compare`, `leaderboard`, and `report` subcommands, the bundled
   `eval/suites/sample.json` suite, docs, and an example CI workflow.
@@ -65,18 +65,18 @@ Key choices:
 
 - Reproducible model comparison: same suite, same deciders, same scores in CI.
 - Full metric set per issue #38: quality, latency, tokens, cost, tool-call
-  success rate, patch applicability (opt-in), human acceptance (stored as NaN
-  until a manual-approval flow lands).
-- Config-driven: adding a benchmark is writing JSON, not code.
+  success rate, patch applicability, and human acceptance (stored as NaN until
+  an operator records verdicts).
+- Config-driven: adding a benchmark is writing JSON or YAML, not code.
+- Typed issue, pull-request-review, and coding-task snapshots preserve real
+  workload context while keeping runs reproducible and credential-free.
 - LLM-as-a-judge is a pluggable seam, not a hard dependency.
 
 ### 📋 Negative
 
 - The keyword judge is a heuristic — it cannot judge nuance that keyword and
   source matching miss; the LLM judge requires a key and is non-deterministic.
-- Cost is **estimated** from a static pricing table and token heuristics, not
-  measured from provider billing in deterministic mode.
-- `modelCall` live mode measures answer quality but not real token usage from
-  the provider response (usage is approximated from text length).
+- Deterministic mode estimates cost from a static pricing table and token
+  heuristics. Live mode uses provider-reported usage when available.
 - Deterministic deciders must exist for every scenario id, or the runner
   throws — custom suites must ship matching deciders or run live.

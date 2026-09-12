@@ -95,7 +95,7 @@ flowly/
 **`eval/`:**
 
 - Purpose: Feature-oriented repository, model, and factory-security evaluation
-- Contains: `repository/` (scenarios, run-deterministic.sh, run-live-tool-selection.sh), `framework/` (types, schema, config, metrics, store, runner, judge, providers, model-loop, patch, index), `security/` (invariants, fixtures, runner, live), `suites/sample.json`, `fixtures/sample-repo/`, `README.md`
+- Contains: `repository/` (scenarios, run-deterministic.sh, run-live-tool-selection.sh), `framework/` (types, schema, config, metrics, store, runner, judge, providers, model-loop, patch, index), `security/` (invariants, fixtures, runner, live), `suites/sample.json`, `suites/workloads.example.yaml`, `fixtures/sample-repo/`, `README.md`
 - Key files: `repository/scenarios.ts`, `framework/runner.ts`, `framework/schema.ts`, `security/invariants.ts`
 
 **`demo/`:**
