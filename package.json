@@ -21,8 +21,8 @@
     "demo:repository": "tsx demo/repository-analysis.ts",
     "demo:factory": "tsx demo/factory-controls.ts",
     "demo:end-to-end": "tsx demo/end-to-end.ts",
-    "capstone:eval": "npm run eval:repository",
-    "capstone:demo": "npm run demo:end-to-end",
+    "capstone:eval": "npm run eval:repository --",
+    "capstone:demo": "npm run demo:end-to-end --",
     "eval": "tsx scripts/flowly-eval.ts"
   },
   "dependencies": {

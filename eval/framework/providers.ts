@@ -3,8 +3,8 @@
  * call function seam so benchmark runs can talk to any provider.
  *
  * Pricing is used to estimate cost from token usage (input + output per 1K
- * tokens, USD). Providers not listed here simply report $0 cost; the registry
- * is a convenience table, not an exhaustive catalog.
+ * tokens, USD). Providers not listed here leave cost unmeasured (NaN); the
+ * registry is a convenience table, not an exhaustive catalog.
  *
  * Live mode prefers real usage reported by the provider (see ModelCallResult
  * and createOpenAiCompatibleClient); the pricing table remains the fallback
@@ -96,10 +96,7 @@ export function createProviderClient(
   }
   const keyEnv = model.apiKeyEnv ?? PROVIDER_KEY_ENVS[provider] ?? 'FLOWLY_EVAL_API_KEY';
   const apiKey =
-    env[keyEnv] ??
-    env.FLOWLY_EVAL_API_KEY ??
-    env.FLUE_EVAL_API_KEY ??
-    env.OPENROUTER_API_KEY;
+    env[keyEnv] ?? env.FLOWLY_EVAL_API_KEY ?? env.FLUE_EVAL_API_KEY ?? env.OPENROUTER_API_KEY;
   if (!apiKey) {
     throw new Error(
       `No API key for provider "${model.provider}". Set ${keyEnv} (or FLOWLY_EVAL_API_KEY / OPENROUTER_API_KEY).`,
@@ -108,7 +105,7 @@ export function createProviderClient(
   return createOpenAiCompatibleClient({ apiKey, baseUrl, model: model.id });
 }
 
-/** Look up pricing for a provider, falling back to undefined (no cost). */
+/** Look up pricing for a provider, falling back to undefined (cost unknown). */
 export function pricingForProvider(provider: string): ModelPricing | undefined {
   return PROVIDER_PRICING[provider.toLowerCase()];
 }

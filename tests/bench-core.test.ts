@@ -16,11 +16,7 @@ import {
   parseSuite,
 } from '../eval/framework/index.ts';
 import { buildReport, computeSummary, scoreScenario } from '../eval/framework/index.ts';
-import type {
-  BenchmarkReport,
-  BenchmarkScenario,
-  MetricPass,
-} from '../eval/framework/types.ts';
+import type { BenchmarkReport, BenchmarkScenario, MetricPass } from '../eval/framework/types.ts';
 
 const pass = (detail: string): MetricPass => ({ passed: true, detail });
 const fail = (detail: string): MetricPass => ({ passed: false, detail });
@@ -143,8 +139,8 @@ test('loadSuiteFromFile reports a readable error for a missing file', async () =
   if (!loaded.ok) assert.ok(loaded.issues[0].includes('Cannot read'));
 });
 
-test('estimateCost returns 0 without pricing and computes with pricing', () => {
-  assert.equal(estimateCost(1000, 500), 0);
+test('estimateCost returns NaN without pricing and computes with pricing', () => {
+  assert.ok(Number.isNaN(estimateCost(1000, 500)));
   assert.equal(estimateCost(1000, 1000, { inputPer1kUsd: 1, outputPer1kUsd: 2 }), 3);
 });
 
@@ -304,6 +300,46 @@ test('evaluateBenchmarkGate reports every threshold and fails regressions', () =
   );
 });
 
+test('evaluateBenchmarkGate skips maxCostUsd when cost is unknown', () => {
+  const report = buildReport({
+    runId: 'unknown-cost',
+    suiteId: 'sample',
+    suiteName: 'Sample',
+    model: { id: 'm', provider: 'p', label: 'M' },
+    mode: 'deterministic',
+    results: [
+      {
+        id: 's1',
+        prompt: 'p',
+        passed: true,
+        metrics: {
+          qualityScore: 1,
+          latencyMs: 10,
+          tokensIn: 10,
+          tokensOut: 10,
+          costUsd: Number.NaN,
+          toolSuccess: pass('ok'),
+          citationAccuracy: pass('ok'),
+          retrievalRelevance: pass('ok'),
+          answerCompleteness: pass('ok'),
+          patchApplicability: null,
+        },
+        toolsUsed: [],
+        citedSources: [],
+        errors: [],
+        answer: 'a',
+        confidence: 'high',
+      },
+    ],
+  });
+  const result = evaluateBenchmarkGate(report, { maxCostUsd: 0.01, minPassRate: 1 });
+  assert.equal(result.passed, true);
+  assert.deepEqual(
+    result.checks.map((check) => check.metric),
+    ['minPassRate'],
+  );
+});
+
 test('memory store saves, loads, lists, and ranks leaderboards', async () => {
   const store = createMemoryBenchmarkStore();
   const base = {
@@ -392,6 +428,45 @@ test('file store persists reports across instances', async (t) => {
   await first.save(report);
 
   const second = createFileBenchmarkStore(dir);
-  assert.deepEqual((await second.load('r1'))?.runId, 'r1');
+  const loaded = await second.load('r1');
+  assert.deepEqual(loaded?.runId, 'r1');
+  assert.ok(loaded && Number.isNaN(loaded.summary.patchApplicabilityRate));
+  assert.ok(loaded && Number.isNaN(loaded.summary.humanAcceptanceRate));
   assert.equal((await second.leaderboard('sample')).length, 1);
+});
+
+test('file store rejects path-traversal suite and run ids', async (t) => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'bench-file-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const store = createFileBenchmarkStore(dir);
+  const report: BenchmarkReport = {
+    runId: '../escape',
+    suiteId: 'sample',
+    suiteName: 'Sample benchmark',
+    model: { id: 'm', provider: 'openrouter', label: 'M' },
+    ranAt: '2026-01-01T00:00:00.000Z',
+    mode: 'deterministic',
+    totalScenarios: 1,
+    passed: 1,
+    failed: 0,
+    results: [],
+    summary: {
+      qualityScore: 1,
+      avgLatencyMs: 10,
+      totalTokens: 100,
+      costUsd: 0.01,
+      toolSuccessRate: 1,
+      patchApplicabilityRate: Number.NaN,
+      humanAcceptanceRate: Number.NaN,
+    },
+  };
+  await assert.rejects(() => store.save(report), /Unsafe benchmark report identity/);
+  await assert.rejects(
+    () => store.save({ ...report, runId: 'r1', suiteId: '..' }),
+    /Unsafe benchmark report identity/,
+  );
+  await assert.rejects(
+    () => store.save({ ...report, runId: 'r1', suiteId: 'foo/bar' }),
+    /Unsafe benchmark report identity/,
+  );
 });

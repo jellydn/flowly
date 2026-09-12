@@ -78,9 +78,9 @@ export function formatJudgePrompt(
     scenario.expectedKeywords?.length
       ? `Expected keywords: ${scenario.expectedKeywords.join(', ')}`
       : 'Expected keywords: none',
-    scenario.requiresCitation === false
-      ? 'Citations not required.'
-      : 'Citations required when sources are available.',
+    scenario.requiresCitation
+      ? 'Citations required when sources are available.'
+      : 'Citations not required.',
     '',
     'Answer:',
     answer,

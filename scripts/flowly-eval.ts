@@ -68,6 +68,14 @@ function fail(message: string, code = 1): never {
   process.exit(code);
 }
 
+function modelClientKey(model: ModelSpec): string {
+  return [model.provider, model.id, model.baseUrl ?? '', model.apiKeyEnv ?? ''].join('\0');
+}
+
+function formatCostUsd(costUsd: number): string {
+  return Number.isNaN(costUsd) ? 'unknown' : `$${costUsd.toFixed(4)}`;
+}
+
 /** First positional argument, skipping flags (e.g. `run --json` -> config path). */
 function positional(rest: string[]): string | undefined {
   return rest.find((arg) => !arg.startsWith('--'));
@@ -165,7 +173,7 @@ function printReport(report: BenchmarkReport, json: boolean): void {
   lines.push(`Quality:   ${(report.summary.qualityScore * 100).toFixed(0)}%`);
   lines.push(`Latency:   ${report.summary.avgLatencyMs}ms avg`);
   lines.push(`Tokens:    ${report.summary.totalTokens}`);
-  lines.push(`Cost:      $${report.summary.costUsd.toFixed(4)}`);
+  lines.push(`Cost:      ${formatCostUsd(report.summary.costUsd)}`);
   lines.push(`Tool OK:   ${(report.summary.toolSuccessRate * 100).toFixed(0)}%`);
   const human = report.summary.humanAcceptanceRate;
   lines.push(
@@ -200,9 +208,7 @@ async function runAll(
   }
   const { suite, models } = loaded;
   const resultsDir =
-    process.env.FLOWLY_EVAL_RESULTS_DIR ??
-    process.env.FLUE_EVAL_RESULTS_DIR ??
-    DEFAULT_RESULTS_DIR;
+    process.env.FLOWLY_EVAL_RESULTS_DIR ?? process.env.FLUE_EVAL_RESULTS_DIR ?? DEFAULT_RESULTS_DIR;
   if (save) await mkdir(resultsDir, { recursive: true });
 
   // One client per model, resolved from the model spec's provider (its own
@@ -213,7 +219,7 @@ async function runAll(
   if (live) {
     for (const model of models) {
       try {
-        modelCalls.set(model.id, createProviderClient(model, process.env));
+        modelCalls.set(modelClientKey(model), createProviderClient(model, process.env));
       } catch (error) {
         fail(
           `Cannot build a live client for model "${model.id}": ${
@@ -233,7 +239,7 @@ async function runAll(
     const report = await runBenchmark(suite, model, {
       mode: live ? 'live' : 'deterministic',
       deciders: live ? undefined : buildDeciders(),
-      modelCall: modelCalls.get(model.id),
+      modelCall: modelCalls.get(modelClientKey(model)),
       judge,
       judgeId,
       repositoryPath: suite.repositoryPath,
@@ -270,7 +276,7 @@ function printComparison(comparison: ModelComparison): void {
   );
   for (const entry of comparison.models) {
     lines.push(
-      `${(entry.model.label ?? entry.model.id).padEnd(32)} ${`${entry.passed}/${entry.total}`.padEnd(10)} ${`${(entry.summary.qualityScore * 100).toFixed(0)}%`.padEnd(8)} ${`${entry.summary.avgLatencyMs}ms`.padEnd(10)} ${String(entry.summary.totalTokens).padEnd(8)} $${entry.summary.costUsd.toFixed(4)}`,
+      `${(entry.model.label ?? entry.model.id).padEnd(32)} ${`${entry.passed}/${entry.total}`.padEnd(10)} ${`${(entry.summary.qualityScore * 100).toFixed(0)}%`.padEnd(8)} ${`${entry.summary.avgLatencyMs}ms`.padEnd(10)} ${String(entry.summary.totalTokens).padEnd(8)} ${formatCostUsd(entry.summary.costUsd)}`,
     );
   }
   process.stdout.write(`${lines.join('\n')}\n`);
@@ -280,9 +286,7 @@ async function main(): Promise<number> {
   const args = process.argv.slice(2);
   const [command, ...rest] = args;
   const resultsDir =
-    process.env.FLOWLY_EVAL_RESULTS_DIR ??
-    process.env.FLUE_EVAL_RESULTS_DIR ??
-    DEFAULT_RESULTS_DIR;
+    process.env.FLOWLY_EVAL_RESULTS_DIR ?? process.env.FLUE_EVAL_RESULTS_DIR ?? DEFAULT_RESULTS_DIR;
   const store = createFileBenchmarkStore(resultsDir);
 
   switch (command) {
@@ -361,7 +365,7 @@ async function main(): Promise<number> {
       );
       for (const row of rows) {
         lines.push(
-          `${row.modelLabel.padEnd(32)} ${row.suiteId.padEnd(20)} ${`${(row.qualityScore * 100).toFixed(0)}%`.padEnd(8)} ${`${row.avgLatencyMs}ms`.padEnd(10)} $${row.costUsd.toFixed(4).padEnd(8)} ${row.runId}`,
+          `${row.modelLabel.padEnd(32)} ${row.suiteId.padEnd(20)} ${`${(row.qualityScore * 100).toFixed(0)}%`.padEnd(8)} ${`${row.avgLatencyMs}ms`.padEnd(10)} ${formatCostUsd(row.costUsd).padEnd(12)} ${row.runId}`,
         );
       }
       process.stdout.write(`${lines.join('\n')}\n`);
@@ -390,7 +394,9 @@ async function main(): Promise<number> {
       const known = new Set(report.results.map((r) => r.id));
       const unknown = Object.keys(verdicts).filter((id) => !known.has(id));
       if (unknown.length > 0) {
-        console.error(`[flowly-eval] Warning: unknown scenario id(s) ignored: ${unknown.join(', ')}`);
+        console.error(
+          `[flowly-eval] Warning: unknown scenario id(s) ignored: ${unknown.join(', ')}`,
+        );
       }
       const updated = recordHumanAcceptance(report, verdicts);
       await store.save(updated);

@@ -106,7 +106,7 @@ export type ScenarioResult = {
     latencyMs: number;
     tokensIn: number;
     tokensOut: number;
-    /** USD cost; billed when the provider reported it, estimated otherwise. */
+    /** USD cost; billed when the provider reported it, estimated otherwise. NaN when unknown. */
     costUsd: number;
     /**
      * Whether tokens/cost came from the provider ('provider') or a heuristic
@@ -137,6 +137,7 @@ export type BenchmarkSummary = {
   qualityScore: number;
   avgLatencyMs: number;
   totalTokens: number;
+  /** USD cost; NaN when pricing is absent and the provider did not report billed cost. */
   costUsd: number;
   toolSuccessRate: number;
   /** NaN when patch applicability was not measured. */

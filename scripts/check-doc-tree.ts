@@ -158,10 +158,9 @@ function validateParenthetical(errors: string[], dir: string, contains: string):
       .split(',')
       .map((n) => n.trim())
       .filter((n) => n.length > 0);
-    const realNames = rawEntries.map((n) => (n.endsWith('.ts') ? n.slice(0, -3) : n));
+    const documentedFiles = names.map((name) => (name.includes('.') ? name : `${name}.ts`));
 
-    for (const name of names) {
-      const documentedFile = name.includes('.') ? name : `${name}.ts`;
+    for (const documentedFile of documentedFiles) {
       try {
         statSync(path.join(subPath, documentedFile));
       } catch {
@@ -170,9 +169,9 @@ function validateParenthetical(errors: string[], dir: string, contains: string):
         );
       }
     }
-    for (const real of realNames) {
-      if (!names.includes(real)) {
-        errors.push(`${STRUCTURE} ${dir}: \`${subdir}${real}.ts\` exists but is not documented`);
+    for (const real of rawEntries) {
+      if (!documentedFiles.includes(real)) {
+        errors.push(`${STRUCTURE} ${dir}: \`${subdir}${real}\` exists but is not documented`);
       }
     }
   }

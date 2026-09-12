@@ -87,6 +87,37 @@ describe('factory safety catalog', () => {
       /database unavailable/,
     );
   });
+
+  test('rejects fixtures that are not catalogued for the invariant', async () => {
+    await assert.rejects(
+      () =>
+        evaluateSafetyAttack({
+          invariantId: 'FACTORY-001',
+          attemptedAction: 'grant a tool',
+          fixture: ADVERSARIAL_FIXTURES.grantNetwork,
+          expectedError: /Capability denied/,
+          run() {
+            throw new Error('should not run');
+          },
+        }),
+      /not listed in the invariant catalog/,
+    );
+  });
+
+  test('resets sticky expectedError lastIndex before matching', async () => {
+    const expectedError = /Capability denied/g;
+    expectedError.lastIndex = 18;
+    const finding = await evaluateSafetyAttack({
+      invariantId: 'FACTORY-001',
+      attemptedAction: 'grant a tool',
+      fixture: ADVERSARIAL_FIXTURES.grantTool,
+      expectedError,
+      run() {
+        throw new Error('Capability denied for planner: tool.mcp_browser');
+      },
+    });
+    assertDenied(finding);
+  });
 });
 
 describe('deterministic factory safety evals', () => {

@@ -3,15 +3,8 @@
  * It performs no repository writes, network calls, Git operations, or GitHub mutations.
  */
 
-import {
-  FACTORY_STAGES,
-  resolveFactoryCapabilityAudit,
-} from '../factory/capabilities.ts';
-import {
-  explainFactoryRun,
-  projectFactoryRun,
-  type FactoryRunEvent,
-} from '../factory/events.ts';
+import { FACTORY_STAGES, resolveFactoryCapabilityAudit } from '../factory/capabilities.ts';
+import { explainFactoryRun, projectFactoryRun, type FactoryRunEvent } from '../factory/events.ts';
 import { DEFAULT_WORKSPACE_RETENTION } from '../factory/workspace-lifecycle.ts';
 import {
   FACTORY_SAFETY_CATALOG_VERSION,
@@ -139,7 +132,11 @@ function main(): void {
     console.log(`- ${invariant.id}: ${invariant.title}`);
   }
   console.log();
-  console.log('Operator projection:');
+  console.log('Operator timeline:');
+  for (const event of sampleEvents) {
+    console.log(`- ${event.sequence}. ${event.type}: ${event.summary}`);
+  }
+  console.log();
   console.log(output.explanation);
 }
 

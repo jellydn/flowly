@@ -40,51 +40,52 @@ const fixture = path.resolve(__dirname, '..', 'eval', 'fixtures', 'sample-repo')
 async function main() {
   const args = process.argv.slice(2);
   const jsonMode = args.includes('--json');
+  const log: typeof console.log = jsonMode ? console.error.bind(console) : console.log;
 
-  console.log('╔══════════════════════════════════════════════════════════════════════╗');
-  console.log('║     Flowly — End-to-End Repository Analysis                           ║');
-  console.log('║     RAG + Tool-Augmented Repository Analysis                          ║');
-  console.log('╚══════════════════════════════════════════════════════════════════════╝');
-  console.log();
+  log('╔══════════════════════════════════════════════════════════════════════╗');
+  log('║     Flowly — End-to-End Repository Analysis                           ║');
+  log('║     RAG + Tool-Augmented Repository Analysis                          ║');
+  log('╚══════════════════════════════════════════════════════════════════════╝');
+  log();
 
   // ── Step 1: Repository Selection ──────────────────────────────────────
-  console.log('Step 1: Repository Selection');
-  console.log(`  Repository: ${path.relative(path.resolve(__dirname, '..'), fixture)}`);
-  console.log();
+  log('Step 1: Repository Selection');
+  log(`  Repository: ${path.relative(path.resolve(__dirname, '..'), fixture)}`);
+  log();
 
   // ── Step 2: Indexing ──────────────────────────────────────────────────
-  console.log('Step 2: Indexing (TF-IDF)');
+  log('Step 2: Indexing (TF-IDF)');
   const repository = await createRepositoryReader(fixture);
   const indexStart = Date.now();
   const index = await buildRepositoryIndex(repository);
   const indexTime = Date.now() - indexStart;
-  console.log(`  Files indexed:   ${index.stats.filesIndexed}`);
-  console.log(`  Chunks indexed:  ${index.stats.chunksIndexed}`);
-  console.log(`  Unique terms:    ${index.stats.uniqueTerms}`);
-  console.log(`  Build time:      ${indexTime}ms`);
-  console.log();
+  log(`  Files indexed:   ${index.stats.filesIndexed}`);
+  log(`  Chunks indexed:  ${index.stats.chunksIndexed}`);
+  log(`  Unique terms:    ${index.stats.uniqueTerms}`);
+  log(`  Build time:      ${indexTime}ms`);
+  log();
 
   // ── Step 3: Chat Question ─────────────────────────────────────────────
   const question =
     'Review this repository, explain its architecture, identify the highest-risk issue, and suggest an implementation plan.';
-  console.log('Step 3: Chat Question');
-  console.log(`  "${question}"`);
-  console.log();
+  log('Step 3: Chat Question');
+  log(`  "${question}"`);
+  log();
 
   // ── Step 4: RAG Retrieval ─────────────────────────────────────────────
-  console.log('Step 4: RAG Retrieval');
+  log('Step 4: RAG Retrieval');
   const retrieveResults = index.retrieve(question, 5);
   for (const result of retrieveResults) {
     const firstLine = result.excerpt.split('\n')[0].slice(0, 70);
-    console.log(
+    log(
       `  [score: ${result.score}] ${result.path}:${result.startLine}-${result.endLine} (${result.sourceType})`,
     );
-    console.log(`    "${firstLine}..."`);
+    log(`    "${firstLine}..."`);
   }
-  console.log();
+  log();
 
   // ── Step 5: Tool Execution ────────────────────────────────────────────
-  console.log('Step 5: Tool Execution (retrieve → read_file)');
+  log('Step 5: Tool Execution (retrieve → read_file)');
 
   const capstoneDecision: DecisionFn = async (state) => {
     if (state.iteration === 0)
@@ -142,76 +143,69 @@ async function main() {
   const result = await runInvestigation(question, tools, budget, capstoneDecision);
   const investigationTime = Date.now() - investigationStart;
 
-  console.log(`  Tools used:     ${result.toolsUsed.join(' → ')}`);
-  console.log(`  Iterations:     ${result.iterations}`);
-  console.log(`  Stop reason:    ${result.stopReason}`);
-  console.log(`  Evidence items: ${result.evidence.length}`);
-  console.log(`  Latency:        ${investigationTime}ms`);
-  console.log();
+  log(`  Tools used:     ${result.toolsUsed.join(' → ')}`);
+  log(`  Iterations:     ${result.iterations}`);
+  log(`  Stop reason:    ${result.stopReason}`);
+  log(`  Evidence items: ${result.evidence.length}`);
+  log(`  Latency:        ${investigationTime}ms`);
+  log();
 
   // ── Step 6: Cited Answer ──────────────────────────────────────────────
-  console.log('Step 6: Cited Answer');
-  console.log(`  Confidence: ${result.answer.confidence}`);
-  console.log(`  Sources:    ${result.answer.sources.join(', ') || '(none)'}`);
-  console.log();
-  console.log('  Key findings:');
+  log('Step 6: Cited Answer');
+  log(`  Confidence: ${result.answer.confidence}`);
+  log(`  Sources:    ${result.answer.sources.join(', ') || '(none)'}`);
+  log();
+  log('  Key findings:');
   for (const finding of result.answer.keyFindings) {
-    console.log(`    • ${finding.finding} (${finding.citation})`);
+    log(`    • ${finding.finding} (${finding.citation})`);
   }
-  console.log();
-  console.log('  Answer:');
+  log();
+  log('  Answer:');
   const answerLines = result.answer.answer.split('\n');
   for (const line of answerLines) {
-    console.log(`    ${line}`);
+    log(`    ${line}`);
   }
-  console.log();
+  log();
 
   // ── Step 7: Evaluation Report ─────────────────────────────────────────
-  console.log('Step 7: Evaluation Report');
-  console.log('  Running 7-scenario evaluation suite...');
-  console.log();
+  log('Step 7: Evaluation Report');
+  log('  Running 7-scenario evaluation suite...');
+  log();
 
   const report = await runCapstoneEval();
 
   if (jsonMode) {
     console.log(JSON.stringify({ investigation: { question, result }, report }, null, 2));
-  } else {
-    console.log(
-      `  Scenarios: ${report.totalScenarios}  |  Passed: ${report.passed}  |  Failed: ${report.failed}`,
-    );
-    console.log();
-    console.log('  Metric Summary:');
-    console.log(
-      `    Citation Accuracy:    ${report.summary.citationAccuracy}/${report.totalScenarios}`,
-    );
-    console.log(
-      `    Retrieval Relevance:  ${report.summary.retrievalRelevance}/${report.totalScenarios}`,
-    );
-    console.log(`    Tool Success:         ${report.summary.toolSuccess}/${report.totalScenarios}`);
-    console.log(
-      `    Answer Completeness:  ${report.summary.answerCompleteness}/${report.totalScenarios}`,
-    );
-    console.log(`    Avg Latency:          ${report.summary.avgLatencyMs}ms`);
-    console.log();
-    console.log('  Per-scenario results:');
-    for (const r of report.results) {
-      const status = r.passed ? '✅' : '❌';
-      const questionShort = r.question.slice(0, 60);
-      console.log(`    ${status} [${r.id}] ${questionShort}`);
-      console.log(
-        `       Tools: ${r.toolsUsed.join(' → ') || '(none)'}  |  Latency: ${r.latencyMs}ms`,
-      );
-    }
+    return;
   }
 
-  console.log();
-  console.log('────────────────────────────────────────────────────────────────────────');
-  console.log('Demo complete.');
-  console.log();
-  console.log('Flow demonstrated:');
-  console.log('  GitHub repository → indexing → chat question → RAG retrieval →');
-  console.log('  tool execution → cited answer → evaluation report');
-  console.log('────────────────────────────────────────────────────────────────────────');
+  log(
+    `  Scenarios: ${report.totalScenarios}  |  Passed: ${report.passed}  |  Failed: ${report.failed}`,
+  );
+  log();
+  log('  Metric Summary:');
+  log(`    Citation Accuracy:    ${report.summary.citationAccuracy}/${report.totalScenarios}`);
+  log(`    Retrieval Relevance:  ${report.summary.retrievalRelevance}/${report.totalScenarios}`);
+  log(`    Tool Success:         ${report.summary.toolSuccess}/${report.totalScenarios}`);
+  log(`    Answer Completeness:  ${report.summary.answerCompleteness}/${report.totalScenarios}`);
+  log(`    Avg Latency:          ${report.summary.avgLatencyMs}ms`);
+  log();
+  log('  Per-scenario results:');
+  for (const r of report.results) {
+    const status = r.passed ? '✅' : '❌';
+    const questionShort = r.question.slice(0, 60);
+    log(`    ${status} [${r.id}] ${questionShort}`);
+    log(`       Tools: ${r.toolsUsed.join(' → ') || '(none)'}  |  Latency: ${r.latencyMs}ms`);
+  }
+
+  log();
+  log('────────────────────────────────────────────────────────────────────────');
+  log('Demo complete.');
+  log();
+  log('Flow demonstrated:');
+  log('  GitHub repository → indexing → chat question → RAG retrieval →');
+  log('  tool execution → cited answer → evaluation report');
+  log('────────────────────────────────────────────────────────────────────────');
 }
 
 main().catch((err) => {

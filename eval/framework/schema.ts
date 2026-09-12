@@ -113,8 +113,10 @@ export function parseModelSpecString(
     }
     return parseModel(value);
   }
-  const provider = trimmed.slice(0, trimmed.indexOf('/'));
-  if (!provider || trimmed.indexOf('/') === -1) {
+  const slash = trimmed.indexOf('/');
+  const provider = slash === -1 ? '' : trimmed.slice(0, slash);
+  const rest = slash === -1 ? '' : trimmed.slice(slash + 1);
+  if (!provider || !rest) {
     return {
       ok: false,
       issues: ['--judge-model must include a provider segment (e.g. openrouter/qwen/qwen3-coder).'],

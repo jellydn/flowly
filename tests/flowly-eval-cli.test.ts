@@ -40,6 +40,7 @@ test('parseModelSpecString accepts a provider-qualified id and a JSON spec', asy
   }
   assert.ok(!parseModelSpecString('not-json-{').ok);
   assert.ok(!parseModelSpecString('no-provider').ok);
+  assert.ok(!parseModelSpecString('openrouter/').ok);
   assert.ok(!parseModelSpecString('{"id":"x"}').ok);
 });
 
