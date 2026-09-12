@@ -14,6 +14,8 @@
  *   compare <config.json>     run + print a side-by-side model comparison
  *   leaderboard [--suite id]  list best saved reports, ranked by quality
  *   report <runId>            print one saved report
+ *   regression <baselineId> <candidateId> [--json]
+ *                             check saved model versions without provider calls
  *   review <runId> --accept <id,...> [--reject <id,...>]
  *                             record human accept/reject verdicts on a saved
  *                             report and recompute the acceptance rate
@@ -51,7 +53,7 @@ import { createLlmJudgeFromSpec } from '../eval/framework/judge.ts';
 import type { Judge } from '../eval/framework/judge.ts';
 import { parseModelSpecString } from '../eval/framework/schema.ts';
 import { recordHumanAcceptance } from '../eval/framework/metrics.ts';
-import { evaluateBenchmarkGate } from '../eval/framework/metrics.ts';
+import { evaluateBenchmarkGate, evaluateBenchmarkRegression } from '../eval/framework/metrics.ts';
 import type {
   BenchmarkGate,
   BenchmarkGateResult,
@@ -114,6 +116,7 @@ function usage(): never {
   npm run eval -- compare <config.json> [--live] [--judge-model <spec>] [--trust-model-overrides]
   npm run eval -- leaderboard [--suite <id>]
   npm run eval -- report <runId>
+  npm run eval -- regression <baselineId> <candidateId> [--json]
   npm run eval -- review <runId> --accept <id,...> [--reject <id,...>]
 
 Deterministic mode (default) uses the bundled capstone deciders and needs no
@@ -394,6 +397,30 @@ async function main(): Promise<number> {
       const report = await loadReportOrExit(store, positional(rest));
       printReport(report, rest.includes('--json'));
       return 0;
+    }
+    case 'regression': {
+      const [baselineId, candidateId, ...flags] = rest;
+      if (
+        !baselineId ||
+        baselineId.startsWith('--') ||
+        !candidateId ||
+        candidateId.startsWith('--') ||
+        flags.some((flag) => flag !== '--json')
+      )
+        usage();
+      const baseline = await loadReportOrExit(store, baselineId);
+      const candidate = await loadReportOrExit(store, candidateId);
+      const result = evaluateBenchmarkRegression(baseline, candidate);
+      if (flags.includes('--json')) {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      } else {
+        process.stdout.write(`Regression: ${baseline.runId} -> ${candidate.runId}\n`);
+        printGate(candidate, result);
+        for (const id of result.regressedScenarioIds) {
+          process.stdout.write(`  FAIL scenario: ${id}\n`);
+        }
+      }
+      return result.passed ? 0 : 1;
     }
     case 'review': {
       const runId = positional(rest);

@@ -27,6 +27,7 @@ export {
   buildReport,
   recordHumanAcceptance,
   evaluateBenchmarkGate,
+  evaluateBenchmarkRegression,
 } from './metrics.ts';
 export { createMemoryBenchmarkStore, createFileBenchmarkStore } from './store.ts';
 export type { BenchmarkStore } from './store.ts';
