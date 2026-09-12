@@ -7,6 +7,7 @@ import type {
   BenchmarkGate,
   BenchmarkGateCheck,
   BenchmarkGateResult,
+  BenchmarkRegressionResult,
   BenchmarkReport,
   BenchmarkScenario,
   BenchmarkSummary,
@@ -45,6 +46,79 @@ export function evaluateBenchmarkGate(
     });
   }
   return { passed: checks.every((check) => check.passed), checks };
+}
+
+/** Reject changed evaluation inputs rather than label unrelated scores a regression. */
+export function evaluateBenchmarkRegression(
+  baseline: BenchmarkReport,
+  candidate: BenchmarkReport,
+): BenchmarkRegressionResult {
+  if (
+    baseline.suiteId !== candidate.suiteId ||
+    baseline.mode !== candidate.mode ||
+    (baseline.judge ?? 'keyword') !== (candidate.judge ?? 'keyword')
+  ) {
+    throw new Error('Regression reports must use the same suite, mode, and judge.');
+  }
+  for (const key of ['suiteDigest', 'repositoryDigest'] as const) {
+    const digest = baseline.lineage?.[key];
+    if (!digest || !/^[a-f0-9]{64}$/.test(digest) || digest !== candidate.lineage?.[key]) {
+      throw new Error(`Regression reports require matching ${key} lineage; rerun older reports.`);
+    }
+  }
+  const baselineResults = new Map(baseline.results.map((result) => [result.id, result]));
+  const candidateResults = new Map(candidate.results.map((result) => [result.id, result]));
+  if (
+    baselineResults.size === 0 ||
+    baselineResults.size !== baseline.results.length ||
+    candidateResults.size !== candidate.results.length ||
+    baselineResults.size !== candidateResults.size ||
+    baseline.totalScenarios !== baseline.results.length ||
+    candidate.totalScenarios !== candidate.results.length ||
+    candidate.results.some((result) => !baselineResults.has(result.id))
+  ) {
+    throw new Error('Regression reports require the same non-empty set of unique scenario IDs.');
+  }
+
+  // Recompute scores from results so a stale persisted summary cannot hide a failure.
+  const baselineSummary = computeSummary(baseline.results);
+  // Keep addition order equal so report reordering cannot introduce floating-point losses.
+  const orderedCandidateResults = baseline.results.map((result) =>
+    candidateResults.get(result.id)!,
+  );
+  const gate = evaluateBenchmarkGate(
+    {
+      ...candidate,
+      passed: candidate.results.filter((result) => result.passed).length,
+      summary: computeSummary(orderedCandidateResults),
+    },
+    {
+      minPassRate:
+        baseline.results.filter((result) => result.passed).length / baseline.results.length,
+      minQualityScore: baselineSummary.qualityScore,
+      minToolSuccessRate: baselineSummary.toolSuccessRate,
+    },
+  );
+  // Aggregate gains must not conceal a loss on a different scenario.
+  const regressedScenarioIds = candidate.results
+    .filter((result) => {
+      const previous = baselineResults.get(result.id)!;
+      return (
+        (previous.passed && !result.passed) ||
+        !Number.isFinite(previous.metrics.qualityScore) ||
+        !Number.isFinite(result.metrics.qualityScore) ||
+        result.metrics.qualityScore < previous.metrics.qualityScore ||
+        (previous.metrics.toolSuccess.passed && !result.metrics.toolSuccess.passed)
+      );
+    })
+    .map((result) => result.id);
+  return {
+    ...gate,
+    passed: gate.passed && regressedScenarioIds.length === 0,
+    baselineRunId: baseline.runId,
+    candidateRunId: candidate.runId,
+    regressedScenarioIds,
+  };
 }
 
 /** Estimate USD cost from token usage and per-1K pricing. Missing pricing is NaN, not zero. */

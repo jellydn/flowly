@@ -14,6 +14,8 @@
  *   compare <config.json>     run + print a side-by-side model comparison
  *   leaderboard [--suite id]  list best saved reports, ranked by quality
  *   report <runId>            print one saved report
+ *   regression <baselineId> <candidateId> [--json]
+ *                             check saved model versions without provider calls
  *   review <runId> --accept <id,...> [--reject <id,...>]
  *                             record human accept/reject verdicts on a saved
  *                             report and recompute the acceptance rate
@@ -52,7 +54,7 @@ import { createLlmJudgeFromSpec } from '../eval/framework/judge.ts';
 import type { Judge } from '../eval/framework/judge.ts';
 import { parseModelSpecString } from '../eval/framework/schema.ts';
 import { recordHumanAcceptance } from '../eval/framework/metrics.ts';
-import { evaluateBenchmarkGate } from '../eval/framework/metrics.ts';
+import { evaluateBenchmarkGate, evaluateBenchmarkRegression } from '../eval/framework/metrics.ts';
 import type {
   BenchmarkGate,
   BenchmarkGateResult,
@@ -66,6 +68,19 @@ import type { DecisionFn } from '../investigation/types.ts';
 
 const DEFAULT_CONFIG = 'eval/suites/sample.json';
 const DEFAULT_RESULTS_DIR = 'eval/results';
+
+const COMMAND_ARGUMENTS = {
+  run: { maximumPositionals: 1, options: ['live', 'json', 'judge-model', 'trust-model-overrides'] },
+  gate: {
+    maximumPositionals: 1,
+    options: ['live', 'no-save', 'judge-model', 'trust-model-overrides'],
+  },
+  compare: { maximumPositionals: 1, options: ['live', 'judge-model', 'trust-model-overrides'] },
+  leaderboard: { maximumPositionals: 0, options: ['suite'] },
+  report: { maximumPositionals: 1, options: ['json'] },
+  regression: { minimumPositionals: 2, maximumPositionals: 2, options: ['json'] },
+  review: { minimumPositionals: 1, maximumPositionals: 1, options: ['accept', 'reject'] },
+} as const;
 
 function fail(message: string, code = 1): never {
   console.error(`[flowly-eval] ${message}`);
@@ -103,6 +118,7 @@ function usage(): never {
   npm run eval -- compare <config.json> [--live] [--judge-model <spec>] [--trust-model-overrides]
   npm run eval -- leaderboard [--suite <id>]
   npm run eval -- report <runId>
+  npm run eval -- regression <baselineId> <candidateId> [--json]
   npm run eval -- review <runId> --accept <id,...> [--reject <id,...>]
 
 Deterministic mode (default) uses the bundled capstone deciders and needs no
@@ -304,7 +320,17 @@ async function main(): Promise<number> {
     fail(error instanceof Error ? error.message : String(error), 2);
   }
   const { values, positionals } = parsed;
-  if (positionals.length > (command === 'leaderboard' ? 0 : 1)) usage();
+  const commandArguments = COMMAND_ARGUMENTS[command as keyof typeof COMMAND_ARGUMENTS];
+  if (
+    !commandArguments ||
+    positionals.length <
+      ('minimumPositionals' in commandArguments ? commandArguments.minimumPositionals : 0) ||
+    positionals.length > commandArguments.maximumPositionals ||
+    Object.keys(values).some(
+      (option) => !(commandArguments.options as readonly string[]).includes(option),
+    )
+  )
+    usage();
   const resultsDir =
     process.env.FLOWLY_EVAL_RESULTS_DIR ?? process.env.FLUE_EVAL_RESULTS_DIR ?? DEFAULT_RESULTS_DIR;
   const store = createFileBenchmarkStore(resultsDir);
@@ -399,6 +425,22 @@ async function main(): Promise<number> {
       const report = await loadReportOrExit(store, positionals[0]);
       printReport(report, values.json ?? false);
       return 0;
+    }
+    case 'regression': {
+      const [baselineId, candidateId] = positionals;
+      const baseline = await loadReportOrExit(store, baselineId);
+      const candidate = await loadReportOrExit(store, candidateId);
+      const result = evaluateBenchmarkRegression(baseline, candidate);
+      if (values.json) {
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      } else {
+        process.stdout.write(`Regression: ${baseline.runId} -> ${candidate.runId}\n`);
+        printGate(candidate, result);
+        for (const id of result.regressedScenarioIds) {
+          process.stdout.write(`  FAIL scenario: ${id}\n`);
+        }
+      }
+      return result.passed ? 0 : 1;
     }
     case 'review': {
       const runId = positionals[0];

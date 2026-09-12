@@ -7,6 +7,7 @@ import {
   createFileBenchmarkStore,
   createMemoryBenchmarkStore,
   evaluateBenchmarkGate,
+  evaluateBenchmarkRegression,
   estimateCost,
   loadBenchmarkConfigFromFile,
   loadModelFromFile,
@@ -359,6 +360,137 @@ test('evaluateBenchmarkGate fails maxCostUsd when cost is unknown', () => {
       ['maxCostUsd', false],
     ],
   );
+});
+
+function regressionReport(scores = [1, 0.5]): BenchmarkReport {
+  return buildReport({
+    runId: 'baseline',
+    suiteId: 'sample',
+    suiteName: 'Sample',
+    model: { id: 'v1', provider: 'p', label: 'Version 1' },
+    mode: 'live',
+    lineage: { suiteDigest: 'a'.repeat(64), repositoryDigest: 'b'.repeat(64) },
+    results: scores.map((qualityScore, index) => ({
+      id: `s${index}`,
+      prompt: 'p',
+      passed: qualityScore === 1,
+      metrics: {
+        qualityScore,
+        latencyMs: 10,
+        tokensIn: 10,
+        tokensOut: 20,
+        costUsd: Number.NaN,
+        toolSuccess: pass('ok'),
+        citationAccuracy: pass('ok'),
+        retrievalRelevance: pass('ok'),
+        answerCompleteness: pass('ok'),
+        patchApplicability: null,
+      },
+      toolsUsed: [],
+      citedSources: [],
+      errors: [],
+      answer: 'a',
+      confidence: 'high',
+    })),
+  });
+}
+
+test('saved-run regression permits model changes, equal scores, and reordered scenarios', () => {
+  const baseline = regressionReport();
+  const candidate = regressionReport();
+  candidate.runId = 'candidate';
+  candidate.model.id = 'v2';
+  candidate.results.reverse();
+  candidate.results[0].metrics.latencyMs = 100;
+  const result = evaluateBenchmarkRegression(baseline, candidate);
+  assert.equal(result.passed, true);
+  assert.equal(result.baselineRunId, 'baseline');
+  assert.equal(result.candidateRunId, 'candidate');
+  assert.deepEqual(result.regressedScenarioIds, []);
+  assert.equal(evaluateBenchmarkRegression(baseline, regressionReport([1, 0.75])).passed, true);
+  const fractional = regressionReport([0.1, 0.2, 0.3]);
+  const reordered = structuredClone(fractional);
+  reordered.results.reverse();
+  assert.equal(evaluateBenchmarkRegression(fractional, reordered).passed, true);
+});
+
+test('saved-run regression catches scenario losses hidden by aggregate gains or stale summaries', () => {
+  const baseline = regressionReport();
+  const candidate = regressionReport([0.75, 1]);
+  candidate.summary = baseline.summary;
+  const result = evaluateBenchmarkRegression(baseline, candidate);
+  assert.equal(result.passed, false);
+  assert.ok(result.checks.every((check) => check.passed));
+  assert.deepEqual(result.regressedScenarioIds, ['s0']);
+  const lower = evaluateBenchmarkRegression(baseline, regressionReport([0.75, 0.5]));
+  assert.equal(lower.checks.find((check) => check.metric === 'minQualityScore')?.actual, 0.625);
+  assert.equal(lower.checks.find((check) => check.metric === 'minQualityScore')?.passed, false);
+});
+
+test('saved-run regression detects tool failures even when quality and pass status are unchanged', () => {
+  const baseline = regressionReport();
+  const candidate = regressionReport();
+  candidate.results[1].metrics.toolSuccess = fail('tool failed');
+  const result = evaluateBenchmarkRegression(baseline, candidate);
+  assert.equal(result.passed, false);
+  assert.deepEqual(result.regressedScenarioIds, ['s1']);
+  assert.equal(result.checks.find((check) => check.metric === 'minToolSuccessRate')?.actual, 0.5);
+});
+
+test('saved-run regression rejects incompatible inputs and missing lineage', () => {
+  const baseline = regressionReport();
+  const changes: Array<(report: BenchmarkReport) => void> = [
+    (r) => {
+      r.suiteId = 'other';
+    },
+    (r) => {
+      r.mode = 'deterministic';
+    },
+    (r) => {
+      r.judge = 'other-judge';
+    },
+    (r) => {
+      r.lineage = undefined;
+    },
+    (r) => {
+      r.lineage!.suiteDigest = 'c'.repeat(64);
+    },
+    (r) => {
+      r.lineage!.repositoryDigest = 'c'.repeat(64);
+    },
+    (r) => {
+      r.results[0].id = 'unknown';
+    },
+    (r) => {
+      r.results[0].id = r.results[1].id;
+    },
+    (r) => {
+      r.results.pop();
+    },
+    (r) => {
+      r.totalScenarios = 0;
+    },
+  ];
+  for (const change of changes) {
+    const candidate = regressionReport();
+    change(candidate);
+    assert.throws(() => evaluateBenchmarkRegression(baseline, candidate), /Regression reports/);
+    assert.throws(() => evaluateBenchmarkRegression(candidate, baseline), /Regression reports/);
+  }
+  assert.throws(
+    () => evaluateBenchmarkRegression(regressionReport([]), regressionReport([])),
+    /non-empty/,
+  );
+  baseline.judge = undefined;
+  assert.equal(evaluateBenchmarkRegression(baseline, regressionReport()).passed, true);
+});
+
+test('saved-run regression fails unknown quality rather than accepting it as unchanged', () => {
+  const baseline = regressionReport();
+  const candidate = regressionReport();
+  candidate.results[0].metrics.qualityScore = Number.NaN;
+  assert.equal(evaluateBenchmarkRegression(baseline, candidate).passed, false);
+  assert.equal(evaluateBenchmarkRegression(candidate, baseline).passed, false);
 });
 
 test('memory store saves, loads, lists, and ranks leaderboards', async () => {
