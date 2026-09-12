@@ -15,7 +15,7 @@
  * quality score. Patch applicability is an optional measured dimension via
  * the `measurePatch` hook. Token usage and cost prefer provider-reported
  * values in live mode (see ModelCallResult); human acceptance is recorded
- * separately via recordHumanAcceptance (see `flue eval review`).
+ * separately via recordHumanAcceptance (see `npm run eval -- review`).
  */
 
 import { createHash } from 'node:crypto';

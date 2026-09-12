@@ -8,7 +8,7 @@
 
 - OpenRouter — default provider for the repo assistant and PR reviewer; also the default base URL for live benchmark runs
 - SDK/Client: Flue runtime + thin OpenAI-compatible `fetch` clients (`eval/framework/providers.ts`, `factory/model.ts`)
-- Auth: provider-specific environment variables. OpenRouter uses `OPENROUTER_API_KEY`; legacy benchmark settings can use `FLUE_EVAL_API_KEY`.
+- Auth: provider-specific environment variables. OpenRouter uses `OPENROUTER_API_KEY`; benchmark-wide settings use `FLOWLY_EVAL_API_KEY`, with `FLUE_EVAL_API_KEY` as a legacy fallback.
 - Model specifiers come from Flue's models.json; default `openrouter/qwen/qwen3-coder`; PR reviewer default `openrouter/cohere/north-mini-code:free`
 
 **GitHub (REST):**
@@ -39,7 +39,7 @@
 **Auth Provider:**
 
 - Custom / token-based
-- Implementation: API keys in env (`OPENROUTER_API_KEY`, `GITHUB_TOKEN`, `FLUE_EVAL_API_KEY`); the model never receives the GitHub token — trusted application code (`github/adapter.ts`) holds it
+- Implementation: API keys in env (`OPENROUTER_API_KEY`, `GITHUB_TOKEN`, `FLOWLY_EVAL_API_KEY`); the model never receives the GitHub token — trusted application code (`github/adapter.ts`) holds it
 
 ## Monitoring & Observability
 
@@ -70,7 +70,7 @@
 - `OPENROUTER_API_KEY` (live runs), `GITHUB_TOKEN` (review workflow; provided by Actions)
 - Review: `GITHUB_REPOSITORY`, `PR_NUMBER`, `BASE_SHA`, `HEAD_SHA`
 - Event router: `GITHUB_EVENT_NAME`, `GITHUB_EVENT_PATH` (both set by Actions)
-- Optional: `REPOSITORY_PATH`, `REPO_ASSISTANT_MODEL`, `REPO_ASSISTANT_MAX_STEPS`, `REPO_ASSISTANT_DEBUG`, `PR_REVIEW_MAX_*`, `EVENT_ROUTER_CONFIG/STORE/DEBUG`, `FACTORY_*`, `FLOWLY_*`, `FLUE_EVAL_*`
+- Optional: `REPOSITORY_PATH`, `REPO_ASSISTANT_MODEL`, `REPO_ASSISTANT_MAX_STEPS`, `REPO_ASSISTANT_DEBUG`, `PR_REVIEW_MAX_*`, `EVENT_ROUTER_CONFIG/STORE/DEBUG`, `FACTORY_*`, `FLOWLY_*`; legacy `FLUE_EVAL_*` names remain eval fallbacks
 
 **Secrets location:**
 

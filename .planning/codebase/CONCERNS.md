@@ -14,7 +14,7 @@
 **Large orchestration and parsing modules:**
 
 - Issue: several modules combine many policies or parsing cases.
-- Files: `eval/repository/scenarios.ts`, `index/repository-relationship-index.ts`, `eval/framework/runner.ts`, `scripts/flue-eval.ts`, `review/pr-data.ts`, `reliability/validation.ts`
+- Files: `eval/repository/scenarios.ts`, `index/repository-relationship-index.ts`, `eval/framework/runner.ts`, `scripts/flowly-eval.ts`, `review/pr-data.ts`, `reliability/validation.ts`
 - Impact: changes have a wide review surface and can couple unrelated behavior.
 - Direction: split only at stable domain seams. Good candidates are relationship extractors by source type and benchmark CLI subcommands by command.
 
@@ -145,7 +145,7 @@
 - Why fragile: deterministic scenarios need matching deciders, and gate reports depend on suite and corpus digests.
 - Files: `eval/repository/scenarios.ts`, `eval/framework/runner.ts`, `eval/suites/sample.json`
 - Safe change rule: update deciders and expected lineage together; do not bypass the deterministic gate.
-- Test coverage: `capstone-eval.test.ts`, `bench-runner.test.ts`, `flue-eval-cli.test.ts`
+- Test coverage: `capstone-eval.test.ts`, `bench-runner.test.ts`, `flowly-eval-cli.test.ts`
 
 ## Test Coverage Gaps
 

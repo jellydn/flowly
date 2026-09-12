@@ -63,7 +63,7 @@ export type BenchmarkSuite = {
   maxSteps?: number;
   /** Repository path the suite evaluates against (fixture by default). */
   repositoryPath?: string;
-  /** Versioned acceptance thresholds enforced by `flue eval gate`. */
+  /** Versioned acceptance thresholds enforced by `npm run eval -- gate`. */
   gate?: BenchmarkGate;
   scenarios: BenchmarkScenario[];
 };

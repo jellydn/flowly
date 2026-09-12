@@ -39,7 +39,7 @@ jobs:
       # Optional live benchmark against a real model:
       # - name: Run benchmark (live)
       #   env:
-      #     FLUE_EVAL_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      #     FLOWLY_EVAL_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       #   run: npm run eval -- gate --live
 
       - name: Upload benchmark reports

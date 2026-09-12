@@ -70,7 +70,8 @@ export class FileRepositoryMemoryStore implements RepositoryMemoryStore {
   }
 }
 
-const MEMORY_MARKER = 'flue-repository-memory';
+const MEMORY_MARKER = 'flowly-repository-memory';
+const LEGACY_MEMORY_MARKER = 'flue-repository-memory';
 const MAX_GITHUB_COMMENT_BYTES = 60_000;
 
 export type RepositoryMemoryCommentClient = {
@@ -164,8 +165,11 @@ function encodeComment(state: RepositoryMemoryState): string {
 }
 
 function parseComment(body: string): RepositoryMemoryState | null {
-  const prefix = `<!-- ${MEMORY_MARKER}\n`;
-  if (!body.startsWith(prefix)) return null;
+  const marker = [MEMORY_MARKER, LEGACY_MEMORY_MARKER].find((candidate) =>
+    body.startsWith(`<!-- ${candidate}\n`),
+  );
+  if (!marker) return null;
+  const prefix = `<!-- ${marker}\n`;
   const end = body.indexOf('\n-->');
   if (end < 0) return null;
   try {

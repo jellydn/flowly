@@ -75,26 +75,34 @@ export const PROVIDER_KEY_ENVS: Record<string, string> = {
 /**
  * Resolve the OpenAI-compatible client for a model spec. Uses the model's
  * `baseUrl`/`apiKeyEnv` when provided, falling back to the per-provider
- * defaults, and finally to the legacy `FLUE_EVAL_*` env vars (which keep the
- * original single-provider CLI working). Throws an actionable error when the
- * provider is unknown or its key is missing.
+ * defaults, the Flowly-wide eval variables, and then the legacy `FLUE_EVAL_*`
+ * variables. Throws an actionable error when the provider is unknown or its
+ * key is missing.
  */
 export function createProviderClient(
   model: ModelSpec,
   env: Record<string, string | undefined> = process.env,
 ): ModelCallFn {
   const provider = model.provider.toLowerCase();
-  const baseUrl = model.baseUrl ?? PROVIDER_BASE_URLS[provider] ?? env.FLUE_EVAL_BASE_URL;
+  const baseUrl =
+    model.baseUrl ??
+    PROVIDER_BASE_URLS[provider] ??
+    env.FLOWLY_EVAL_BASE_URL ??
+    env.FLUE_EVAL_BASE_URL;
   if (!baseUrl) {
     throw new Error(
       `No base URL for provider "${model.provider}". Add a known provider or set "baseUrl" on the model spec.`,
     );
   }
-  const keyEnv = model.apiKeyEnv ?? PROVIDER_KEY_ENVS[provider] ?? 'FLUE_EVAL_API_KEY';
-  const apiKey = env[keyEnv] ?? env.FLUE_EVAL_API_KEY ?? env.OPENROUTER_API_KEY;
+  const keyEnv = model.apiKeyEnv ?? PROVIDER_KEY_ENVS[provider] ?? 'FLOWLY_EVAL_API_KEY';
+  const apiKey =
+    env[keyEnv] ??
+    env.FLOWLY_EVAL_API_KEY ??
+    env.FLUE_EVAL_API_KEY ??
+    env.OPENROUTER_API_KEY;
   if (!apiKey) {
     throw new Error(
-      `No API key for provider "${model.provider}". Set ${keyEnv} (or FLUE_EVAL_API_KEY / OPENROUTER_API_KEY).`,
+      `No API key for provider "${model.provider}". Set ${keyEnv} (or FLOWLY_EVAL_API_KEY / OPENROUTER_API_KEY).`,
     );
   }
   return createOpenAiCompatibleClient({ apiKey, baseUrl, model: model.id });

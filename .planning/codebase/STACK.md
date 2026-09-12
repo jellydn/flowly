@@ -63,7 +63,7 @@
 - PR review: `GITHUB_TOKEN`, `GITHUB_REPOSITORY`, `PR_NUMBER`, `BASE_SHA`, `HEAD_SHA`, `PR_REVIEW_MAX_*`, specialist/advisor settings
 - Factory: `FACTORY_MODEL`, `FACTORY_WORKSPACE_ROOT`, `FACTORY_WORKSPACE_STORE`, `FACTORY_RUN_STORE`, `FACTORY_AUTONOMY_POLICY`, restrict-only `FACTORY_CAPABILITY_POLICY`, one-run `FACTORY_CONFIRM_BOUNDARY`, and repository-learning settings
 - Event router: `GITHUB_EVENT_NAME/PATH`, `EVENT_ROUTER_CONFIG/STORE/DEBUG`
-- Evaluation: `FLUE_EVAL_RESULTS_DIR` and legacy `FLUE_EVAL_*` fallbacks; each configured model can select its own provider, key variable, and base URL
+- Evaluation: `FLOWLY_EVAL_RESULTS_DIR`, `FLOWLY_EVAL_API_KEY`, and `FLOWLY_EVAL_BASE_URL`; legacy `FLUE_EVAL_*` names remain fallbacks; each configured model can select its own provider, key variable, and base URL
 
 **Build:**
 

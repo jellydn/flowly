@@ -7,7 +7,7 @@
   "scripts": {
     "build": "vite build",
     "check": "npm run typecheck && npm test && npm run check:eval && npm run build && npm run check:docs",
-    "check:eval": "tsx scripts/flue-eval.ts gate eval/suites/sample.json --no-save",
+    "check:eval": "tsx scripts/flowly-eval.ts gate eval/suites/sample.json --no-save",
     "check:docs": "tsx scripts/check-doc-tree.ts",
     "start": "flue run agents/repo-assistant.ts",
     "review-pr": "node --import tsx scripts/review-pr.ts",
@@ -23,7 +23,7 @@
     "demo:end-to-end": "tsx demo/end-to-end.ts",
     "capstone:eval": "npm run eval:repository",
     "capstone:demo": "npm run demo:end-to-end",
-    "eval": "tsx scripts/flue-eval.ts"
+    "eval": "tsx scripts/flowly-eval.ts"
   },
   "dependencies": {
     "@flue/runtime": "^2.0.0",

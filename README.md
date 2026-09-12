@@ -19,7 +19,7 @@ repository's checkout and granting the workflow only the GitHub and model creden
 
 - An issue → plan → implementation → verification → independent review → draft PR factory
 - A factory-owned `factory/*` branch per accepted issue; never auto-merges or auto-approves
-- One general-purpose Flue repository agent
+- One general-purpose Flowly repository agent built on Flue 2.0
 - Six typed, read-only tools (`list_files`, `read_file`, `search_code`,
   `search_docs`, `retrieve` — semantic TF-IDF retrieval, and `related_context`
   — cited repository relationships)
@@ -294,8 +294,9 @@ and adds review-specific tools backed by a trusted GitHub/git boundary:
   (`git diff prevSha...headSha`), or an empty result on first review.
 - `get_review_context` — reads repository-specific documentation files
   (`AGENTS.md`, `CONTRIBUTING.md`, `.github/pull_request_template.md`,
-  `.flue/review-instructions.md`, `.flue/repository-learnings.md`) to
-  understand conventions, test commands, and past learnings.
+  `.flowly/review-instructions.md`, `.flowly/repository-learnings.md`) to
+  understand conventions, test commands, and past learnings. The old `.flue/`
+  paths remain read-only fallbacks for existing repositories.
 - `submit_review` — posts one structured GitHub review with inline comments.
 
 ### Analysis vs. mutation separation
@@ -315,7 +316,7 @@ After each review, the trusted publisher persists a hidden state comment on the
 PR containing the reviewed head SHA, the findings, and a timestamp:
 
 ```html
-<!-- flue-review-state
+<!-- flowly-review-state
 {"reviewedHeadSha":"abc123","findings":[...],"reviewedAt":1700000000}
 -->
 ```
@@ -342,8 +343,8 @@ at the start of each review. It looks for these files in the checked-out repo:
 | `AGENTS.md`                        | Project conventions, build/test commands, architecture |
 | `CONTRIBUTING.md`                  | Contribution guidelines                                |
 | `.github/pull_request_template.md` | PR template (what the author should provide)           |
-| `.flue/review-instructions.md`     | Review-specific priorities and rules                   |
-| `.flue/repository-learnings.md`    | Durable learnings accumulated from past reviews        |
+| `.flowly/review-instructions.md`   | Review-specific priorities and rules                   |
+| `.flowly/repository-learnings.md`  | Durable learnings accumulated from past reviews        |
 
 Only files that exist are returned; each is capped at 200 lines. The content is
 treated as **data** — it informs the review but never overrides the agent's
@@ -357,22 +358,27 @@ body under a "Proposed repository learnings" section:
 ```markdown
 ### Proposed repository learnings
 
-_Suggestions for `.flue/repository-learnings.md`. Review and apply manually —
+_Suggestions for `.flowly/repository-learnings.md`. Review and apply manually —
 the agent cannot modify files._
 
 - **[convention]** Always use parameterized queries for SQL
   — _SQL injection found in 2 PRs_
 ```
 
-The agent **never writes to `.flue/` directly**. A human reviews the proposed
-learnings and manually adds approved ones to `.flue/repository-learnings.md`.
+The agent **never writes to `.flowly/` directly**. A human reviews the proposed
+learnings and manually adds approved ones to `.flowly/repository-learnings.md`.
 This keeps the learning loop transparent and human-controlled.
+
+For compatibility, the reviewer reads `.flue/review-instructions.md` or
+`.flue/repository-learnings.md` when no readable equivalent `.flowly/` file
+exists. New repositories should use `.flowly/`; when both valid paths exist,
+Flowly uses the `.flowly/` file.
 
 ### Continuous repository learning
 
 Flowly can also convert repeated structured factory and review outcomes into
 typed repository instincts. This path is separate from the hand-authored
-`.flue/repository-learnings.md` file. It is disabled unless
+`.flowly/repository-learnings.md` file. It is disabled unless
 `FLOWLY_LEARNING_POLICY` names a validated policy file and that policy sets
 `enabled` to `true`. Start from [`repository-learning.example.json`](./repository-learning.example.json):
 
@@ -389,7 +395,7 @@ typed repository instincts. This path is separate from the hand-authored
 Production runs set `FLOWLY_MEMORY_ISSUE` to one repository issue whose hidden,
 bot-authored comment holds the bounded state. The store accepts only the
 configured bot identity and the current `owner/repo`. Local development can set
-`FLOWLY_MEMORY_STORE=.flue/repository-instincts.json`; configured paths cannot
+`FLOWLY_MEMORY_STORE=.flowly/repository-instincts.json`; configured paths cannot
 escape the repository.
 
 The trusted learning core extracts only these MVP observations:
@@ -777,7 +783,8 @@ with per-provider defaults in `eval/framework/providers.ts`. In live mode the
 model drives the real investigation loop — each tool result is fed back to the
 provider, which replies with the next action until it decides to answer —
 rather than a single scripted retrieval. Results persist as JSON under
-`eval/results/` (override with `FLUE_EVAL_RESULTS_DIR`). Every new report also
+`eval/results/` (override with `FLOWLY_EVAL_RESULTS_DIR`; the old
+`FLUE_EVAL_RESULTS_DIR` name remains a fallback). Every new report also
 records SHA-256 digests of the suite and the repository corpus visible to the
 inspection tools, so a result can be tied to its exact evaluation inputs.
 
@@ -1369,7 +1376,8 @@ flowly/
 │   └── schema.ts               # ReviewResult Valibot schema
 ├── scripts/
 │   ├── factory.ts              # operator run inspection CLI (npm run factory)
-│   ├── flue-eval.ts            # eval benchmark CLI (npm run eval)
+│   ├── flowly-eval.ts          # eval benchmark CLI (npm run eval)
+│   ├── flue-eval.ts            # legacy compatibility entrypoint
 │   ├── memory.ts               # inspect or explicitly reject/deprecate instincts
 │   ├── review-pr.ts            # CI entrypoint (npm run review-pr)
 │   ├── run-factory.ts          # issues.labeled.factory pipeline (npm run run-factory)

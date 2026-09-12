@@ -110,7 +110,7 @@ See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to 
 - Location: `eval/`
 - Contains: `repository/` (deterministic scenarios and live tool-selection runner), `framework/` (model benchmark framework), `security/` (versioned factory invariant catalog and adversarial runner), `suites/sample.json`, `fixtures/sample-repo/`
 - Depends on: investigation, tools, index
-- Used by: `scripts/flue-eval.ts` (CLI), `demo/`, CI, and the optional evaluation workflow
+- Used by: `scripts/flowly-eval.ts` (CLI), `demo/`, CI, and the optional evaluation workflow
 
 ## Data Flow
 
@@ -244,9 +244,9 @@ See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to 
 - Triggers: `npm run factory -- runs list|show|timeline|explain`
 - Responsibilities: read stored factory events and print run projections or explanations; never mutate a run
 
-**`scripts/flue-eval.ts`:**
+**`scripts/flowly-eval.ts`:**
 
-- Location: `scripts/flue-eval.ts`
+- Location: `scripts/flowly-eval.ts`
 - Triggers: `npm run eval` (run/compare/leaderboard/report)
 - Responsibilities: benchmark execution and reporting
 

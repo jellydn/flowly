@@ -1,7 +1,7 @@
 # Migration Guide: flue-repo-assistant → Flowly
 
 **Date**: August 4, 2026  
-**Status**: In Progress
+**Status**: Complete; legacy configuration remains supported
 
 ## Overview
 
@@ -74,7 +74,7 @@ No changes required - existing branch names and pull requests will continue to w
 - Badge URLs in your forks may need updating if you reference the main repo
 
 ### Environment Variables
-All environment variables remain unchanged:
+The repository-assistant environment variables remain unchanged:
 - `REPO_ASSISTANT_MODEL`
 - `REPO_ASSISTANT_MAX_STEPS`
 - `REPO_ASSISTANT_DEBUG`
@@ -82,15 +82,22 @@ All environment variables remain unchanged:
 
 These variable names are kept for backward compatibility.
 
+The model-evaluation CLI now uses `FLOWLY_EVAL_RESULTS_DIR`,
+`FLOWLY_EVAL_API_KEY`, and `FLOWLY_EVAL_BASE_URL`. The old
+`FLUE_EVAL_RESULTS_DIR`, `FLUE_EVAL_API_KEY`, and `FLUE_EVAL_BASE_URL` names
+remain read fallbacks. `FLUE_EVAL_MODEL` is retired; model ids and providers
+come from the benchmark config.
+
 ## Breaking Changes
 
-**None**. This is a naming/branding change only. All functionality, APIs, commands, and configurations remain identical.
+**None**. Flowly writes new product-branded defaults but keeps read compatibility
+for the legacy configuration and persisted-state identifiers listed below.
 
 ## Timeline
 
 - **August 4, 2026**: Rebranding announced (issue #84)
-- **TBD**: Repository rename on GitHub (requires manual action)
-- **TBD**: npm package publication under new name
+- **Completed**: Repository renamed on GitHub
+- **Completed**: Source package name changed to `flowly`
 
 ## Backward Compatibility
 
@@ -106,7 +113,28 @@ After the repository is renamed on GitHub:
 
 ### Environment Variables
 - All `REPO_ASSISTANT_*` environment variables remain unchanged
-- No breaking changes to configuration
+- New eval configuration should use `FLOWLY_EVAL_*`; supported legacy
+  `FLUE_EVAL_*` names continue to work
+
+### Repository context and persisted state
+
+New review context belongs in `.flowly/review-instructions.md` and
+`.flowly/repository-learnings.md`. The reviewer still reads the corresponding
+`.flue/` path when no `.flowly/` file exists, so existing repositories do not
+need an immediate migration.
+
+New hidden GitHub comments use `flowly-review-state`, `flowly-factory-run`, and
+`flowly-repository-memory` markers. Flowly continues to parse the former
+`flue-*` markers so existing review, factory, and repository-memory state is
+not lost.
+
+### Flue framework identifiers
+
+References to **Flue** remain where they name the framework that Flowly uses.
+This includes the `@flue/*` packages, `flue` executable, `flue.config.ts`,
+framework documentation URLs, runtime cache paths, and framework-specific
+implementation names. The compatibility path `scripts/flue-eval.ts` also
+remains callable; its user-facing output identifies the product as Flowly.
 
 ## Support
 

@@ -105,7 +105,7 @@ export const findingClassificationSchema = v.object({
 /**
  * Category for a proposed repository learning. The agent suggests learnings
  * it discovered during review; a human reviews and manually adds them to
- * `.flue/repository-learnings.md`. The agent never writes to `.flue/` directly.
+ * `.flowly/repository-learnings.md`. The agent never writes to `.flowly/` directly.
  */
 export const learningCategorySchema = v.picklist([
   'convention',

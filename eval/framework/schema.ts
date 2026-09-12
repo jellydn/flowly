@@ -61,7 +61,7 @@ const modelSchema = v.object({
   baseUrl: v.optional(nonEmpty),
 });
 
-/** JSON config that wires a suite to a model list (used by `flue eval`). */
+/** JSON config that wires a suite to a model list (used by `npm run eval`). */
 const benchmarkConfigSchema = v.object({
   suite: suiteSchema,
   models: v.pipe(v.array(modelSchema), v.minLength(1)),

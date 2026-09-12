@@ -58,7 +58,7 @@ import type { FactoryManualConfirmation } from '../factory/types.ts';
 import { createRepositoryLearningFromEnv } from '../memory/config.ts';
 
 function fail(message: string): never {
-  console.error(`[flue-factory] ${message}`);
+  console.error(`[flowly-factory] ${message}`);
   process.exit(1);
 }
 
@@ -155,7 +155,7 @@ async function main(): Promise<void> {
     learning,
   });
 
-  console.error(`[flue-factory] run ${run.id} ended in state ${run.state}`);
+  console.error(`[flowly-factory] run ${run.id} ended in state ${run.state}`);
   if (run.state === 'failed' || run.state === 'needs-input') {
     process.exitCode = 1;
   }

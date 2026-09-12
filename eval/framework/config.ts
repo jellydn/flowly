@@ -63,7 +63,7 @@ export async function loadModelFromFile(filePath: string): Promise<LoadResult<Mo
 
 /**
  * Load a full benchmark config (suite + models) from a JSON file. This is
- * the shape `flue eval` consumes: `{ "suite": {...}, "models": [...] }`.
+ * the shape `npm run eval` consumes: `{ "suite": {...}, "models": [...] }`.
  */
 export async function loadBenchmarkConfigFromFile(
   filePath: string,

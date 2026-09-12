@@ -152,7 +152,7 @@ export function createGetReviewContextTool(dataSource: PrDataSource) {
   return defineTool({
     name: 'get_review_context',
     description:
-      'Load repository-specific review context: AGENTS.md, CONTRIBUTING.md, .github/pull_request_template.md, .flue/review-instructions.md, and .flue/repository-learnings.md. Only files that exist are returned. Call this early to understand conventions, test commands, review priorities, and past learnings before analyzing the diff.',
+      'Load repository-specific review context: AGENTS.md, CONTRIBUTING.md, .github/pull_request_template.md, .flowly/review-instructions.md, and .flowly/repository-learnings.md. Legacy .flue paths remain supported. Only files that exist are returned. Call this early to understand conventions, test commands, review priorities, and past learnings before analyzing the diff.',
     input: v.object({}),
     async run() {
       const result: ReviewContextResult = await dataSource.getReviewContext();

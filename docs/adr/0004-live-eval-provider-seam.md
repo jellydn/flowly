@@ -12,7 +12,7 @@ The eval benchmark framework (ADR-0002) shipped deterministic and live modes,
 but three seams were left shallow on the way:
 
 1. **One shared model client ran every model in a config.** `runAll` in
-   `scripts/flue-eval.ts` built a single `createLiveModelCall()` from the
+   the evaluation CLI built a single `createLiveModelCall()` from the
    legacy `FLUE_EVAL_MODEL` env var and passed it to every model in the
    config's `models[]` list. A config listing two providers could not run both
    live — the second silently ran against the first's endpoint. Provider
@@ -51,7 +51,7 @@ into a per-model, loop-driven, judge-swappable pipeline:
 - **LLM judge.** `eval/framework/judge.ts` adds `createLlmJudgeFromSpec`, building
   an LLM-as-a-judge through the same provider registry, and the report records
   the judge (`judge` field: `'keyword'` or the judge model id).
-- **CLI wiring.** `scripts/flue-eval.ts` gains `--judge-model <spec>` (a
+- **CLI wiring.** `scripts/flowly-eval.ts` accepts `--judge-model <spec>` (a
   provider-qualified id or JSON model spec, validated by
   `parseModelSpecString`); `run`/`compare` accept it; `report`/`compare` print
   the judge line.
@@ -86,6 +86,7 @@ and `--judge-model` are both opt-in flags.
 - The provider registry is a convenience table, not an exhaustive catalog;
   providers outside it need an explicit `baseUrl` (and cost reads $0 unless
   the provider reports usage).
-- `FLUE_EVAL_MODEL`/`FLUE_EVAL_API_KEY`/`FLUE_EVAL_BASE_URL` remain as legacy
-  fallbacks for compatibility, which is one more resolution path to reason
-  about when debugging a client build.
+- `FLOWLY_EVAL_API_KEY` and `FLOWLY_EVAL_BASE_URL` are the product-wide
+  fallbacks. The old `FLUE_EVAL_API_KEY` and `FLUE_EVAL_BASE_URL` names remain
+  read fallbacks for compatibility; `FLUE_EVAL_MODEL` is retired. These are
+  extra resolution paths to consider when debugging a client build.

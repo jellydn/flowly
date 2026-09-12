@@ -42,7 +42,7 @@ a gh-stack of three PRs (#39–#41):
   the answer). Scoring is keyword-based by default with an LLM-as-a-judge
   seam; provider pricing drives cost estimation; `measurePatch` is an opt-in
   patch-applicability hook.
-- **CLI + wiring** (`scripts/flue-eval.ts`): `npm run eval` with `run`,
+- **CLI + wiring** (`scripts/flowly-eval.ts`): `npm run eval` with `run`,
   `compare`, `leaderboard`, and `report` subcommands, the bundled
   `eval/suites/sample.json` suite, docs, and an example CI workflow.
 
@@ -54,7 +54,7 @@ Key choices:
   evidence into a prompt and grounds citations in retrieved files (an early
   review caught that live mode never invoked the model; a spy test now proves
   it fires).
-- **Reports persist as JSON** under `eval/results/` (`FLUE_EVAL_RESULTS_DIR`)
+- **Reports persist as JSON** under `eval/results/` (`FLOWLY_EVAL_RESULTS_DIR`)
   so `leaderboard` and `report` work across runs.
 - **Dependency-light**: provider calls use a thin OpenAI-compatible `fetch`
   client and a static pricing table — no SDK per provider.

@@ -336,11 +336,11 @@ describe('git data source', () => {
   });
 
   test('getReviewContext reads existing files from the working tree', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'flue-review-ctx-'));
+    const dir = mkdtempSync(join(tmpdir(), 'flowly-review-ctx-'));
     try {
       writeFileSync(join(dir, 'AGENTS.md'), '# Project\nUse Node 22.');
-      mkdirSync(join(dir, '.flue'), { recursive: true });
-      writeFileSync(join(dir, '.flue', 'review-instructions.md'), '# Review\nFocus on security.');
+      mkdirSync(join(dir, '.flowly'), { recursive: true });
+      writeFileSync(join(dir, '.flowly', 'review-instructions.md'), '# Review\nFocus on security.');
       const ds = createGitDataSource({
         repositoryPath: dir,
         baseSha: 'base',
@@ -353,7 +353,7 @@ describe('git data source', () => {
       assert.equal(result.files.length, 2);
       assert.equal(result.files[0].path, 'AGENTS.md');
       assert.match(result.files[0].content, /Use Node 22/);
-      assert.equal(result.files[1].path, '.flue/review-instructions.md');
+      assert.equal(result.files[1].path, '.flowly/review-instructions.md');
       assert.match(result.files[1].content, /security/);
       assert.match(result.message, /Loaded 2 repository context file/);
     } finally {
@@ -361,8 +361,38 @@ describe('git data source', () => {
     }
   });
 
+  test('getReviewContext supports legacy paths but prefers Flowly paths', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'flowly-review-ctx-'));
+    try {
+      mkdirSync(join(dir, '.flowly'), { recursive: true });
+      mkdirSync(join(dir, '.flue'), { recursive: true });
+      writeFileSync(join(dir, '.flowly', 'review-instructions.md'), '# Current instructions');
+      writeFileSync(join(dir, '.flue', 'review-instructions.md'), '# Legacy instructions');
+      writeFileSync(join(dir, '.flue', 'repository-learnings.md'), '# Legacy learnings');
+      const ds = createGitDataSource({
+        repositoryPath: dir,
+        baseSha: 'base',
+        headSha: 'head',
+        prNumber: 3,
+        github: createFakeGitHub(),
+        execGit: async () => ({ stdout: DIFF, stderr: '' }),
+      });
+
+      const result = await ds.getReviewContext();
+
+      assert.deepEqual(
+        result.files.map(({ path: filePath }) => filePath),
+        ['.flowly/review-instructions.md', '.flue/repository-learnings.md'],
+      );
+      assert.match(result.files[0].content, /Current instructions/);
+      assert.match(result.files[1].content, /Legacy learnings/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test('getReviewContext returns empty array when no context files exist', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'flue-review-ctx-'));
+    const dir = mkdtempSync(join(tmpdir(), 'flowly-review-ctx-'));
     try {
       const ds = createGitDataSource({
         repositoryPath: dir,
@@ -381,7 +411,7 @@ describe('git data source', () => {
   });
 
   test('getReviewContext truncates files over the line limit', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'flue-review-ctx-'));
+    const dir = mkdtempSync(join(tmpdir(), 'flowly-review-ctx-'));
     try {
       const longContent = Array.from({ length: 300 }, (_, i) => `line ${i}`).join('\n');
       writeFileSync(join(dir, 'AGENTS.md'), longContent);
@@ -406,7 +436,7 @@ describe('git data source', () => {
   });
 
   test('getReviewContext caches across calls', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'flue-review-ctx-'));
+    const dir = mkdtempSync(join(tmpdir(), 'flowly-review-ctx-'));
     try {
       writeFileSync(join(dir, 'AGENTS.md'), '# Project');
       const ds = createGitDataSource({
@@ -429,7 +459,7 @@ describe('git data source', () => {
   });
 
   test('getReviewContext skips symlinked context files', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'flue-review-ctx-'));
+    const dir = mkdtempSync(join(tmpdir(), 'flowly-review-ctx-'));
     try {
       const target = join(dir, 'outside.txt');
       writeFileSync(target, '# Secret outside repo');
@@ -451,7 +481,7 @@ describe('git data source', () => {
   });
 
   test('getReviewContext skips files exceeding the size limit', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'flue-review-ctx-'));
+    const dir = mkdtempSync(join(tmpdir(), 'flowly-review-ctx-'));
     try {
       const largeContent = 'a'.repeat(1024 * 1024 + 1);
       writeFileSync(join(dir, 'AGENTS.md'), largeContent);

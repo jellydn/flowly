@@ -89,8 +89,8 @@ flowly/
 **`scripts/`:**
 
 - Purpose: CI entrypoints and local operator CLIs
-- Contains: `review-pr.ts`, `run-factory.ts`, `factory.ts`, `route-event.ts`, `flue-eval.ts`, `memory.ts`, `check-doc-tree.ts`
-- Key files: `review-pr.ts`, `route-event.ts`, `run-factory.ts`, `flue-eval.ts`, `memory.ts`
+- Contains: `review-pr.ts`, `run-factory.ts`, `factory.ts`, `route-event.ts`, `flowly-eval.ts`, `flue-eval.ts` (compatibility), `memory.ts`, `check-doc-tree.ts`
+- Key files: `review-pr.ts`, `route-event.ts`, `run-factory.ts`, `flowly-eval.ts`, `memory.ts`
 
 **`eval/`:**
 
@@ -127,7 +127,7 @@ flowly/
 - `scripts/route-event.ts`: CI event-router entrypoint
 - `scripts/run-factory.ts`: production issue-to-draft-PR pipeline entrypoint
 - `scripts/factory.ts`: read-only factory run list/show/timeline/explain CLI
-- `scripts/flue-eval.ts`: benchmark CLI
+- `scripts/flowly-eval.ts`: benchmark CLI; `scripts/flue-eval.ts` is the legacy entrypoint
 - `scripts/memory.ts`: local repository-instinct inspection and trusted status mutation CLI
 - `eval/repository/scenarios.ts`: deterministic repository-evaluation entrypoint
 - `app.ts`: Flue route map

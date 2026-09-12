@@ -275,7 +275,7 @@ function formatReviewBody(
   proposedLearnings?: ProposedLearning[],
   advisorNotes: string[] = [],
 ): string {
-  const lines = ['## Flue PR Review', '', summary, ''];
+  const lines = ['## Flowly PR Review', '', summary, ''];
   const inlineFindings = findings.filter(
     (finding) => !droppedFindings.some((dropped) => dropped.finding === finding),
   );
@@ -318,7 +318,7 @@ function formatReviewBody(
       '',
       '### Proposed repository learnings',
       '',
-      '_Suggestions for `.flue/repository-learnings.md`. Review and apply manually — the agent cannot modify files._',
+      '_Suggestions for `.flowly/repository-learnings.md`. Review and apply manually — the agent cannot modify files._',
       '',
     );
     for (const learning of proposedLearnings) {
@@ -343,6 +343,6 @@ function formatReviewBody(
     );
   }
 
-  lines.push('', '---', '_Automated review by the Flue PR Review Agent._');
+  lines.push('', '---', '_Automated review by Flowly._');
   return lines.join('\n');
 }
