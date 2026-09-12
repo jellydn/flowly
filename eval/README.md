@@ -53,12 +53,13 @@ when available; otherwise the report marks the values as estimated.
 ### Compare saved model versions
 
 `regression` loads two saved reports from `FLOWLY_EVAL_RESULTS_DIR`. It makes no provider calls
-and does not write reports. Exit code 0 means no quality regression, 1 means a regression or
+and does not write reports. Exit code 0 means no regression, 1 means a regression or
 incompatible/missing reports, and 2 means invalid command usage. `--json` prints the checks,
 baseline and candidate run IDs, and regressed scenario IDs for CI consumers.
 
 Reports must have matching suite and repository-corpus digests, suite IDs, execution modes,
-judges, and non-empty scenario ID sets. Model IDs may differ. Reports without lineage must be
+judges, and the same non-empty set of unique scenario IDs. Duplicate, missing, or extra scenario
+IDs are rejected. Model IDs may differ. Reports without lineage must be
 rerun; the command does not guess whether older inputs match. It checks pass rate, quality, and
 tool success, including individual scenario losses that aggregate improvements could hide.
 There is no loss tolerance. Live scores can vary, so review repeated runs before a model change.
