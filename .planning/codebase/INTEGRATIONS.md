@@ -1,6 +1,6 @@
 # External Integrations
 
-**Analysis Date:** 2026-09-06
+**Analysis Date:** 2026-09-12
 
 ## APIs & External Services
 
@@ -26,8 +26,8 @@
 
 **File Storage:**
 
-- Local filesystem — inspected repository for read-only assistant work, `eval/results/` benchmark reports, optional event-router delivery state, optional local factory-run state, isolated factory clones, and migration-campaign stores
-- GitHub issue comments — persistent PR review state and factory run state in hidden bot-authored comments
+- Local filesystem — inspected repository for read-only assistant work, `eval/results/` benchmark reports, optional event-router delivery state, local factory-run and workspace lifecycle state, isolated factory clones, repository memory, and migration-campaign stores
+- GitHub issue comments — persistent PR review state, repository memory, and factory snapshots with append-only run/workspace events in hidden bot-authored comments
 
 **Caching:**
 
@@ -49,7 +49,7 @@
 
 **Logs:**
 
-- Structured JSON logs via debug flags: `REPO_ASSISTANT_DEBUG=true` (one safe line per tool call), event-router structured decision logs (`EVENT_ROUTER_DEBUG`), reliability observability events. Logs never include secrets, file contents, or payload content
+- Structured JSON logs via debug flags: `REPO_ASSISTANT_DEBUG=true` (one safe line per tool call), event-router decision logs (`EVENT_ROUTER_DEBUG`), and reliability events. Factory inspection uses sanitized persisted events and deterministic projections instead of raw model transcripts.
 
 ## CI/CD & Deployment
 
@@ -70,7 +70,7 @@
 - `OPENROUTER_API_KEY` (live runs), `GITHUB_TOKEN` (review workflow; provided by Actions)
 - Review: `GITHUB_REPOSITORY`, `PR_NUMBER`, `BASE_SHA`, `HEAD_SHA`
 - Event router: `GITHUB_EVENT_NAME`, `GITHUB_EVENT_PATH` (both set by Actions)
-- Optional: `REPOSITORY_PATH`, `REPO_ASSISTANT_MODEL`, `REPO_ASSISTANT_MAX_STEPS`, `REPO_ASSISTANT_DEBUG`, `PR_REVIEW_MAX_*`, `EVENT_ROUTER_CONFIG/STORE/DEBUG`, `FACTORY_*`, `FLUE_EVAL_*`
+- Optional: `REPOSITORY_PATH`, `REPO_ASSISTANT_MODEL`, `REPO_ASSISTANT_MAX_STEPS`, `REPO_ASSISTANT_DEBUG`, `PR_REVIEW_MAX_*`, `EVENT_ROUTER_CONFIG/STORE/DEBUG`, `FACTORY_*`, `FLOWLY_*`, `FLUE_EVAL_*`
 
 **Secrets location:**
 
@@ -90,4 +90,4 @@
 
 ---
 
-_Integration audit: 2026-09-06_
+_Integration audit: 2026-09-12_

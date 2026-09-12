@@ -1,6 +1,6 @@
 # Technology Stack
 
-**Analysis Date:** 2026-09-06
+**Analysis Date:** 2026-09-12
 
 ## Languages
 
@@ -18,7 +18,7 @@
 
 **Environment:**
 
-- Node.js >= 22.19.0 (`engines` in `package.json`; CI pins 24.18.1)
+- Node.js >= 22.19.0 (`engines` in `package.json`; CI pins 24.19.0)
 
 **Package Manager:**
 
@@ -61,7 +61,7 @@
 - `.env.example` documents every variable; copy to `.env`
 - `REPOSITORY_PATH` (default `../oak`), `REPO_ASSISTANT_MODEL` (default `openrouter/qwen/qwen3-coder`), `REPO_ASSISTANT_MAX_STEPS` (default 8), `REPO_ASSISTANT_DEBUG`, `REPO_ASSISTANT_SEARCH_FALLBACK` (search→read fallback, off by default), reliability vars (`REPO_ASSISTANT_MAX_ATTEMPTS`, `*_DELAY_MS`, `*_TIMEOUT_MS`), and failure-injection vars
 - PR review: `GITHUB_TOKEN`, `GITHUB_REPOSITORY`, `PR_NUMBER`, `BASE_SHA`, `HEAD_SHA`, `PR_REVIEW_MAX_*`, specialist/advisor settings
-- Factory: `FACTORY_MODEL`, `FACTORY_WORKSPACE_ROOT`, `FACTORY_RUN_STORE`, `FACTORY_AUTONOMY_POLICY`, and one-run `FACTORY_CONFIRM_BOUNDARY`
+- Factory: `FACTORY_MODEL`, `FACTORY_WORKSPACE_ROOT`, `FACTORY_WORKSPACE_STORE`, `FACTORY_RUN_STORE`, `FACTORY_AUTONOMY_POLICY`, restrict-only `FACTORY_CAPABILITY_POLICY`, one-run `FACTORY_CONFIRM_BOUNDARY`, and repository-learning settings
 - Event router: `GITHUB_EVENT_NAME/PATH`, `EVENT_ROUTER_CONFIG/STORE/DEBUG`
 - Evaluation: `FLUE_EVAL_RESULTS_DIR` and legacy `FLUE_EVAL_*` fallbacks; each configured model can select its own provider, key variable, and base URL
 
@@ -81,4 +81,4 @@
 
 ---
 
-_Stack analysis: 2026-09-06_
+_Stack analysis: 2026-09-12_

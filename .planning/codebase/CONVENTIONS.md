@@ -1,6 +1,6 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-09-06
+**Analysis Date:** 2026-09-12
 
 ## Naming Patterns
 
@@ -57,6 +57,8 @@
 - `{ ok: ... }` result types for config/payload loading; issues arrays carry field paths for actionable messages
 - Factory and campaign stores use optimistic version checks; stale saves fail instead of overwriting newer state
 - Policy gates are explicit assertions at trusted side-effect boundaries, not only instructions in model prompts
+- Capability denials use `CapabilityDeniedError` with the stage and denied capability; optional overlays intersect with, and never expand, built-in profiles
+- Factory workspace allocation is idempotent per run attempt; reuse must pass repository, branch, path, base-SHA, and HEAD checks
 - Failed tool calls and decision errors become error entries in the loop — they never crash it
 - User-facing errors are safe: no stack traces, provider internals, keys, or raw objects
 
@@ -67,7 +69,7 @@
 **Patterns:**
 
 - `REPO_ASSISTANT_DEBUG=true` → one safe line per tool call: tool name, sanitized input, status, result count, budget snapshot
-- Event router emits structured JSON decision logs when `EVENT_ROUTER_DEBUG=true`
+- Event router emits structured JSON decision logs when `EVENT_ROUTER_DEBUG=true`; factory operators read append-only sanitized events through `npm run factory`
 - Reliability logs structured JSON events per retry attempt
 - Never log secrets, tokens, file contents, absolute repo paths, or payload content
 
@@ -102,4 +104,4 @@
 
 ---
 
-_Convention analysis: 2026-09-06_
+_Convention analysis: 2026-09-12_

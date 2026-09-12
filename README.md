@@ -494,11 +494,11 @@ The factory's implementation stage crosses two trusted boundaries in `factory/`:
   and a maximum of 20 commands.
 
 `runControlledImplementation` passes only the issue, structured plan, and
-isolated workspace to the implementer. It commits and pushes the factory-owned
-branch, runs every configured check, records command/exit-code outcomes, and
-enters independent review only when all checks pass and the checkout remains
-clean. Failed or mutating checks persist a failed run instead; this stage never
-creates a PR, approves a review, or merges.
+isolated workspace to the implementer. Trusted code commits the changes, runs
+every configured check, records command/exit-code outcomes, and pushes the
+factory-owned branch only when all checks pass and the checkout remains clean.
+Failed or mutating checks persist a failed run instead; this stage never creates
+a PR, approves a review, or merges.
 
 The production implementer is a separate Flue agent backed by just-bash's
 root-confined `ReadWriteFs`. It can mutate only the isolated clone through a
@@ -535,6 +535,32 @@ selects a local JSON directory for development only. The job can push
 `factory/*` branches and open a draft PR; it never merges or approves.
 Classifier, planner, implementer, and reviewer use `FACTORY_MODEL` (falling
 back to `REPO_ASSISTANT_MODEL`); the workflow supplies its provider key.
+
+### Factory workspaces and run inspection
+
+`FactoryWorkspaceManager` persists one workspace record per run attempt in
+`FACTORY_WORKSPACE_STORE` (by default, `.lifecycle` under `FACTORY_WORKSPACE_ROOT`).
+It validates ownership, repository, branch, base SHA, and current HEAD before
+reuse. Each factory invocation also removes expired terminal workspaces while
+leaving active and unexpired retained workspaces intact. Default retention is
+one hour for completed or cancelled workspaces and one day for failed workspaces.
+
+Factory state includes an append-only event timeline. Inspect it without
+changing the run:
+
+```bash
+GITHUB_REPOSITORY=owner/repo npm run factory -- runs list
+GITHUB_REPOSITORY=owner/repo npm run factory -- runs show <run-id>
+GITHUB_REPOSITORY=owner/repo npm run factory -- runs timeline <run-id>
+GITHUB_REPOSITORY=owner/repo npm run factory -- runs explain <run-id>
+```
+
+GitHub-backed inspection also requires `GITHUB_TOKEN` and reads only run
+comments from `REVIEW_BOT_LOGIN` (default `github-actions[bot]`). For local
+development, set `FACTORY_RUN_STORE` to the same JSON directory used by the
+factory pipeline. `show` returns the current projection, `timeline` returns
+ordered events, and `explain` summarizes the recorded outcome and gate reasons.
+The CLI has no mutation, approval, merge, deployment, or capability-grant path.
 
 ### Graduated factory autonomy
 

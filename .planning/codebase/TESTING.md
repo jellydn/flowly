@@ -1,6 +1,6 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-09-06
+**Analysis Date:** 2026-09-12
 
 ## Test Framework
 
@@ -19,6 +19,7 @@
 npm test                        # all tests (tsx --test tests/*.test.ts)
 npm run check                   # typecheck + test + deterministic eval gate + build + docs (CI runs this)
 npx tsx --test tests/<file>.test.ts   # single file
+npx tsx --test tests/factory-{capabilities,workspace,events,safety}.test.ts
 ```
 
 ## Test File Organization
@@ -163,4 +164,4 @@ const output = JSON.parse(result.stdout);
 
 ---
 
-_Testing analysis: 2026-09-06_
+_Testing analysis: 2026-09-12_

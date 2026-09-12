@@ -1,6 +1,6 @@
 # Codebase Concerns
 
-**Analysis Date:** 2026-09-06
+**Analysis Date:** 2026-09-12
 
 ## Tech Debt
 
@@ -32,7 +32,7 @@
 - Previous behavior: a valid repository reached through a symlinked parent path could fail with `Symbolic link escapes the configured repository`.
 - Resolution: `RepositoryReader` now canonicalizes its root before containment checks and retains child symlink-escape protection.
 - Files: `tools/repository.ts`, `tests/repository.test.ts`
-- Verification: the macOS regression and the complete 570-test suite pass.
+- Verification: the dedicated symlink regression and full repository check pass.
 
 **Local format and lint gate — RESOLVED:**
 
@@ -63,6 +63,13 @@
 - Files: `agents/*.ts`, `factory/model-adapters.ts`, `eval/bench/providers.ts`, `github/client.ts`
 - Impact: provider response changes, authentication, rate limits, and runtime integration can fail only in live use.
 - Direction: retain deterministic contract tests and add a scheduled, low-cost smoke workflow if production usage requires stronger detection.
+
+**Workspace cleanup runs only when the factory starts:**
+
+- Behavior: `scripts/run-factory.ts` calls `collectGarbage()` before each run; there is no separate scheduled cleanup command.
+- Files: `scripts/run-factory.ts`, `factory/workspace-lifecycle.ts`
+- Impact: a repository with no new factory runs can retain expired workspace directories indefinitely.
+- Direction: add a scheduled cleanup entrypoint only if retained disk usage becomes material.
 
 ## Security Considerations
 
@@ -115,9 +122,16 @@
 **Factory state transitions and retries:**
 
 - Why fragile: GitHub Actions retries can resume `queued` or expired `planning` runs; later side effects must remain idempotent.
-- Files: `factory/orchestrator.ts`, `factory/run.ts`, `factory/store.ts`, `factory/run-state-store.ts`, `factory/publisher.ts`
+- Files: `factory/orchestrator.ts`, `factory/run.ts`, `factory/store.ts`, `factory/run-state-store.ts`, `factory/events.ts`, `factory/publisher.ts`
 - Safe change rule: add transitions through the orchestrator, retain optimistic versions, and reuse branches/PRs instead of creating duplicates.
-- Test coverage: `factory-orchestrator.test.ts`, `factory-run.test.ts`, `factory-store.test.ts`, `factory-publisher.test.ts`
+- Test coverage: `factory-orchestrator.test.ts`, `factory-run.test.ts`, `factory-store.test.ts`, `factory-events.test.ts`, `factory-publisher.test.ts`
+
+**Factory workspace ownership and cleanup:**
+
+- Why fragile: retries must reuse the same run attempt, while GC must not remove active or retained workspaces or follow escaped paths.
+- Files: `factory/workspace-lifecycle.ts`, `factory/workspace-store.ts`, `factory/git.ts`, `factory/capability-guard.ts`
+- Safe change rule: preserve ownership and SHA checks, optimistic versions, deterministic candidate ordering, and idempotent cleanup.
+- Test coverage: `factory-workspace.test.ts`, `factory-safety.test.ts`
 
 **Campaign ordering and plan approval:**
 
@@ -138,7 +152,7 @@
 **No enforced coverage percentage:**
 
 - Files: `package.json`, `tests/`
-- Risk: 49 test files cover core behavior, but no statement or branch threshold detects untested additions.
+- Risk: 54 test files cover core behavior, but no statement or branch threshold detects untested additions.
 - Priority: Medium. Add coverage only with reviewed exclusions so generated fixtures and integration adapters do not distort the signal.
 
 **No real provider, GitHub, or hosted Actions E2E test:**
@@ -149,4 +163,4 @@
 
 ---
 
-_Concerns audit: 2026-09-06_
+_Concerns audit: 2026-09-12_

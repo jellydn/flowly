@@ -1,6 +1,6 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-09-06
+**Analysis Date:** 2026-09-12
 
 ## Directory Layout
 
@@ -12,11 +12,11 @@ flowly/
 ├── planner/           # Plan → execute → reflect meta-tools
 ├── reliability/       # Retry / timeout / validation / failure-injection wrappers
 ├── review/            # PR review tools, schema, filters, limits, state
-├── factory/           # Gated issue-to-PR runs, autonomy policy, and migration campaigns
+├── factory/           # Gated runs, capabilities, workspaces, events, and campaigns
 ├── github/            # Trusted GitHub client/adapter + event router
 ├── index/             # TF-IDF and relationship repository indexes
 ├── memory/            # Repository-instinct schema, evidence engine, stores, and stage context
-├── scripts/           # CLI entrypoints (review-pr, route-event, flue-eval, memory)
+├── scripts/           # CI and operator CLI entrypoints
 ├── eval/              # Capstone eval + benchmark framework + fixtures
 ├── demo/              # Deterministic demos (bash + ts)
 ├── docs/              # Hand-maintained docs page + ADRs
@@ -72,7 +72,7 @@ flowly/
 
 - Purpose: Typed issue-to-PR state, trusted implementation/review/publication boundaries, autonomy policy, and multi-batch migration campaigns
 - Contains: `types.ts`, `schema.ts`, `store.ts`, `run-state-store.ts`, `orchestrator.ts`, `autonomy.ts`, `capabilities.ts`, `capability-guard.ts`, `workspace-lifecycle.ts`, `workspace-store.ts`, `events.ts`, `campaign-types.ts`, `campaign-schema.ts`, `campaign-store.ts`, `campaign.ts`, `campaign-run.ts`, `intake.ts`, `plan.ts`, `run.ts`, `dispatch.ts`, `defaults.ts`, `model.ts`, `model-adapters.ts`, `agent-implementer.ts`, `git.ts`, `implementation.ts`, `verification.ts`, `review.ts`, `publisher.ts`, `pipeline.ts`
-- Key files: `orchestrator.ts` (monotonic run transitions), `autonomy.ts` (evidence-based policy gates), `capabilities.ts` and `capability-guard.ts` (least-capability stage manifests), `run.ts` (end-to-end factory pipeline), `agent-implementer.ts` (Flue implementer adapter), `git.ts` (isolated trusted Git mutation), `campaign.ts` and `campaign-run.ts` (approved migration batches)
+- Key files: `orchestrator.ts` (monotonic transitions + atomic event append), `autonomy.ts` (evidence-based gates), `capabilities.ts` and `capability-guard.ts` (least-capability manifests), `workspace-lifecycle.ts` and `workspace-store.ts` (run-owned workspace persistence/GC), `events.ts` (append-only events and projections), `run.ts` (pipeline), `git.ts` (trusted Git mutation), `campaign.ts` and `campaign-run.ts` (approved migration batches)
 
 **`github/`:**
 
@@ -88,7 +88,7 @@ flowly/
 
 **`scripts/`:**
 
-- Purpose: CI entrypoints
+- Purpose: CI entrypoints and local operator CLIs
 - Contains: `review-pr.ts`, `run-factory.ts`, `factory.ts`, `route-event.ts`, `flue-eval.ts`, `memory.ts`, `check-doc-tree.ts`
 - Key files: `review-pr.ts`, `route-event.ts`, `run-factory.ts`, `flue-eval.ts`, `memory.ts`
 
@@ -108,7 +108,7 @@ flowly/
 
 - Purpose: Hand-maintained docs
 - Contains: `index.html`, `adr/` (0001–0009, README, template), `showcase/` (three-page product showcase: `showcase/index.html`, `showcase/features.html`, `showcase/how-it-works.html`, `showcase/styles.css`, `showcase/favicon.svg`), favicon package (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `site.webmanifest`)
-- Key files: `index.html`, `adr/0001-event-router.md`, `adr/0002-model-eval-benchmark.md`, `adr/0003-tool-composition-seam.md`, `adr/0004-live-eval-provider-seam.md`, `adr/0005-transcript-based-showcase.md`
+- Key files: `index.html`, `adr/README.md`, and the indexed ADRs `0001`–`0009`
 
 **`tests/`:**
 
@@ -126,6 +126,7 @@ flowly/
 - `scripts/review-pr.ts`: CI review entrypoint
 - `scripts/route-event.ts`: CI event-router entrypoint
 - `scripts/run-factory.ts`: production issue-to-draft-PR pipeline entrypoint
+- `scripts/factory.ts`: read-only factory run list/show/timeline/explain CLI
 - `scripts/flue-eval.ts`: benchmark CLI
 - `scripts/memory.ts`: local repository-instinct inspection and trusted status mutation CLI
 - `eval/capstone-eval.ts`: capstone suite entrypoint
@@ -147,6 +148,9 @@ flowly/
 - `reliability/resilient-tool.ts`: resilience wrapper
 - `factory/implementation.ts`: controlled implementation stage
 - `factory/autonomy.ts`: implementation and publication policy gates
+- `factory/capabilities.ts`: built-in stage profiles and restrict-only overlays
+- `factory/workspace-lifecycle.ts`: allocation, resume checks, retention, and GC
+- `factory/events.ts`: append-only run events, projections, and explanations
 - `factory/campaign.ts`: migration inventory, ordering, batching, and plan approval
 - `factory/campaign-run.ts`: resumable batch execution through the factory pipeline
 - `factory/git.ts`: trusted factory Git mutation boundary
@@ -213,4 +217,4 @@ flowly/
 
 ---
 
-_Structure analysis: 2026-09-06_
+_Structure analysis: 2026-09-12_
