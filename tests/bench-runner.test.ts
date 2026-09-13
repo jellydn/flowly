@@ -19,6 +19,7 @@ import {
   pricingForProvider,
   recordHumanAcceptance,
   runBenchmark,
+  runScenario,
   withDefaultPricing,
 } from '../eval/framework/index.ts';
 import type {
@@ -28,6 +29,7 @@ import type {
   ModelSpec,
 } from '../eval/framework/types.ts';
 import type { DecisionFn, InvestigationResult } from '../investigation/types.ts';
+import { createRepositoryReader } from '../tools/repository.ts';
 
 const scenario: BenchmarkScenario = {
   id: 'cap-1',
@@ -338,8 +340,14 @@ test('formatScenarioPrompt adds typed task evidence and coding output requiremen
   const coding = formatScenarioPrompt({
     id: 'code',
     prompt: 'Implement this task.',
-    workload: { type: 'coding-task', title: 'Change the port', body: 'Use port 4000.' },
+    workload: {
+      type: 'coding-task',
+      issueNumber: 38,
+      title: 'Change the port',
+      body: 'Use port 4000.',
+    },
   });
+  assert.match(coding, /Coding task: #38/);
   assert.match(coding, /Return the proposed change as a unified diff/);
 });
 
@@ -500,8 +508,11 @@ test('extractFencedBlocks pulls code blocks from an answer', () => {
 
 test('extractUnifiedDiff accepts fenced and unfenced patches but not code snippets', () => {
   const patch = 'diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n';
+  const plainPatch = '--- a/a.ts\n+++ b/a.ts\n@@ -1 +1 @@\n-old\n+new\n';
   assert.equal(extractUnifiedDiff(`Here:\n\`\`\`diff\n${patch}\`\`\``), patch);
   assert.equal(extractUnifiedDiff(patch), patch);
+  assert.equal(extractUnifiedDiff(`Here:\n\`\`\`diff\n${plainPatch}\`\`\``), plainPatch);
+  assert.equal(extractUnifiedDiff(`Proposed change:\n${plainPatch}`), plainPatch);
   assert.equal(extractUnifiedDiff('```ts\nconst value = 1;\n```'), null);
 });
 
@@ -520,7 +531,7 @@ test('createGitPatchCheck proves applicability without changing the repository',
   const check = createGitPatchCheck(directory);
   const applicable = await check(
     scenario,
-    '```diff\ndiff --git a/value.txt b/value.txt\n--- a/value.txt\n+++ b/value.txt\n@@ -1 +1 @@\n-before\n+after\n```',
+    '```diff\n--- a/value.txt\n+++ b/value.txt\n@@ -1 +1 @@\n-before\n+after\n```',
   );
   assert.deepEqual(applicable, {
     passed: true,
@@ -559,6 +570,37 @@ test('coding-task reports fail when the proposed patch does not apply', async ()
     detail: 'No unified diff found in the answer',
   });
   assert.equal(report.summary.patchApplicabilityRate, 0);
+});
+
+test('runScenario applies the default coding-task patch check and honors overrides', async () => {
+  const repository = await createRepositoryReader('eval/fixtures/sample-repo');
+  const codingScenario: BenchmarkScenario = {
+    id: 'code',
+    prompt: 'Change the default port.',
+    workload: { type: 'coding-task', title: 'Change port', body: 'Use port 4000.' },
+    requiresToolCall: false,
+  };
+  const input = {
+    scenario: codingScenario,
+    repository,
+    judge: createKeywordJudge(),
+    model,
+    maxSteps: 1,
+    modelCall: async () => ({ content: 'No patch is needed.' }),
+  };
+  const result = await runScenario(input);
+  assert.equal(result.passed, false);
+  assert.equal(result.metrics.patchApplicability?.passed, false);
+
+  const overridden = await runScenario({
+    ...input,
+    measurePatch: async () => ({ passed: true, detail: 'Custom check passed' }),
+  });
+  assert.equal(overridden.passed, true);
+  assert.deepEqual(overridden.metrics.patchApplicability, {
+    passed: true,
+    detail: 'Custom check passed',
+  });
 });
 
 test('createPatchCheck reports not measured without expected files', async () => {

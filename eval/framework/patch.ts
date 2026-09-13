@@ -3,7 +3,7 @@
  *
  * "Patch applicability" asks whether a model's proposed code change applies
  * cleanly to the repository. The benchmark framework wires this as an
- * default `git apply --check` measurement for coding-task workloads. A caller
+ * automatic `git apply --check` measurement for coding-task workloads. A caller
  * can replace it through the runner's optional `measurePatch` hook.
  *
  * `createPatchCheck` remains as a lightweight programmatic seam for callers
@@ -26,17 +26,26 @@ export function extractFencedBlocks(answer: string): string[] {
   return blocks;
 }
 
-/** Extract a unified diff from a diff/patch fence or an unfenced answer. */
+/** Normalize recognized patch text for `git apply` stdin. */
+function normalizeUnifiedDiff(candidate: string): string | null {
+  const patch = candidate.replace(/```\s*$/, '').trim();
+  return patch.startsWith('diff --git ') || /^--- [^\r\n]+\r?\n\+\+\+ [^\r\n]+/.test(patch)
+    ? `${patch}\n`
+    : null;
+}
+
+/** Extract a Git-style or plain unified diff from a fenced or unfenced answer. */
 export function extractUnifiedDiff(answer: string): string | null {
-  const fenced = /```(?:diff|patch)\n([\s\S]*?)```/i.exec(answer)?.[1]?.trim();
-  if (fenced?.startsWith('diff --git ')) return `${fenced}\n`;
-  const start = answer.indexOf('diff --git ');
-  return start === -1
+  const fenced = /```(?:diff|patch)\r?\n([\s\S]*?)```/i.exec(answer)?.[1];
+  if (fenced) return normalizeUnifiedDiff(fenced);
+
+  const gitHeader = answer.indexOf('diff --git ');
+  if (gitHeader !== -1) return normalizeUnifiedDiff(answer.slice(gitHeader));
+
+  const plainHeader = /^--- [^\r\n]+\r?\n\+\+\+ [^\r\n]+/m.exec(answer);
+  return plainHeader?.index === undefined
     ? null
-    : `${answer
-        .slice(start)
-        .replace(/```\s*$/, '')
-        .trim()}\n`;
+    : normalizeUnifiedDiff(answer.slice(plainHeader.index));
 }
 
 /**

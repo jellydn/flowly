@@ -12,30 +12,34 @@ import type { BenchmarkSuite, ModelSpec } from './types.ts';
 const nonEmpty = v.pipe(v.string(), v.minLength(1));
 
 const positiveInteger = v.pipe(v.number(), v.integer(), v.minValue(1));
+const workloadRepository = v.pipe(nonEmpty, v.maxLength(200));
+const workloadTitle = v.pipe(nonEmpty, v.maxLength(500));
+const workloadBody = v.pipe(nonEmpty, v.maxLength(20_000));
+const pullRequestDiff = v.pipe(nonEmpty, v.maxLength(50_000));
 
 const workloadSchema = v.variant('type', [
   v.strictObject({ type: v.literal('repository-question') }),
   v.strictObject({
     type: v.literal('github-issue'),
-    repository: nonEmpty,
+    repository: workloadRepository,
     number: positiveInteger,
-    title: nonEmpty,
-    body: nonEmpty,
+    title: workloadTitle,
+    body: workloadBody,
   }),
   v.strictObject({
     type: v.literal('pull-request-review'),
-    repository: nonEmpty,
+    repository: workloadRepository,
     number: positiveInteger,
-    title: nonEmpty,
-    body: v.optional(nonEmpty),
-    diff: nonEmpty,
+    title: workloadTitle,
+    body: v.optional(workloadBody),
+    diff: pullRequestDiff,
   }),
   v.strictObject({
     type: v.literal('coding-task'),
-    repository: v.optional(nonEmpty),
+    repository: v.optional(workloadRepository),
     issueNumber: v.optional(positiveInteger),
-    title: nonEmpty,
-    body: nonEmpty,
+    title: workloadTitle,
+    body: workloadBody,
   }),
 ]);
 

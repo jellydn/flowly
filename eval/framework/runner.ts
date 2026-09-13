@@ -185,7 +185,7 @@ export function formatScenarioPrompt(scenario: BenchmarkScenario): string {
     '',
     workload.repository
       ? `Coding task: ${workload.repository}${workload.issueNumber ? `#${workload.issueNumber}` : ''}`
-      : 'Coding task:',
+      : `Coding task:${workload.issueNumber ? ` #${workload.issueNumber}` : ''}`,
     `Title: ${workload.title}`,
     'Body:',
     workload.body,
@@ -276,7 +276,7 @@ export async function runScenario(input: {
   decide?: DecisionFn;
   /** Live mode model call; when present, live mode is used. */
   modelCall?: ModelCallFn;
-  /** Optional patch-applicability measurer; defaults to not measured (null). */
+  /** Patch-applicability override; coding tasks default to `git apply --check`. */
   measurePatch?: (scenario: BenchmarkScenario, answer: string) => Promise<MetricPass | null>;
 }): Promise<ScenarioResult> {
   const { scenario, repository, judge, model, decide, modelCall } = input;
@@ -297,9 +297,8 @@ export async function runScenario(input: {
   const tokensIn = live?.usage?.inputTokens ?? estimated.tokensIn;
   const tokensOut = live?.usage?.outputTokens ?? estimated.tokensOut;
   const costUsd = live?.usage?.billedCostUsd ?? estimateCost(tokensIn, tokensOut, model.pricing);
-  const patchApplicability = input.measurePatch
-    ? await input.measurePatch(scenario, result.answer.answer)
-    : null;
+  const measurePatch = input.measurePatch ?? createGitPatchCheck(repository.root);
+  const patchApplicability = await measurePatch(scenario, result.answer.answer);
 
   const passed =
     checks.toolSuccess.passed &&
@@ -413,7 +412,6 @@ export async function runBenchmark(
   const judge = options.judge ?? createKeywordJudge();
   const defaultSteps = suite.maxSteps ?? 8;
   const lineage = await createBenchmarkLineage(suite, repository);
-  const measurePatch = options.measurePatch ?? createGitPatchCheck(repository.root);
 
   const results: ScenarioResult[] = [];
   for (const scenario of suite.scenarios) {
@@ -426,7 +424,7 @@ export async function runBenchmark(
       judge,
       model,
       maxSteps: scenario.maxSteps ?? options.maxSteps ?? defaultSteps,
-      measurePatch,
+      measurePatch: options.measurePatch,
     });
     results.push(result);
   }

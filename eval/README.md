@@ -151,7 +151,9 @@ Use `workload.type` to preserve the task shape instead of flattening all context
 
 Store a reviewed snapshot in the suite so repeated model runs receive identical issue or PR
 content. Flowly does not fetch mutable GitHub data during a benchmark. This keeps CI runs
-reproducible and avoids giving the evaluation process GitHub credentials. The workload example
+reproducible and avoids giving the evaluation process GitHub credentials. Titles are limited to
+500 characters, bodies to 20,000 characters, and PR diffs to 50,000 characters so live prompts
+and provider costs stay bounded. Split larger changes into focused scenarios. The workload example
 shows all three forms:
 
 ```bash

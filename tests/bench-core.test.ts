@@ -74,17 +74,52 @@ test('parseSuite accepts typed issue, pull request, and coding workloads', () =>
           repository: 'jellydn/flowly',
           number: 151,
           title: 'Check saved model versions',
+          body: 'Detect regressions between saved runs.',
           diff: 'diff --git a/a.ts b/a.ts',
         },
       },
       {
         id: 'code',
         prompt: 'Implement this task.',
-        workload: { type: 'coding-task', title: 'Change the port', body: 'Use port 4000.' },
+        workload: {
+          type: 'coding-task',
+          repository: 'jellydn/flowly',
+          issueNumber: 38,
+          title: 'Change the port',
+          body: 'Use port 4000.',
+        },
       },
     ],
   });
   assert.ok(result.ok);
+  if (!result.ok) return;
+  assert.deepEqual(
+    result.suite.scenarios.map((scenario) => scenario.workload),
+    [
+      {
+        type: 'github-issue',
+        repository: 'jellydn/flowly',
+        number: 38,
+        title: 'Add model evaluation benchmarks',
+        body: 'Compare models on repository workloads.',
+      },
+      {
+        type: 'pull-request-review',
+        repository: 'jellydn/flowly',
+        number: 151,
+        title: 'Check saved model versions',
+        body: 'Detect regressions between saved runs.',
+        diff: 'diff --git a/a.ts b/a.ts',
+      },
+      {
+        type: 'coding-task',
+        repository: 'jellydn/flowly',
+        issueNumber: 38,
+        title: 'Change the port',
+        body: 'Use port 4000.',
+      },
+    ],
+  );
 });
 
 test('parseSuite rejects incomplete or unknown workload shapes', () => {
@@ -100,6 +135,27 @@ test('parseSuite rejects incomplete or unknown workload shapes', () => {
       scenarios: [{ id: 'unknown', prompt: 'p', workload: { type: 'deployment' } }],
     }).ok,
   );
+});
+
+test('parseSuite bounds captured workload content', () => {
+  const result = parseSuite({
+    ...sampleSuite,
+    scenarios: [
+      {
+        id: 'oversized-pr',
+        prompt: 'Review this pull request.',
+        workload: {
+          type: 'pull-request-review',
+          repository: 'jellydn/flowly',
+          number: 153,
+          title: 'Large diff',
+          diff: 'x'.repeat(50_001),
+        },
+      },
+    ],
+  });
+  assert.ok(!result.ok);
+  if (!result.ok) assert.ok(result.issues.some((issue) => issue.includes('workload.diff')));
 });
 
 test('parseSuite rejects missing scenarios with a field-path issue', () => {

@@ -12,6 +12,7 @@ import type { BenchmarkSuite, ModelSpec } from './types.ts';
 
 export type LoadResult<T> = { ok: true; value: T } | { ok: false; issues: string[] };
 
+/** Parse configuration according to its file extension. */
 function parseConfigText(
   text: string,
   label: string,
