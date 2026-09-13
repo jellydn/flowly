@@ -11,6 +11,7 @@
  */
 
 import { spawn } from 'node:child_process';
+import path from 'node:path';
 import type { BenchmarkScenario, MetricPass } from './types.ts';
 
 export type PatchValidator = (patch: string, expectedPaths: string[]) => Promise<boolean>;
@@ -29,9 +30,28 @@ export function extractFencedBlocks(answer: string): string[] {
 /** Normalize recognized patch text for `git apply` stdin. */
 function normalizeUnifiedDiff(candidate: string): string | null {
   const patch = candidate.replace(/```\s*$/, '').trim();
-  return patch.startsWith('diff --git ') || /^--- [^\r\n]+\r?\n\+\+\+ [^\r\n]+/.test(patch)
-    ? `${patch}\n`
-    : null;
+  const secondLine = patch.indexOf('\n') + 1;
+  const hasPlainHeader =
+    patch.startsWith('--- ') && secondLine > 0 && patch.startsWith('+++ ', secondLine);
+  return patch.startsWith('diff --git ') || hasPlainHeader ? `${patch}\n` : null;
+}
+
+/** Find adjacent plain `---` and `+++` headers without regular-expression backtracking. */
+function findPlainDiffStart(answer: string): number {
+  let start = 0;
+  if (!answer.startsWith('--- ')) {
+    start = answer.indexOf('\n--- ');
+    if (start === -1) return -1;
+    start += 1;
+  }
+  while (start >= 0) {
+    const secondLine = answer.indexOf('\n', start) + 1;
+    if (secondLine > 0 && answer.startsWith('+++ ', secondLine)) return start;
+    const next = answer.indexOf('\n--- ', start);
+    if (next === -1) return -1;
+    start = next + 1;
+  }
+  return -1;
 }
 
 /** Extract a Git-style or plain unified diff from a fenced or unfenced answer. */
@@ -42,10 +62,8 @@ export function extractUnifiedDiff(answer: string): string | null {
   const gitHeader = answer.indexOf('diff --git ');
   if (gitHeader !== -1) return normalizeUnifiedDiff(answer.slice(gitHeader));
 
-  const plainHeader = /^--- [^\r\n]+\r?\n\+\+\+ [^\r\n]+/m.exec(answer);
-  return plainHeader?.index === undefined
-    ? null
-    : normalizeUnifiedDiff(answer.slice(plainHeader.index));
+  const plainHeader = findPlainDiffStart(answer);
+  return plainHeader === -1 ? null : normalizeUnifiedDiff(answer.slice(plainHeader));
 }
 
 /**
@@ -55,17 +73,17 @@ export function extractUnifiedDiff(answer: string): string | null {
 export function createGitPatchCheck(
   repositoryPath: string,
 ): (scenario: BenchmarkScenario, answer: string) => Promise<MetricPass | null> {
+  const repositoryRoot = path.resolve(repositoryPath);
   return async (scenario, answer) => {
     if (scenario.workload?.type !== 'coding-task') return null;
     const patch = extractUnifiedDiff(answer);
     if (!patch) return { passed: false, detail: 'No unified diff found in the answer' };
 
     return new Promise((resolve) => {
-      const child = spawn(
-        'git',
-        ['-C', repositoryPath, 'apply', '--check', '--whitespace=nowarn', '-'],
-        { stdio: ['pipe', 'ignore', 'pipe'] },
-      );
+      const child = spawn('git', ['apply', '--check', '--whitespace=nowarn', '-'], {
+        cwd: repositoryRoot,
+        stdio: ['pipe', 'ignore', 'pipe'],
+      });
       let error = '';
       child.stderr.setEncoding('utf8');
       child.stderr.on('data', (chunk: string) => {

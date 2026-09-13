@@ -54,7 +54,7 @@ suite:
         - src/config.ts
       expectedKeywords:
         - PORT
-        - 4000
+        - '4000'
       requiresCitation: true
       requiresToolCall: true
 models:

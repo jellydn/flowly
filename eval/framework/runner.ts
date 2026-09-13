@@ -298,7 +298,12 @@ export async function runScenario(input: {
   const tokensOut = live?.usage?.outputTokens ?? estimated.tokensOut;
   const costUsd = live?.usage?.billedCostUsd ?? estimateCost(tokensIn, tokensOut, model.pricing);
   const measurePatch = input.measurePatch ?? createGitPatchCheck(repository.root);
-  const patchApplicability = await measurePatch(scenario, result.answer.answer);
+  let patchApplicability: MetricPass | null;
+  try {
+    patchApplicability = await measurePatch(scenario, result.answer.answer);
+  } catch {
+    patchApplicability = { passed: false, detail: 'Patch check failed to complete' };
+  }
 
   const passed =
     checks.toolSuccess.passed &&

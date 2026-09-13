@@ -155,7 +155,36 @@ test('parseSuite bounds captured workload content', () => {
     ],
   });
   assert.ok(!result.ok);
-  if (!result.ok) assert.ok(result.issues.some((issue) => issue.includes('workload.diff')));
+  if (!result.ok) {
+    assert.ok(
+      result.issues.some(
+        (issue) =>
+          issue.includes('workload.diff') && issue.includes('must not exceed 50,000 characters'),
+      ),
+    );
+  }
+
+  const combined = parseSuite({
+    ...sampleSuite,
+    scenarios: [
+      {
+        id: 'oversized-combined-pr',
+        prompt: 'Review this pull request.',
+        workload: {
+          type: 'pull-request-review',
+          repository: 'jellydn/flowly',
+          number: 153,
+          title: 'Large combined workload',
+          body: 'b'.repeat(15_000),
+          diff: 'd'.repeat(46_000),
+        },
+      },
+    ],
+  });
+  assert.ok(!combined.ok);
+  if (!combined.ok) {
+    assert.ok(combined.issues.some((issue) => issue.includes('Combined workload content')));
+  }
 });
 
 test('parseSuite rejects missing scenarios with a field-path issue', () => {

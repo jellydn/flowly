@@ -12,40 +12,61 @@ import type { BenchmarkSuite, ModelSpec } from './types.ts';
 const nonEmpty = v.pipe(v.string(), v.minLength(1));
 
 const positiveInteger = v.pipe(v.number(), v.integer(), v.minValue(1));
-const workloadRepository = v.pipe(nonEmpty, v.maxLength(200));
-const workloadTitle = v.pipe(nonEmpty, v.maxLength(500));
-const workloadBody = v.pipe(nonEmpty, v.maxLength(20_000));
-const pullRequestDiff = v.pipe(nonEmpty, v.maxLength(50_000));
+const workloadRepository = v.pipe(
+  nonEmpty,
+  v.maxLength(200, 'Workload repository must not exceed 200 characters.'),
+);
+const workloadTitle = v.pipe(
+  nonEmpty,
+  v.maxLength(500, 'Workload title must not exceed 500 characters.'),
+);
+const workloadBody = v.pipe(
+  nonEmpty,
+  v.maxLength(20_000, 'Workload body must not exceed 20,000 characters.'),
+);
+const pullRequestDiff = v.pipe(
+  nonEmpty,
+  v.maxLength(50_000, 'Pull request diff must not exceed 50,000 characters.'),
+);
 
-const workloadSchema = v.variant('type', [
-  v.strictObject({ type: v.literal('repository-question') }),
-  v.strictObject({
-    type: v.literal('github-issue'),
-    repository: workloadRepository,
-    number: positiveInteger,
-    title: workloadTitle,
-    body: workloadBody,
-  }),
-  v.strictObject({
-    type: v.literal('pull-request-review'),
-    repository: workloadRepository,
-    number: positiveInteger,
-    title: workloadTitle,
-    body: v.optional(workloadBody),
-    diff: pullRequestDiff,
-  }),
-  v.strictObject({
-    type: v.literal('coding-task'),
-    repository: v.optional(workloadRepository),
-    issueNumber: v.optional(positiveInteger),
-    title: workloadTitle,
-    body: workloadBody,
-  }),
-]);
+const workloadSchema = v.pipe(
+  v.variant('type', [
+    v.strictObject({ type: v.literal('repository-question') }),
+    v.strictObject({
+      type: v.literal('github-issue'),
+      repository: workloadRepository,
+      number: positiveInteger,
+      title: workloadTitle,
+      body: workloadBody,
+    }),
+    v.strictObject({
+      type: v.literal('pull-request-review'),
+      repository: workloadRepository,
+      number: positiveInteger,
+      title: workloadTitle,
+      body: v.optional(workloadBody),
+      diff: pullRequestDiff,
+    }),
+    v.strictObject({
+      type: v.literal('coding-task'),
+      repository: v.optional(workloadRepository),
+      issueNumber: v.optional(positiveInteger),
+      title: workloadTitle,
+      body: workloadBody,
+    }),
+  ]),
+  v.check(
+    (workload) => JSON.stringify(workload).length <= 60_000,
+    'Combined workload content must not exceed 60,000 characters.',
+  ),
+);
 
 const scenarioSchema = v.strictObject({
   id: nonEmpty,
-  prompt: nonEmpty,
+  prompt: v.pipe(
+    nonEmpty,
+    v.maxLength(10_000, 'Scenario prompt must not exceed 10,000 characters.'),
+  ),
   workload: v.optional(workloadSchema),
   expectedSources: v.optional(v.array(nonEmpty)),
   expectedKeywords: v.optional(v.array(nonEmpty)),

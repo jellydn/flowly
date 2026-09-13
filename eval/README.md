@@ -153,8 +153,9 @@ Store a reviewed snapshot in the suite so repeated model runs receive identical 
 content. Flowly does not fetch mutable GitHub data during a benchmark. This keeps CI runs
 reproducible and avoids giving the evaluation process GitHub credentials. Titles are limited to
 500 characters, bodies to 20,000 characters, and PR diffs to 50,000 characters so live prompts
-and provider costs stay bounded. Split larger changes into focused scenarios. The workload example
-shows all three forms:
+and provider costs stay bounded. The combined workload limit is 60,000 characters, and the base
+scenario prompt limit is 10,000 characters. Split larger changes into focused scenarios. The
+workload example shows all three forms:
 
 ```bash
 npm run eval -- run eval/suites/workloads.example.yaml --live

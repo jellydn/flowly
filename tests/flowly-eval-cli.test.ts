@@ -23,6 +23,17 @@ test('Flowly sample benchmark config loads and validates', async () => {
   }
 });
 
+test('Flowly YAML workload example loads and validates', async () => {
+  const loaded = await loadBenchmarkConfigFromFile('eval/suites/workloads.example.yaml');
+  if (!loaded.ok) assert.fail(loaded.issues.join('\n'));
+  if (loaded.ok) {
+    assert.deepEqual(
+      loaded.suite.scenarios.map((scenario) => scenario.workload?.type),
+      ['github-issue', 'pull-request-review', 'coding-task'],
+    );
+  }
+});
+
 test('parseModelSpecString accepts a provider-qualified id and a JSON spec', async () => {
   const { parseModelSpecString } = await import('../eval/framework/schema.ts');
   const fromId = parseModelSpecString('openrouter/qwen/qwen3-coder');

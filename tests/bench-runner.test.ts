@@ -517,7 +517,7 @@ test('extractUnifiedDiff accepts fenced and unfenced patches but not code snippe
 });
 
 test('createGitPatchCheck proves applicability without changing the repository', async (t) => {
-  const { mkdtemp, readFile, rm, writeFile } = await import('node:fs/promises');
+  const { mkdir, mkdtemp, readFile, rm, writeFile } = await import('node:fs/promises');
   const { tmpdir } = await import('node:os');
   const path = await import('node:path');
   const directory = await mkdtemp(path.join(tmpdir(), 'flowly-patch-check-'));
@@ -544,6 +544,16 @@ test('createGitPatchCheck proves applicability without changing the repository',
     '```diff\ndiff --git a/value.txt b/value.txt\n--- a/value.txt\n+++ b/value.txt\n@@ -1 +1 @@\n-wrong\n+after\n```',
   );
   assert.ok(invalid && !invalid.passed);
+
+  const metacharacterDirectory = `${directory};touch injected`;
+  await mkdir(metacharacterDirectory);
+  await writeFile(path.join(metacharacterDirectory, 'value.txt'), 'before\n');
+  const metacharacterResult = await createGitPatchCheck(metacharacterDirectory)(
+    scenario,
+    '--- a/value.txt\n+++ b/value.txt\n@@ -1 +1 @@\n-before\n+after\n',
+  );
+  assert.equal(metacharacterResult?.passed, true);
+  assert.equal(await readFile(path.join(metacharacterDirectory, 'value.txt'), 'utf8'), 'before\n');
 });
 
 test('coding-task reports fail when the proposed patch does not apply', async () => {
@@ -600,6 +610,16 @@ test('runScenario applies the default coding-task patch check and honors overrid
   assert.deepEqual(overridden.metrics.patchApplicability, {
     passed: true,
     detail: 'Custom check passed',
+  });
+
+  const rejected = await runScenario({
+    ...input,
+    measurePatch: async () => Promise.reject(new Error('checker unavailable')),
+  });
+  assert.equal(rejected.passed, false);
+  assert.deepEqual(rejected.metrics.patchApplicability, {
+    passed: false,
+    detail: 'Patch check failed to complete',
   });
 });
 
