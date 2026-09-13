@@ -41,6 +41,7 @@ import type {
   ModelSpec,
   ScenarioResult,
 } from './types.ts';
+import { createGitPatchCheck } from './patch.ts';
 
 /** Approximate tokens from text length (4 chars/token heuristic). */
 export function estimateTokens(text: string): number {
@@ -153,12 +154,53 @@ function buildTools(repository: RepositoryReader, maxSteps: number) {
 }
 
 /** Live mode: the model drives the investigation loop, then answers. */
+export function formatScenarioPrompt(scenario: BenchmarkScenario): string {
+  const workload = scenario.workload;
+  if (!workload || workload.type === 'repository-question') return scenario.prompt;
+  if (workload.type === 'github-issue') {
+    return [
+      scenario.prompt,
+      '',
+      `GitHub issue: ${workload.repository}#${workload.number}`,
+      `Title: ${workload.title}`,
+      'Body:',
+      workload.body,
+    ].join('\n');
+  }
+  if (workload.type === 'pull-request-review') {
+    return [
+      scenario.prompt,
+      '',
+      `Pull request: ${workload.repository}#${workload.number}`,
+      `Title: ${workload.title}`,
+      workload.body ? `Body:\n${workload.body}` : '',
+      'Diff:',
+      workload.diff,
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+  return [
+    scenario.prompt,
+    '',
+    workload.repository
+      ? `Coding task: ${workload.repository}${workload.issueNumber ? `#${workload.issueNumber}` : ''}`
+      : `Coding task:${workload.issueNumber ? ` #${workload.issueNumber}` : ''}`,
+    `Title: ${workload.title}`,
+    'Body:',
+    workload.body,
+    '',
+    'Return the proposed change as a unified diff in a ```diff fenced block.',
+  ].join('\n');
+}
+
 async function runLive(
   scenario: BenchmarkScenario,
   repository: RepositoryReader,
   modelCall: ModelCallFn,
   maxSteps: number,
 ): Promise<{ result: InvestigationResult; usage?: ModelUsage }> {
+  const taskPrompt = formatScenarioPrompt(scenario);
   const { budget, tools } = buildTools(repository, maxSteps);
   const toolNames = [...tools.keys()];
   const decide: DecisionFn = createModelDecider({ modelCall, toolNames });
@@ -166,7 +208,7 @@ async function runLive(
   // Tool-requiring scenarios gather evidence through the model-driven loop;
   // conceptual scenarios answer directly from the model with no tool calls.
   const investigation = scenario.requiresToolCall
-    ? await runInvestigation(scenario.prompt, tools, budget, decide)
+    ? await runInvestigation(taskPrompt, tools, budget, decide)
     : {
         answer: {
           answer: '',
@@ -186,7 +228,7 @@ async function runLive(
 
   const evidenceText = investigation.evidence.map((e) => e.excerpt).join('\n');
   const prompt = [
-    scenario.prompt,
+    taskPrompt,
     '',
     evidenceText
       ? `Repository evidence:\n${evidenceText}`
@@ -234,7 +276,7 @@ export async function runScenario(input: {
   decide?: DecisionFn;
   /** Live mode model call; when present, live mode is used. */
   modelCall?: ModelCallFn;
-  /** Optional patch-applicability measurer; defaults to not measured (null). */
+  /** Patch-applicability override; coding tasks default to `git apply --check`. */
   measurePatch?: (scenario: BenchmarkScenario, answer: string) => Promise<MetricPass | null>;
 }): Promise<ScenarioResult> {
   const { scenario, repository, judge, model, decide, modelCall } = input;
@@ -255,9 +297,13 @@ export async function runScenario(input: {
   const tokensIn = live?.usage?.inputTokens ?? estimated.tokensIn;
   const tokensOut = live?.usage?.outputTokens ?? estimated.tokensOut;
   const costUsd = live?.usage?.billedCostUsd ?? estimateCost(tokensIn, tokensOut, model.pricing);
-  const patchApplicability = input.measurePatch
-    ? await input.measurePatch(scenario, result.answer.answer)
-    : null;
+  const measurePatch = input.measurePatch ?? createGitPatchCheck(repository.root);
+  let patchApplicability: MetricPass | null;
+  try {
+    patchApplicability = await measurePatch(scenario, result.answer.answer);
+  } catch {
+    patchApplicability = { passed: false, detail: 'Patch check failed to complete' };
+  }
 
   const passed =
     checks.toolSuccess.passed &&
@@ -268,7 +314,8 @@ export async function runScenario(input: {
   return {
     id: scenario.id,
     prompt: scenario.prompt,
-    passed,
+    workloadType: scenario.workload?.type ?? 'repository-question',
+    passed: passed && (patchApplicability?.passed ?? true),
     metrics: {
       qualityScore,
       latencyMs,

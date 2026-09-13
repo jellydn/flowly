@@ -35,12 +35,18 @@ export {
   estimateTokens,
   estimateTokensFromResult,
   checkScenario,
+  formatScenarioPrompt,
   createBenchmarkLineage,
   runScenario,
   runBenchmark,
 } from './runner.ts';
 export type { ScenarioChecks, RunBenchmarkOptions } from './runner.ts';
-export { createPatchCheck, extractFencedBlocks } from './patch.ts';
+export {
+  createPatchCheck,
+  createGitPatchCheck,
+  extractFencedBlocks,
+  extractUnifiedDiff,
+} from './patch.ts';
 export type { PatchValidator } from './patch.ts';
 export {
   createKeywordJudge,

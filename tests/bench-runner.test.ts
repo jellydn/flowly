@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   checkScenario,
+  createGitPatchCheck,
   createKeywordJudge,
   createLlmJudge,
   createLlmJudgeFromSpec,
@@ -12,10 +13,13 @@ import {
   estimateTokens,
   estimateTokensFromResult,
   extractFencedBlocks,
+  extractUnifiedDiff,
+  formatScenarioPrompt,
   formatJudgePrompt,
   pricingForProvider,
   recordHumanAcceptance,
   runBenchmark,
+  runScenario,
   withDefaultPricing,
 } from '../eval/framework/index.ts';
 import type {
@@ -25,6 +29,7 @@ import type {
   ModelSpec,
 } from '../eval/framework/types.ts';
 import type { DecisionFn, InvestigationResult } from '../investigation/types.ts';
+import { createRepositoryReader } from '../tools/repository.ts';
 
 const scenario: BenchmarkScenario = {
   id: 'cap-1',
@@ -303,6 +308,49 @@ test('runBenchmark live mode drives the loop then invokes the answer call', asyn
   assert.ok(report.results[0].metrics.tokensIn > 0);
 });
 
+test('formatScenarioPrompt adds typed task evidence and coding output requirements', () => {
+  const issue = formatScenarioPrompt({
+    id: 'issue',
+    prompt: 'Plan this issue.',
+    workload: {
+      type: 'github-issue',
+      repository: 'jellydn/flowly',
+      number: 38,
+      title: 'Add benchmarks',
+      body: 'Compare model quality.',
+    },
+  });
+  assert.match(issue, /jellydn\/flowly#38/);
+  assert.match(issue, /Compare model quality/);
+
+  const pullRequest = formatScenarioPrompt({
+    id: 'pr',
+    prompt: 'Review this pull request.',
+    workload: {
+      type: 'pull-request-review',
+      repository: 'jellydn/flowly',
+      number: 151,
+      title: 'Check saved model versions',
+      diff: 'diff --git a/a.ts b/a.ts',
+    },
+  });
+  assert.match(pullRequest, /jellydn\/flowly#151/);
+  assert.match(pullRequest, /diff --git a\/a.ts b\/a.ts/);
+
+  const coding = formatScenarioPrompt({
+    id: 'code',
+    prompt: 'Implement this task.',
+    workload: {
+      type: 'coding-task',
+      issueNumber: 38,
+      title: 'Change the port',
+      body: 'Use port 4000.',
+    },
+  });
+  assert.match(coding, /Coding task: #38/);
+  assert.match(coding, /Return the proposed change as a unified diff/);
+});
+
 test('runBenchmark live mode uses provider-reported tokens and billed cost', async () => {
   const report = await runBenchmark(suite, model, {
     mode: 'live',
@@ -456,6 +504,123 @@ function reportNoHuman(): BenchmarkReport {
 test('extractFencedBlocks pulls code blocks from an answer', () => {
   const blocks = extractFencedBlocks('Here is a patch:\n```ts\nconst x = 1;\n```\nand more');
   assert.deepEqual(blocks, ['const x = 1;']);
+});
+
+test('extractUnifiedDiff accepts fenced and unfenced patches but not code snippets', () => {
+  const patch = 'diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n';
+  const plainPatch = '--- a/a.ts\n+++ b/a.ts\n@@ -1 +1 @@\n-old\n+new\n';
+  assert.equal(extractUnifiedDiff(`Here:\n\`\`\`diff\n${patch}\`\`\``), patch);
+  assert.equal(extractUnifiedDiff(patch), patch);
+  assert.equal(extractUnifiedDiff(`Here:\n\`\`\`diff\n${plainPatch}\`\`\``), plainPatch);
+  assert.equal(extractUnifiedDiff(`Proposed change:\n${plainPatch}`), plainPatch);
+  assert.equal(extractUnifiedDiff('```ts\nconst value = 1;\n```'), null);
+});
+
+test('createGitPatchCheck proves applicability without changing the repository', async (t) => {
+  const { mkdir, mkdtemp, readFile, rm, writeFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const path = await import('node:path');
+  const directory = await mkdtemp(path.join(tmpdir(), 'flowly-patch-check-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  await writeFile(path.join(directory, 'value.txt'), 'before\n');
+  const scenario: BenchmarkScenario = {
+    id: 'code',
+    prompt: 'Change the value.',
+    workload: { type: 'coding-task', title: 'Change value', body: 'Use after.' },
+  };
+  const check = createGitPatchCheck(directory);
+  const applicable = await check(
+    scenario,
+    '```diff\n--- a/value.txt\n+++ b/value.txt\n@@ -1 +1 @@\n-before\n+after\n```',
+  );
+  assert.deepEqual(applicable, {
+    passed: true,
+    detail: 'Unified diff passes git apply --check',
+  });
+  assert.equal(await readFile(path.join(directory, 'value.txt'), 'utf8'), 'before\n');
+
+  const invalid = await check(
+    scenario,
+    '```diff\ndiff --git a/value.txt b/value.txt\n--- a/value.txt\n+++ b/value.txt\n@@ -1 +1 @@\n-wrong\n+after\n```',
+  );
+  assert.ok(invalid && !invalid.passed);
+
+  const metacharacterDirectory = `${directory};touch injected`;
+  await mkdir(metacharacterDirectory);
+  await writeFile(path.join(metacharacterDirectory, 'value.txt'), 'before\n');
+  const metacharacterResult = await createGitPatchCheck(metacharacterDirectory)(
+    scenario,
+    '--- a/value.txt\n+++ b/value.txt\n@@ -1 +1 @@\n-before\n+after\n',
+  );
+  assert.equal(metacharacterResult?.passed, true);
+  assert.equal(await readFile(path.join(metacharacterDirectory, 'value.txt'), 'utf8'), 'before\n');
+});
+
+test('coding-task reports fail when the proposed patch does not apply', async () => {
+  const codingSuite: BenchmarkSuite = {
+    id: 'coding',
+    name: 'Coding benchmark',
+    repositoryPath: 'eval/fixtures/sample-repo',
+    scenarios: [
+      {
+        id: 'code',
+        prompt: 'Change the default port.',
+        workload: { type: 'coding-task', title: 'Change port', body: 'Use port 4000.' },
+        requiresToolCall: false,
+      },
+    ],
+  };
+  const report = await runBenchmark(codingSuite, model, {
+    mode: 'live',
+    modelCall: async () => ({ content: 'No patch is needed.' }),
+  });
+  assert.equal(report.results[0].passed, false);
+  assert.deepEqual(report.results[0].metrics.patchApplicability, {
+    passed: false,
+    detail: 'No unified diff found in the answer',
+  });
+  assert.equal(report.summary.patchApplicabilityRate, 0);
+});
+
+test('runScenario applies the default coding-task patch check and honors overrides', async () => {
+  const repository = await createRepositoryReader('eval/fixtures/sample-repo');
+  const codingScenario: BenchmarkScenario = {
+    id: 'code',
+    prompt: 'Change the default port.',
+    workload: { type: 'coding-task', title: 'Change port', body: 'Use port 4000.' },
+    requiresToolCall: false,
+  };
+  const input = {
+    scenario: codingScenario,
+    repository,
+    judge: createKeywordJudge(),
+    model,
+    maxSteps: 1,
+    modelCall: async () => ({ content: 'No patch is needed.' }),
+  };
+  const result = await runScenario(input);
+  assert.equal(result.passed, false);
+  assert.equal(result.metrics.patchApplicability?.passed, false);
+
+  const overridden = await runScenario({
+    ...input,
+    measurePatch: async () => ({ passed: true, detail: 'Custom check passed' }),
+  });
+  assert.equal(overridden.passed, true);
+  assert.deepEqual(overridden.metrics.patchApplicability, {
+    passed: true,
+    detail: 'Custom check passed',
+  });
+
+  const rejected = await runScenario({
+    ...input,
+    measurePatch: async () => Promise.reject(new Error('checker unavailable')),
+  });
+  assert.equal(rejected.passed, false);
+  assert.deepEqual(rejected.metrics.patchApplicability, {
+    passed: false,
+    detail: 'Patch check failed to complete',
+  });
 });
 
 test('createPatchCheck reports not measured without expected files', async () => {

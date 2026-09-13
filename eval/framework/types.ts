@@ -40,10 +40,38 @@ export type ModelSpec = {
   baseUrl?: string;
 };
 
+/** Repository workload represented by a benchmark scenario. */
+export type BenchmarkWorkload =
+  | { type: 'repository-question' }
+  | {
+      type: 'github-issue';
+      repository: string;
+      number: number;
+      title: string;
+      body: string;
+    }
+  | {
+      type: 'pull-request-review';
+      repository: string;
+      number: number;
+      title: string;
+      body?: string;
+      diff: string;
+    }
+  | {
+      type: 'coding-task';
+      repository?: string;
+      issueNumber?: number;
+      title: string;
+      body: string;
+    };
+
 /** One evaluation question in a benchmark suite. */
 export type BenchmarkScenario = {
   id: string;
   prompt: string;
+  /** Typed real-world task context. Repository questions are the default. */
+  workload?: BenchmarkWorkload;
   /** Source files the answer must cite (path prefixes match). */
   expectedSources?: string[];
   /** Keywords the answer (or evidence) must contain. */
@@ -107,6 +135,7 @@ export type MetricPass = {
 export type ScenarioResult = {
   id: string;
   prompt: string;
+  workloadType?: BenchmarkWorkload['type'];
   passed: boolean;
   metrics: {
     /** 0..1 quality score (average of measured dimensions). */

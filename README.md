@@ -808,7 +808,7 @@ the [issue #38 audit](eval/README.md#issue-38-implementation-audit) for scope li
 
 ### Benchmark suites
 
-A suite is a JSON file with a `suite` (scenarios + expected sources/keywords)
+A suite is a JSON or YAML file with a `suite` (scenarios + expected sources/keywords)
 and `models` list. The bundled `eval/suites/sample.json` runs the seven
 capstone scenarios. Each `models[]` entry names its own `provider` (and
 optionally `apiKeyEnv`/`baseUrl`), so one config can benchmark openrouter,
@@ -817,9 +817,18 @@ suites define their own prompts and expectations; scenario ids must map to
 decision functions in deterministic mode (see `eval/framework/runner.ts` and the
 bundled capstone deciders).
 
+Live suites can add a typed `workload` to a scenario: `github-issue` includes
+the captured issue repository, number, title, and body; `pull-request-review`
+also includes the captured diff; and `coding-task` describes the requested
+change. Flowly puts this context in the model prompt. Coding-task answers must
+contain a unified diff. Flowly runs that diff through `git apply --check`
+against the configured repository, records patch applicability in the report,
+and fails the scenario when the patch does not apply. This check does not
+change the working tree. See `eval/suites/workloads.example.yaml`.
+
 Suites can define a versioned `gate` with minimum pass, quality, and tool
 success rates and optional maximum average latency and cost. `npm run eval --
-gate <config.json>` exits non-zero when any configured threshold regresses;
+gate <config.json|config.yaml>` exits non-zero when any configured threshold regresses;
 `--no-save` avoids writing reports in CI. The bundled deterministic gate is
 part of `npm run check`, so pull requests cannot silently weaken the known
 capstone baseline. Latency and cost thresholds are supported for controlled

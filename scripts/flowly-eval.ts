@@ -113,9 +113,9 @@ async function loadReportOrExit(
 
 function usage(): never {
   console.error(`Usage:
-  npm run eval -- run <config.json> [--live] [--json] [--judge-model <spec>] [--trust-model-overrides]
-  npm run eval -- gate <config.json> [--live] [--no-save] [--judge-model <spec>] [--trust-model-overrides]
-  npm run eval -- compare <config.json> [--live] [--judge-model <spec>] [--trust-model-overrides]
+  npm run eval -- run <config.json|yaml> [--live] [--json] [--judge-model <spec>] [--trust-model-overrides]
+  npm run eval -- gate <config.json|yaml> [--live] [--no-save] [--judge-model <spec>] [--trust-model-overrides]
+  npm run eval -- compare <config.json|yaml> [--live] [--judge-model <spec>] [--trust-model-overrides]
   npm run eval -- leaderboard [--suite <id>]
   npm run eval -- report <runId>
   npm run eval -- regression <baselineId> <candidateId> [--json]
@@ -186,6 +186,11 @@ function printReport(report: BenchmarkReport, json: boolean): void {
   lines.push(`Tokens:    ${report.summary.totalTokens}`);
   lines.push(`Cost:      ${formatCostUsd(report.summary.costUsd)}`);
   lines.push(`Tool OK:   ${(report.summary.toolSuccessRate * 100).toFixed(0)}%`);
+  lines.push(
+    Number.isNaN(report.summary.patchApplicabilityRate)
+      ? 'Patches:   not measured'
+      : `Patches:   ${(report.summary.patchApplicabilityRate * 100).toFixed(0)}% applicable`,
+  );
   const human = report.summary.humanAcceptanceRate;
   lines.push(
     Number.isNaN(human)
@@ -194,8 +199,11 @@ function printReport(report: BenchmarkReport, json: boolean): void {
   );
   for (const result of report.results) {
     const usageMark = result.metrics.usageSource === 'provider' ? 'billed' : 'est.';
+    const patchMark = result.metrics.patchApplicability
+      ? ` patch=${result.metrics.patchApplicability.passed ? 'applies' : 'fails'}`
+      : '';
     lines.push(
-      `  [${result.id}] ${result.passed ? '✅' : '❌'} quality=${(result.metrics.qualityScore * 100).toFixed(0)}% latency=${result.metrics.latencyMs}ms tokens=${result.metrics.tokensIn + result.metrics.tokensOut}(${usageMark}) ${verdictLabel(result.metrics.humanAccepted)}`,
+      `  [${result.id}] ${result.passed ? '✅' : '❌'} quality=${(result.metrics.qualityScore * 100).toFixed(0)}% latency=${result.metrics.latencyMs}ms tokens=${result.metrics.tokensIn + result.metrics.tokensOut}(${usageMark})${patchMark} ${verdictLabel(result.metrics.humanAccepted)}`,
     );
   }
   process.stdout.write(`${lines.join('\n')}\n`);

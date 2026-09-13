@@ -132,7 +132,7 @@ export async function createSampleRepo(): Promise<string> {
 **Async Testing:**
 
 ```typescript
-test('loadSuiteFromFile loads and validates JSON', async (t) => {
+test('loadSuiteFromFile loads and validates JSON or YAML', async (t) => {
   const dir = await mkdtemp(...);
   t.after(() => rm(...));
   await writeFile(file, JSON.stringify(sampleSuite));

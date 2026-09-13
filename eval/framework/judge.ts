@@ -12,7 +12,7 @@
  */
 
 import type { InvestigationResult } from '../../investigation/types.ts';
-import { checkScenario, type ScenarioChecks } from './runner.ts';
+import { checkScenario, formatScenarioPrompt, type ScenarioChecks } from './runner.ts';
 import { scoreScenario } from './metrics.ts';
 import type { BenchmarkScenario, ModelSpec } from './types.ts';
 import { createProviderClient, type ModelCallFn, type ProviderClientOptions } from './providers.ts';
@@ -70,7 +70,7 @@ export function formatJudgePrompt(
     'You are a strict benchmark judge. Score the answer on a 0..1 scale.',
     '',
     'Question:',
-    scenario.prompt,
+    formatScenarioPrompt(scenario),
     '',
     scenario.expectedSources?.length
       ? `Expected sources: ${scenario.expectedSources.join(', ')}`
