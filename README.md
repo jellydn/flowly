@@ -112,9 +112,9 @@ The checked-in workflow is configured for this repository. To use Flowly in anot
 4. Set `REPOSITORY_PATH` to the target checkout and `GITHUB_REPOSITORY` to `owner/repo`.
 5. Add `OPENROUTER_API_KEY`, or configure another supported provider.
 6. Install the target repository's language and build tools so its verification commands can run.
-7. Label an actionable issue `factory`.
+7. Label an actionable issue `factory` (implementation runs only when autonomy policy evidence or explicit confirmation opens the gate; the default is `plan-only`).
 
-The workflow runs Flowly from its own directory and keeps the target checkout as the repository under test. The factory creates an isolated clone for implementation, runs the planner's repository-native checks, and publishes a draft PR only after verification and independent review pass.
+The workflow runs Flowly from its own directory and keeps the target checkout as the repository under test, once the target workflow is adapted with a separate Flowly checkout (or working directory) plus the target checkout. The factory creates an isolated clone for implementation, runs the planner's repository-native checks, and publishes a draft PR only after verification and independent review pass.
 
 Important limits:
 
@@ -123,7 +123,7 @@ Important limits:
 - Flowly does not provision toolchains or production credentials; and
 - Flowly never approves, merges, or deploys.
 
-The factory can be configured with graduated autonomy, repository memory, and migration campaigns. Those controls are documented in the [architecture and operator sections of the repository history](./docs/adr/README.md) and covered by the deterministic safety tests.
+The factory autonomy defaults to `plan-only` and only proceeds on explicit policy evidence or confirmation (see `.planning/codebase/ARCHITECTURE.md`); repository memory, graduated autonomy, and migration campaigns are implemented in the factory code and covered by the deterministic safety tests, with design rationale in the [ADRs](./docs/adr/README.md).
 
 ## Run the PR reviewer
 
@@ -171,7 +171,7 @@ It supports pull requests, issues, issue comments, pull request reviews, pull re
 
 The default configuration routes:
 
-- non-draft pull request events to `review`; and
+- pull request open/reopen/sync/ready-for-review events to `review` (the workflow review job additionally skips drafts, so drafts never trigger review); and
 - `issues.labeled.factory` to `factory`.
 
 ## Configuration
