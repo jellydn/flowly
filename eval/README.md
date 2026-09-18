@@ -198,6 +198,6 @@ the trusted enforcement code and repository-specific verification.
 ## Related guides
 
 - [Runnable examples](../demo/README.md)
-- [Use Flowly with any GitHub repository](../README.md#use-flowly-with-any-github-repository)
-- [Factory controls and operator commands](../README.md#controlled-factory-implementation)
+- [Run the GitHub factory](../README.md#run-the-github-factory)
+- [Configuration, safety boundaries, and commands](../README.md#configuration)
 - [Architecture decisions](../docs/adr/README.md)

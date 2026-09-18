@@ -1,110 +1,66 @@
 # Flowly
 
-> Factory software for any GitHub repository.
+> AI-native engineering automation for GitHub repositories.
 
 [![CI](https://github.com/jellydn/flowly/actions/workflows/ci.yml/badge.svg)](https://github.com/jellydn/flowly/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-**Flowly** is factory software built with [Flue](https://flueframework.com/) that turns GitHub issues
-into independently reviewed draft pull requests. It can operate on any GitHub repository you check
-out and configure it against; it is not tied to Flowly's own source tree or to one language. The
-factory is backed by a bounded repository assistant, a PR reviewer, and a GitHub event router, so the
-same evidence-first system can also explain a codebase and review human-authored changes.
+Flowly is a [Flue](https://flueframework.com/) application with three jobs:
 
-Flowly is a reference implementation you run in your own CI environment, not a hosted service or a
-one-click GitHub App. Applying it to a repository means running the Flowly runtime alongside that
-repository's checkout and granting the workflow only the GitHub and model credentials it needs.
+- answer questions about a local repository with file citations;
+- review pull requests without approving them; and
+- turn labeled GitHub issues into independently reviewed **draft** pull requests.
 
-## Features
+Flowly runs in your own environment. It is not a hosted service or a one-click GitHub App.
 
-- An issue → plan → implementation → verification → independent review → draft PR factory
-- A factory-owned `factory/*` branch per accepted issue; never auto-merges or auto-approves
-- One general-purpose Flowly repository agent built on Flue 2.0
-- Six typed, read-only tools (`list_files`, `read_file`, `search_code`,
-  `search_docs`, `retrieve` — semantic TF-IDF retrieval, and `related_context`
-  — cited repository relationships)
-- A PR review agent (`agents/pr-reviewer.ts`) with review-specific tools and a
-  trusted GitHub adapter — never auto-approves
-- Optional repository-local instincts learned from structured factory and review outcomes
-- A GitHub event router (`github/events/`) that maps repository events to
-  configured agents with declarative routes and filters
-- Bounded investigation loop with evidence collection and deduplication
-- Grounded answers with file citations and confidence levels
-- One reusable Agent Skill
-- Repository-relative path and symlink confinement
-- Evidence-only answers with file and line citations
-- A shared, configurable inspection budget
-- No declared subagent profiles, deployment, or web UI
-- Optional persistent, versioned workspaces with lazy in-memory sandbox hydration
+## Choose a path
 
-## How it works
+| Goal | Start here |
+| --- | --- |
+| Try Flowly without credentials | [Run the demos](#try-it-without-credentials) |
+| Ask questions about a local checkout | [Analyze a repository](#analyze-a-repository) |
+| Automate issue-to-draft-PR work | [Run the GitHub factory](#run-the-github-factory) |
+| Review pull requests | [Run the PR reviewer](#run-the-pr-reviewer) |
+| Benchmark models or inspect safety controls | [Read the evaluation guide](./eval/README.md) |
+
+## What Flowly does
+
+### Repository assistant
+
+The repository assistant uses six read-only tools:
+
+- `list_files` — discover repository structure;
+- `read_file` — read a bounded line range;
+- `search_code` — search source files;
+- `search_docs` — search documentation;
+- `retrieve` — semantic retrieval over a lazy TF-IDF index; and
+- `related_context` — find cited imports, owners, dependencies, linked docs, and issue references.
+
+It collects evidence within a shared inspection budget, then answers with file and line citations. It is not given a shell, write access, Git access, or network access.
+
+### PR reviewer
+
+The PR reviewer reads the diff and relevant repository context, validates findings against changed lines, and posts one GitHub review. It can comment or request changes, but it cannot approve, merge, or modify code.
+
+### GitHub factory
+
+The factory handles this flow:
 
 ```text
-Question
-   │
-   ▼
-┌──────────────┐       ┌────────────────────────────┐
-│ Flue harness │──────▶│ list_files / read_file /  │
-│ + LLM        │◀──────│ search_code / search_docs │
-│              │       │ retrieve (semantic)       │
-│              │       │ (read-only)               │
-└──────┬───────┘       └─────────────┬──────────────┘
-       │                             │
-       │ reflect                     ▼
-       │                    ┌───────────────────┐
-       └───────────────────▶│ configured repo   │
-                            │ (oak by default)  │
-                            └───────────────────┘
+labeled issue
+  → classify
+  → plan
+  → implement in an isolated clone
+  → run repository checks
+  → independent review
+  → open a draft PR
 ```
 
-## Prerequisites
+It stops when an issue is not actionable or verification fails. It never auto-approves, auto-merges, deploys, or writes to the source checkout. Factory branches use the `factory/*` prefix.
 
-- Node.js 22.19 or newer
-- An LLM provider API key
-- A local checkout of the repository to inspect
+## Try it without credentials
 
-The default model is `openrouter/qwen/qwen3-coder`, which requires an
-`OPENROUTER_API_KEY`. Set `REPO_ASSISTANT_MODEL` to any model listed in
-[Flue's model catalog](https://flueframework.com/models.json) to use another
-provider.
-
-## Use Flowly with any GitHub repository
-
-There are two supported boundaries:
-
-- **Local repository analysis:** set `REPOSITORY_PATH` to any local Git checkout, then run the repo
-  assistant. This path is read-only.
-- **GitHub factory automation:** run Flowly's scripts from a workflow in the target repository, with
-  `REPOSITORY_PATH` pointing at that workflow's checkout and `GITHUB_REPOSITORY` identifying it.
-  The target repository's `GITHUB_TOKEN` then scopes issue comments, factory branches, reviews, and
-  draft pull requests to that repository.
-
-The checked-in [Event Router workflow](./.github/workflows/event-router.yml) is wired directly to
-this repository. To adopt it elsewhere, copy and adapt that workflow in the target repository. The
-job must:
-
-1. check out the target repository with full Git history;
-2. make the Flowly source available in a separate directory and run `npm ci` there;
-3. run Flowly commands from that directory while setting `REPOSITORY_PATH` to the target checkout;
-4. add an `OPENROUTER_API_KEY` Actions secret (or configure another supported model/provider); and
-5. install any language or build tools required by the target repository's verification commands.
-
-Keep `GITHUB_EVENT_NAME`, `GITHUB_EVENT_PATH`, and `GITHUB_REPOSITORY` sourced from the Actions
-context, as the checked-in workflow does. Once integrated, label an actionable issue `factory`.
-Flowly classifies and plans the issue, changes an isolated clone, runs repository-native checks,
-performs an independent review, and opens a draft PR only if verification passes. Non-actionable
-issues and failed checks stop without a PR.
-
-This is repository-portable, not zero-configuration: Flowly does not install itself into other
-repositories, provision missing toolchains, choose production credentials, merge a pull request, or
-approve its own work. The current production entrypoint also uses `origin/main` as the factory base
-ref. A repository with a different default branch must adapt that base-ref wiring before enabling
-the factory; there is not yet an environment-variable override.
-
-## Quick start
-
-To see the main Flowly capabilities without credentials, use the
-[newcomer examples](./demo/README.md):
+Requirements: Node.js `>=22.19.0` and npm.
 
 ```bash
 npm install
@@ -113,1410 +69,216 @@ npm run demo:factory
 npm run demo:end-to-end
 ```
 
-These commands use the bundled fixture. They do not change a repository or call GitHub. See the
-[evaluation guide](./eval/README.md) for deterministic gates, live model comparisons, custom suites,
-and factory security checks.
+These deterministic demos use the bundled fixture. They do not call GitHub, change a repository, or require a model key.
 
-To inspect a real repository with a model:
+See [demo/README.md](./demo/README.md) for the examples and their shell entrypoints.
+
+## Analyze a repository
+
+Install Flowly and create a local environment file:
 
 ```bash
 git clone https://github.com/jellydn/flowly.git
-git clone --depth 1 https://github.com/jellydn/oak.git
 cd flowly
 npm install
 cp .env.example .env
 ```
 
-Add your provider key to `.env`. The example configuration already points to
-`../oak`, so the two repositories should be siblings:
+Set `OPENROUTER_API_KEY` in `.env`, then point `REPOSITORY_PATH` at the checkout you want to inspect:
+
+```bash
+REPOSITORY_PATH=/absolute/path/to/repository \
+  npm start -- --input '{"message":"Explain the architecture and cite the files you used."}'
+```
+
+The default model is `openrouter/qwen/qwen3-coder`. Set `REPO_ASSISTANT_MODEL` to another model from [Flue's model catalog](https://flueframework.com/models.json).
+
+For a direct Flue invocation:
+
+```bash
+npx flue run agents/repo-assistant.ts \
+  -m "Find the main application entry point and explain how it starts."
+```
+
+`REPOSITORY_PATH` defaults to `../oak` for the example configuration. The assistant only reads the configured checkout.
+
+## Run the GitHub factory
+
+The checked-in workflow is configured for this repository. To use Flowly in another repository:
+
+1. Copy and adapt [`.github/workflows/event-router.yml`](./.github/workflows/event-router.yml) in the target repository.
+2. Check out the target repository with full Git history.
+3. Make the Flowly source available in a separate directory and run `npm ci` there.
+4. Set `REPOSITORY_PATH` to the target checkout and `GITHUB_REPOSITORY` to `owner/repo`.
+5. Add `OPENROUTER_API_KEY`, or configure another supported provider.
+6. Install the target repository's language and build tools so its verification commands can run.
+7. Label an actionable issue `factory` (implementation runs only when autonomy policy evidence or explicit confirmation opens the gate; the default is `plan-only`).
+
+The workflow runs Flowly from its own directory and keeps the target checkout as the repository under test, once the target workflow is adapted with a separate Flowly checkout (or working directory) plus the target checkout. The factory creates an isolated clone for implementation, runs the planner's repository-native checks, and publishes a draft PR only after verification and independent review pass.
+
+Important limits:
+
+- the current production path uses `origin/main` as its factory base ref;
+- Flowly does not install itself into the target repository;
+- Flowly does not provision toolchains or production credentials; and
+- Flowly never approves, merges, or deploys.
+
+The factory autonomy defaults to `plan-only` and only proceeds on explicit policy evidence or confirmation (see `.planning/codebase/ARCHITECTURE.md`); repository memory, graduated autonomy, and migration campaigns are implemented in the factory code and covered by the deterministic safety tests, with design rationale in the [ADRs](./docs/adr/README.md).
+
+## Run the PR reviewer
+
+GitHub Actions supplies these variables in the routed `review` job:
 
 ```text
-parent/
-├── flowly/
-└── oak/
+GITHUB_TOKEN
+GITHUB_REPOSITORY
+PR_NUMBER
+BASE_SHA
+HEAD_SHA
+REPOSITORY_PATH
 ```
 
-Run one question:
+To run it locally:
 
 ```bash
-npm start -- --input '{"message":"What is the architecture of oak?"}'
-```
-
-Or invoke Flue directly:
-
-```bash
-npx flue run agents/repo-assistant.ts -m "Find the main application entry point for the Oak Containers hello-world host."
-```
-
-## Three test questions
-
-These prompts exercise progressively richer tool use:
-
-1. **Structure:** `What is the high-level architecture of oak?`
-2. **Entry point:** `Find the main application entry point for the Oak Containers hello-world host.`
-3. **Cross-file flow:** `Explain how an Oak Session binds attestation to its encrypted channel.`
-
-Useful negative tests are `Where is authentication implemented?` and `Which
-files contain database access?`. The agent should report what it searched and
-avoid pretending that a conventional web-app authentication or database layer
-exists.
-
-## Configuration
-
-| Variable                          | Default                       | Purpose                                                            |
-| --------------------------------- | ----------------------------- | ------------------------------------------------------------------ |
-| `REPOSITORY_PATH`                 | `../oak`                      | Only repository the tools may inspect                              |
-| `REPO_ASSISTANT_MODEL`            | `openrouter/qwen/qwen3-coder` | Flue model specifier                                               |
-| `REPO_ASSISTANT_MAX_STEPS`        | `8`                           | Shared inspection-call budget (1–20)                               |
-| `REPO_ASSISTANT_DEBUG`            | `false`                       | Log one safe line per tool call                                    |
-| `REPO_ASSISTANT_SEARCH_FALLBACK`  | `false`                       | Search tools fall back to `read_file` on transient failure         |
-| `GITHUB_TOKEN`                    | _unset_                       | GitHub token for PR review automation                              |
-| `GITHUB_REPOSITORY`               | _unset_                       | `owner/repo` for PR review automation                              |
-| `PR_NUMBER`                       | _unset_                       | Pull request number to review                                      |
-| `BASE_SHA`                        | _unset_                       | Base commit SHA for PR diff                                        |
-| `HEAD_SHA`                        | _unset_                       | Head commit SHA for PR diff                                        |
-| `PR_REVIEW_MAX_FILES`             | `30`                          | Max changed files reviewed                                         |
-| `PR_REVIEW_MAX_DIFF_LINES`        | `4000`                        | Max unified-diff lines returned                                    |
-| `PR_REVIEW_MAX_CONTEXT_READS`     | `20`                          | Max `read_file`/`search_code` calls                                |
-| `PR_REVIEW_MAX_FINDINGS`          | `10`                          | Max findings submitted in review                                   |
-| `PR_REVIEW_SPECIALISTS`           | all four roles                | Comma-separated correctness, security, testing, architecture roles |
-| `PR_REVIEW_SPECIALIST_TIMEOUT_MS` | `30000`                       | Per-specialist timeout in milliseconds                             |
-| `PR_REVIEW_ADVISOR_ENABLED`       | `false`                       | Enable advisor validation before publication                       |
-| `PR_REVIEW_ADVISOR_MODEL`         | free review model             | Model identifier supplied to an advisor runner                     |
-| `PR_REVIEW_ADVISOR_TIMEOUT_MS`    | `30000`                       | Per-finding advisor timeout in milliseconds                        |
-
-To inspect another checkout:
-
-```bash
-REPOSITORY_PATH=/absolute/path/to/repo \
-  npm start -- --input '{"message":"Explain this project's architecture."}'
-```
-
-## PR Review configuration
-
-The PR reviewer uses file-aware limits instead of the shared inspection budget.
-Defaults: 30 files, 4000 diff lines, 20 context reads, and 10 findings.
-The specialist-review seam supports correctness, security, testing, and
-architecture roles. Enabled roles run concurrently, each result is validated
-and attributed to its role, failures are isolated, and overlapping findings are
-adjudicated deterministically before publication. Set `PR_REVIEW_SPECIALISTS`
-to a comma-separated subset and `PR_REVIEW_SPECIALIST_TIMEOUT_MS` to bound each
-runner. The production reviewer uses `REPO_ASSISTANT_MODEL` for these specialist
-calls. The agent's submitted findings remain fail-safe generalist candidates and
-are adjudicated with specialist findings before advisor validation.
-
-An optional advisor seam (`PR_REVIEW_ADVISOR_ENABLED=true`) validates each
-candidate with an independent runner before publication. It returns observable
-accept/revise/reject decisions and reasons, preserves candidates on malformed or
-timed-out advice, and only permits revisions to finding content—not file paths
-or line anchors. The production path uses `PR_REVIEW_ADVISOR_MODEL` for these
-calls. Findings retain one canonical shape throughout; specialist provenance and
-advisor decisions are carried in pipeline report metadata. The GitHub adapter
-receives the validated result and only formats/posts it, handles the body-only
-422 fallback, and persists review state. Provider credentials and prompts are
-never included in GitHub review output.
-
-In GitHub Actions, `.github/workflows/event-router.yml` supplies the required
-environment variables to its routed `review` job. Locally:
-
-```bash
-GITHUB_TOKEN=… GITHUB_REPOSITORY=owner/repo PR_NUMBER=42 \
-  BASE_SHA=… HEAD_SHA=… REPOSITORY_PATH=. OPENROUTER_API_KEY=… \
+GITHUB_TOKEN=... GITHUB_REPOSITORY=owner/repo PR_NUMBER=42 \
+BASE_SHA=... HEAD_SHA=... REPOSITORY_PATH=. OPENROUTER_API_KEY=... \
   npm run review-pr
 ```
 
-Set `PR_REVIEW_MAX_FILES`, `PR_REVIEW_MAX_DIFF_LINES`,
-`PR_REVIEW_MAX_CONTEXT_READS`, or `PR_REVIEW_MAX_FINDINGS` to override the
-defaults. Findings are validated against the PR diff before posting; findings use the canonical P0-P3 severity scale, while older critical/high/medium/low values are normalized for compatibility. Findings without a changed-line citation are retained in the review body but are not posted inline. The review never auto-approves.
-
-## How the bound works
-
-Every `list_files`, `read_file`, `search_code`, `search_docs`, `retrieve`, or `related_context`
-call consumes one shared inspection step. Tool results include `used` and
-`remaining`; after that limit, all six inspection tools reject further calls
-and the instructions
-require the agent to answer from collected evidence. Each tool result carries an
-`inspection` object of the shape `{ used, remaining, limit }` so the model can see whether
-it may continue; errors are wrapped with the same snapshot. The agent also
-configures a 120-second
-submission deadline and allows only the initial execution attempt. Flue checks
-the deadline cooperatively at turn boundaries; it does not preempt an in-flight
-model request or custom tool, so elapsed runtime can exceed two minutes.
-
-Flue 2.0 does **not** currently expose a public `maxSteps` or `maxTurns`
-agent option. This project therefore bounds repository inspection calls—not
-internal model turns—and documents that distinction rather than relying on a
-nonexistent setting.
-
-## Read-only guarantees
-
-The agent's only application-data capabilities are six custom inspection
-tools. They use Node's read-only filesystem APIs and expose no shell, write,
-Git, or network operation. A restricted in-memory sandbox removes Flue's default
-model-facing filesystem and shell tools.
-
-Flue still appends its framework-owned `activate_skill` and `task` tools. This
-project has no declared subagent profiles and explicitly instructs the agent not
-to delegate. An implicit task would inherit the same six inspection tool
-instances and shared budget; it cannot reset the inspection limit or access the
-host checkout through the sandbox.
-
-The repository boundary is application-controlled, not model-controlled:
-
-- tool inputs accept only repository-relative paths;
-- `..` traversal and absolute paths are rejected;
-- canonical paths are checked after resolving symlinks;
-- directory walks skip symlinks, VCS data, dependencies, generated build
-  output, and caches;
-- reads reject files over 1 MB and return at most 400 lines, while searches
-  exclude files over 1 MB;
-- searches return at most 50 literal matches.
-
-Path checks assume the inspected checkout is stable while a tool call runs. Do
-not use this educational agent against a repository tree being concurrently
-modified by an untrusted process.
-
-## PR Review agent
-
-A second agent, `agents/pr-reviewer.ts`, reviews pull requests. It reuses the
-read-only inspection tools (`read_file`, `search_code`) for surrounding context
-and adds review-specific tools backed by a trusted GitHub/git boundary:
-
-- `get_pr_metadata` — PR number, title, body, author, and the changed-file list
-  (with skip flags for lockfiles, generated, vendored, and binary files).
-- `get_pr_diff` — the unified diff, truncated to a configurable line limit.
-- `list_changed_files` — per-file additions/deletions, status, and skip flags.
-- `read_changed_file` — a bounded line range from the post-PR version of a file.
-- `get_diff_hunks` — diff hunk line ranges for validating inline findings.
-- `get_previous_review_state` — loads the previous review's SHA and findings
-  from a hidden PR comment, or reports this is the first review.
-- `get_incremental_diff` — the diff since the last reviewed SHA
-  (`git diff prevSha...headSha`), or an empty result on first review.
-- `get_review_context` — reads repository-specific documentation files
-  (`AGENTS.md`, `CONTRIBUTING.md`, `.github/pull_request_template.md`,
-  `.flowly/review-instructions.md`, `.flowly/repository-learnings.md`) to
-  understand conventions, test commands, and past learnings. The old `.flue/`
-  paths remain read-only fallbacks for existing repositories.
-- `submit_review` — posts one structured GitHub review with inline comments.
-
-### Analysis vs. mutation separation
-
-The model never holds the GitHub token or a generic shell. It emits a structured
-`ReviewResult` through `submit_review`; a trusted adapter
-(`github/adapter.ts`) re-validates the schema, confirms each finding's path is
-in the PR diff, clamps line numbers to valid diff hunks, caps the finding count,
-and posts exactly one review (`COMMENT` or `REQUEST_CHANGES`, never `APPROVE`)
-through a thin `fetch`-based GitHub client (`github/client.ts`). PR data is
-fetched by `git diff`/`git show` in trusted code (`review/pr-data.ts`), never
-from the sandbox.
-
-### Incremental review (Phase 2)
-
-After each review, the trusted publisher persists a hidden state comment on the
-PR containing the reviewed head SHA, the findings, and a timestamp:
-
-```html
-<!-- flowly-review-state
-{"reviewedHeadSha":"abc123","findings":[...],"reviewedAt":1700000000}
--->
-```
-
-On `synchronize` (new commits pushed), the reviewer loads this state and
-computes an incremental diff (`git diff prevSha...headSha`) so it can focus on
-what changed. The agent classifies each previous finding as `resolved`,
-`still-present`, `obsolete`, or `uncertain`, and the publisher renders those
-classifications in the review body with status icons (✅ ⚠️ 🗑️ ❓).
-
-State comments are filtered to the expected bot account (`github-actions[bot]` by default, configurable via `REVIEW_BOT_LOGIN`) to prevent untrusted PR
-participants from spoofing review state. State persistence is best-effort: if
-saving state fails after a review was posted, the error is reported in
-`validationIssues` but the run succeeds — the next run falls back to a full
-review.
-
-### Repository-specific memory (Phase 3)
-
-The reviewer reads repository-specific documentation via `get_review_context`
-at the start of each review. It looks for these files in the checked-out repo:
-
-| File                               | Purpose                                                |
-| ---------------------------------- | ------------------------------------------------------ |
-| `AGENTS.md`                        | Project conventions, build/test commands, architecture |
-| `CONTRIBUTING.md`                  | Contribution guidelines                                |
-| `.github/pull_request_template.md` | PR template (what the author should provide)           |
-| `.flowly/review-instructions.md`   | Review-specific priorities and rules                   |
-| `.flowly/repository-learnings.md`  | Durable learnings accumulated from past reviews        |
-
-Only files that exist are returned; each is capped at 200 lines. The content is
-treated as **data** — it informs the review but never overrides the agent's
-review duties or safety rules.
-
-When the agent discovers a convention, test command, architectural pattern, or
-common issue that would help future reviews, it includes `proposedLearnings` in
-the `submit_review` output. The trusted publisher renders these in the review
-body under a "Proposed repository learnings" section:
-
-```markdown
-### Proposed repository learnings
-
-_Suggestions for `.flowly/repository-learnings.md`. Review and apply manually —
-the agent cannot modify files._
-
-- **[convention]** Always use parameterized queries for SQL
-  — _SQL injection found in 2 PRs_
-```
-
-The agent **never writes to `.flowly/` directly**. A human reviews the proposed
-learnings and manually adds approved ones to `.flowly/repository-learnings.md`.
-This keeps the learning loop transparent and human-controlled.
-
-For compatibility, the reviewer reads `.flue/review-instructions.md` or
-`.flue/repository-learnings.md` when no readable equivalent `.flowly/` file
-exists. New repositories should use `.flowly/`; when both valid paths exist,
-Flowly uses the `.flowly/` file.
-
-### Continuous repository learning
-
-Flowly can also convert repeated structured factory and review outcomes into
-typed repository instincts. This path is separate from the hand-authored
-`.flowly/repository-learnings.md` file. It is disabled unless
-`FLOWLY_LEARNING_POLICY` names a validated policy file and that policy sets
-`enabled` to `true`. Start from [`repository-learning.example.json`](./repository-learning.example.json):
-
-```json
-{
-  "version": "learning-v1",
-  "enabled": true,
-  "minimumObservations": 3,
-  "requireHumanEvidenceFor": ["architecture-boundary"],
-  "decayAfterDays": 90
-}
-```
-
-Production runs set `FLOWLY_MEMORY_ISSUE` to one repository issue whose hidden,
-bot-authored comment holds the bounded state. The store accepts only the
-configured bot identity and the current `owner/repo`. Local development can set
-`FLOWLY_MEMORY_STORE=.flowly/repository-instincts.json`; configured paths cannot
-escape the repository.
-
-The trusted learning core extracts only these MVP observations:
-
-- factory verification failures when a later run succeeds with the same command;
-- successful repository-native verification commands;
-- independent factory-review findings; and
-- validated PR-review findings after the review is posted.
-
-Equivalent observations add evidence to one candidate. Confidence is the
-deterministic balance of independent supporting and contradicting artifact IDs.
-A candidate becomes active only when the configured observation threshold is
-met, contradiction does not lower it below that threshold, required human
-evidence is present, and the evidence is not stale. Replaying an artifact does
-not add evidence. Rejection, deprecation, and supersession keep the prior
-evidence history.
-
-Active instincts are selected by both stage and touched path: planning gets
-architecture and convention instincts; implementation gets convention and
-verification instincts; review gets review rules and architecture boundaries;
-verification gets workflow and verification instincts. Every injected context
-states that explicit repository, issue, and user instructions take precedence.
-Instincts cannot change tools, credentials, network access, autonomy gates,
-branch permissions, or the draft-only/no-merge/no-deploy boundaries.
-
-For example, three factory runs under `packages/api/**` that report the same
-missing schema-validation finding produce one candidate with three concrete run
-references. With the example policy enabled, it becomes active for future
-reviews that touch `packages/api/**`; it is not supplied to unrelated paths or
-stages. A later contradiction reduces confidence, and 90 days without evidence
-deactivates and decays it.
-
-Local inspection is read-only:
-
-```bash
-npm run memory -- list
-npm run memory -- explain <id>
-```
-
-Trusted human status changes are separate explicit commands:
-
-```bash
-npm run memory -- reject <id>
-npm run memory -- deprecate <id>
-```
-
-The persisted data contains normalized statements, bounded path scopes,
-confidence explanations, and compact references to run IDs, issue/PR numbers,
-findings, commands, and outcomes. It does **not** contain transcripts, prompts,
-agent scratch data, chain-of-thought, credentials, or external conversation data.
-
-### File-aware limits
-
-Instead of the shared 8-call inspection budget, the reviewer uses configurable
-limits (`PR_REVIEW_MAX_FILES=30`, `PR_REVIEW_MAX_DIFF_LINES=4000`,
-`PR_REVIEW_MAX_CONTEXT_READS=20`, `PR_REVIEW_MAX_FINDINGS=10`). Generated files,
-lockfiles, snapshots, and vendored code are detected and skipped.
-
-### Running it
-
-The routed `review` job in `.github/workflows/event-router.yml` runs the reviewer
-on `opened`, `reopened`, `synchronize`, and `ready_for_review` events. Locally:
-
-```bash
-GITHUB_TOKEN=… GITHUB_REPOSITORY=owner/repo PR_NUMBER=42 \
-  BASE_SHA=… HEAD_SHA=… REPOSITORY_PATH=. OPENROUTER_API_KEY=… \
-  npm run review-pr
-```
-
-The reviewer supports full reviews (opened / reopened / ready_for_review),
-incremental reviews (synchronize), and repository-specific memory (Phase 3).
-It never modifies code, pushes commits, or auto-approves.
-
-## Persistent workspaces
-
-The optional `workspace.ts` module provides a runtime-independent workspace store
-for agent sessions that need state across process restarts. Workspaces support:
-
-- JSON snapshots backed by memory or a file store;
-- optimistic compare-and-swap versions that reject stale collaborators;
-- snapshot/restore operations and relative-path confinement; and
-- lazy hydration into the restricted in-memory sandbox, with workspace-file and
-  newly created session-file changes persisted back after each operation.
-
-The workspace sandbox never exposes the host filesystem. Its factory is created
-without starting a session; Flue initializes one shared session environment on
-the first `createSessionEnv` call. Persistence is opt-in and remains separate
-from the read-only repository inspection tools.
-
-## Controlled factory implementation
-
-This is Flowly's core factory path. It operates on the repository selected by
-`REPOSITORY_PATH` and `GITHUB_REPOSITORY`; no implementation stage is specific
-to `jellydn/flowly`.
-
-`planFactoryIssue` is the read-only analyst stage. Its production adapter asks
-the configured model to select relevant paths from the confined repository
-manifest, reads only those paths plus core repository guidance, and persists a
-structured plan (steps, relevant files, risks, verification commands, and
-acceptance criteria). The planner cannot write to the source checkout. Already
-planned runs return without invoking the planner again.
-
-Every factory stage resolves a least-capability manifest from
-`factory/capabilities.ts` before it runs. Trusted adapters in
-`factory/capability-guard.ts` deny undeclared tools, context sources, network
-targets, git writes, and GitHub mutations. A policy file may only restrict the
-built-in profile; issue text cannot grant capabilities. The publisher can open a
-draft PR or comment and cannot merge, approve, or deploy. Each run records the
-resolved `FactoryCapabilityAudit`.
-
-The factory's implementation stage crosses two trusted boundaries in `factory/`:
-
-- `FactoryGitAdapter` creates or restores an independent clone outside the
-  source checkout. It rejects non-`factory/*` refs, unexpected remotes, escaped
-  workspace paths, and branch changes before committing or pushing.
-- `FactoryVerificationRunner` runs the planner's repository-native commands in
-  that clone with a sanitized environment, per-command timeout, bounded output,
-  and a maximum of 20 commands.
-
-`runControlledImplementation` passes only the issue, structured plan, and
-isolated workspace to the implementer. Trusted code commits the changes, runs
-every configured check, records command/exit-code outcomes, and pushes the
-factory-owned branch only when all checks pass and the checkout remains clean.
-Failed or mutating checks persist a failed run instead; this stage never creates
-a PR, approves a review, or merges.
-
-The production implementer is a separate Flue agent backed by just-bash's
-root-confined `ReadWriteFs`. It can mutate only the isolated clone through a
-bounded shell with no network access; host paths and credentials are not
-exposed. The agent is forbidden from committing, pushing, changing remotes, or
-publishing. `FactoryGitAdapter` remains the only Git mutation boundary.
-
-### Independent review and draft PR
-
-After verification, `runIndependentReviewAndPublish` builds reviewer evidence
-from the issue, acceptance criteria, factory-branch diff, and recorded
-command/exit-code outcomes. Implementer scratch, conversation history, and
-chain-of-thought are dropped. The reviewer maps each acceptance criterion to a
-satisfied/unsatisfied verdict; Flowly never auto-approves.
-
-`FactoryDraftPrPublisher` then creates (or reuses) one **draft** pull request
-on the factory-owned branch through a trusted GitHub adapter. The body links
-the source issue, lists verification results, and includes the independent
-review checklist. The publisher has no merge path.
-
-`runFactoryPipeline` is the trusted orchestrator that chains those stages:
-intake → plan → controlled implementation → independent review → draft PR.
-Non-actionable issues stop at classification. Failed verification never opens
-a PR. Duplicate deliveries reuse the existing run and do not create a second
-branch or pull request. A retried job continues from `queued` or an expired `planning` lease
-instead of stopping at the leftover snapshot. Flowly never auto-merges.
-
-Labeling an issue `factory` routes to the `factory` agent via
-`issues.labeled.factory` in `event-router.config.json`. The Event Router
-workflow then runs `npm run run-factory`, which parses the labeled issue and
-executes `runFactoryPipeline`. The run snapshot is stored in a hidden comment
-on the source issue so a retried Actions job reuses it. `FACTORY_RUN_STORE`
-selects a local JSON directory for development only. The job can push
-`factory/*` branches and open a draft PR; it never merges or approves.
-Classifier, planner, implementer, and reviewer use `FACTORY_MODEL` (falling
-back to `REPO_ASSISTANT_MODEL`); the workflow supplies its provider key.
-
-### Factory workspaces and run inspection
-
-`FactoryWorkspaceManager` persists one workspace record per run attempt in
-`FACTORY_WORKSPACE_STORE` (by default, `.lifecycle` under `FACTORY_WORKSPACE_ROOT`).
-It validates ownership, repository, branch, base SHA, and current HEAD before
-reuse. Each factory invocation also removes expired terminal workspaces while
-leaving active and unexpired retained workspaces intact. Default retention is
-one hour for completed or cancelled workspaces and one day for failed workspaces.
-
-Factory state includes an append-only event timeline. Inspect it without
-changing the run:
-
-```bash
-GITHUB_REPOSITORY=owner/repo npm run factory -- runs list
-GITHUB_REPOSITORY=owner/repo npm run factory -- runs show <run-id>
-GITHUB_REPOSITORY=owner/repo npm run factory -- runs timeline <run-id>
-GITHUB_REPOSITORY=owner/repo npm run factory -- runs explain <run-id>
-```
-
-GitHub-backed inspection also requires `GITHUB_TOKEN` and reads only run
-comments from `REVIEW_BOT_LOGIN` (default `github-actions[bot]`). For local
-development, set `FACTORY_RUN_STORE` to the same JSON directory used by the
-factory pipeline. `show` returns the current projection, `timeline` returns
-ordered events, and `explain` summarizes the recorded outcome and gate reasons.
-The CLI has no mutation, approval, merge, deployment, or capability-grant path.
-
-### Graduated factory autonomy
-
-Flowly applies a repository policy before the two trusted boundaries that can
-increase side effects. With no `FACTORY_AUTONOMY_POLICY`, every repository
-cold-starts at **Plan only** and no isolated workspace mutation begins. The
-three maximum levels are:
-
-1. **Plan only** — classify and persist a repository-grounded plan.
-2. **Implement and verify** — mutate only the isolated factory workspace,
-   push the factory branch after checks pass, and stop before independent review
-   or PR publication.
-3. **Publish draft PR** — run independent review and create or reuse the same
-   draft-only PR as the existing trusted publisher.
-
-`factory-autonomy.example.json` documents the validated policy shape. Set
-`promotionEnabled` to opt into deterministic history-based promotion; it is
-disabled by default. History-based policies start at Plan only even when
-`defaultLevel` is higher, and remain there until the configured sample minimums
-and thresholds pass. A disabled promotion policy uses `defaultLevel` as an
-explicit static operator setting. `defaultLevel` is always bounded by
-`maximumLevel`, and each threshold is a 0–1 rate. Configured verification,
-review, security, or publication events lower the current run immediately.
-Operators can recover after investigating a demotion by adjusting a versioned
-policy; every new run records the exact policy version, evidence snapshot,
-explanation, and gate decisions it used.
-
-Evidence comes only from persisted Flowly run snapshots: verification command
-outcomes, independent-review readiness, draft publication, and enumerated
-failure events. GitHub issue comments provide bounded repository-wide history;
-local development uses the file store. PR disposition is counted only when it
-is present in Flowly's persisted state, so manually closed or merged PRs may be
-unknown and never increase trust. No opaque model score contributes to a level.
-
-`FACTORY_CONFIRM_BOUNDARY=implementation` or `publication` confirms exactly one
-otherwise-blocked boundary for the current persisted run. It does not change
-the repository policy or effective level, and retries reuse the recorded gate
-decision without repeating implementation or publication. None of the levels
-adds approval, merge, deployment, production writes, network access inside the
-implementer, or broader credentials. The top level still publishes **drafts
-only** for human review.
-
-### Migration campaigns
-
-Migration campaigns decompose a repository-local mechanical migration into a
-deterministic inventory and bounded batches above the existing factory. A
-version-1 manifest records the goal, repository constraints, included/excluded
-path scopes, maximum files per batch, path-ordering dependencies, and required
-verification commands:
-
-```json
-{
-  "version": "1",
-  "id": "node-test-migration",
-  "repository": "owner/repo",
-  "issueNumber": 119,
-  "goal": "Replace the legacy test API with node:test",
-  "constraints": ["Preserve test behavior", "Do not edit generated files"],
-  "includePaths": ["src/**", "tests/**"],
-  "excludePaths": ["src/generated/**"],
-  "maxFilesPerBatch": 20,
-  "orderingDependencies": [{ "before": "src/**", "after": "tests/**" }],
-  "verificationCommands": ["npm test", "npm run typecheck"]
-}
-```
-
-`createMigrationCampaign` inventories through `RepositoryReader`, so ignored
-directories, symlinks, oversized files, and repository escapes follow the same
-rules as inspection tools. `buildMigrationCampaignPlan` sorts and deduplicates
-that inventory, applies declared ordering, enforces the batch limit, and emits
-a SHA-256 plan digest. Mutation remains impossible until a human calls
-`approveMigrationCampaign(store, id, planDigest, actor)` against that exact
-digest.
-
-After approval, `runMigrationCampaign` schedules ready batches and persists
-each status, failure, nested factory run, and draft PR number. The
-`createFactoryMigrationBatchExecutor` adapter sends every batch through the
-existing classifier → planner → isolated implementer → required verification →
-independent review → trusted draft-publisher path. It replaces the planner's
-file scope and verification list with the approved batch values. Completed
-batches and draft PRs are reused on retry. An unsuccessful independent review is
-persisted as a failed batch with its summary and unresolved findings. A failed
-batch blocks only dependent batches with the failure evidence; independent
-batches continue and remain resumable after operational errors.
-
-`MemoryMigrationCampaignStore` supports embedding/tests, while
-`FileMigrationCampaignStore` atomically persists resumable local campaigns.
-Campaign execution remains subject to the repository autonomy policy and never
-approves, merges, deploys, performs production/database migrations, or expands
-the implementer's credentials. Cross-repository campaigns and free-form task
-decomposition are intentionally outside the MVP.
+The reviewer supports full reviews and incremental reviews after new commits. It reads repository guidance from these files when present:
+
+- `AGENTS.md`
+- `CONTRIBUTING.md`
+- `.github/pull_request_template.md`
+- `.flowly/review-instructions.md`
+- `.flowly/repository-learnings.md`
+
+The agent may propose repository learnings, but it never writes them automatically.
 
 ## GitHub event router
 
-`github/events/` is a dependency-light router that maps GitHub events to
-configured agent IDs — the foundation for event-driven agent workflows (PR
-review, CI repair, issue planning, implementation). It normalizes webhook /
-GitHub Actions payloads into a stable internal event model, applies filters,
-and decides which agent should handle each delivery. **Agent execution is out
-of scope** — the router only decides; a workflow wires the actual dispatch.
-
-### Configuration
-
-A JSON config file maps routes to agents. Two shapes are accepted. The
-shorthand map matches the issue's declarative design:
-
-```json
-{
-  "routes": {
-    "pull_request.opened": "review",
-    "pull_request_review.submitted": "address-review",
-    "issues.opened": "planner",
-    "issues.labeled.implement": "implementation",
-    "issues.labeled.factory": "factory",
-    "workflow_run.completed.failure": "ci-fix"
-  }
-}
-```
-
-Route keys are `event`, `event.action`, or `event.action.detail` (a label for
-issue/PR events, a conclusion for `workflow_run`). The array form supports the
-same keys plus explicit filters:
-
-```json
-{
-  "routes": [
-    {
-      "event": "issues",
-      "action": "labeled",
-      "agent": "implementation",
-      "filter": { "label": ["implement"], "actor": ["bot"] }
-    }
-  ]
-}
-```
-
-Filters (`action`, `branch`, `label`, `actor`, `repository`, `conclusion`)
-are AND-ed within a route; all must match. Invalid routes fail validation with
-actionable errors naming the route key and the offending field, so a
-misconfigured file is caught before any event is routed.
-
-### Supported events
-
-`pull_request`, `issues`, `issue_comment`, `pull_request_review`,
-`pull_request_review_comment`, and `workflow_run`. Unsupported or malformed
-events are ignored safely (exit 0 with a structured log line) rather than
-crashing the workflow.
-
-### Duplicate deliveries
-
-Webhooks can be redelivered. The router remembers each dispatched event's
-fingerprint — in memory by default, or persisted to a JSON file via
-`EVENT_ROUTER_STORE` so a rerun of the same workflow doesn't double-dispatch.
-
-### Running it
-
-A GitHub Actions step runs `npm run route-event` with `GITHUB_EVENT_NAME` and
-`GITHUB_EVENT_PATH` (both set automatically by Actions):
+The event router maps GitHub events to configured agent IDs. It decides what should run; the workflow performs the dispatch.
 
 ```bash
-GITHUB_EVENT_NAME=${{ github.event_name }} \
-GITHUB_EVENT_PATH=${{ github.event_path }} \
+GITHUB_EVENT_NAME=... \
+GITHUB_EVENT_PATH=... \
 EVENT_ROUTER_CONFIG=event-router.config.json \
-npm run route-event
+  npm run route-event
 ```
 
-The command prints the JSON decision to stdout and writes `agent=<id>` to
-`$GITHUB_OUTPUT` on dispatch, so downstream steps can branch on the result
-(see `.github/workflows/event-router.example` — copy it to a `.yml` file to
-activate).
+It supports pull requests, issues, issue comments, pull request reviews, pull request review comments, and workflow runs. Duplicate deliveries can be deduplicated in memory or through `EVENT_ROUTER_STORE`.
 
-## Model evaluation benchmark
+The default configuration routes:
 
-`eval/framework/` is a built-in evaluation framework inspired by
-[OpenRouter ORI Eval](https://openrouter.ai/ori/eval): it compares models on
-real repository-assistant workloads. A named suite of scenarios runs against
-one or more models and produces reports with a quality score, latency, token
-usage, cost, tool-call success rate, and patch applicability.
+- pull request open/reopen/sync/ready-for-review events to `review` (the workflow review job additionally skips drafts, so drafts never trigger review); and
+- `issues.labeled.factory` to `factory`.
 
-### Commands
+## Configuration
+
+The most common settings are:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `REPOSITORY_PATH` | `../oak` | Checkout the assistant may inspect |
+| `REPO_ASSISTANT_MODEL` | `openrouter/qwen/qwen3-coder` | Flue model specifier |
+| `REPO_ASSISTANT_MAX_STEPS` | `8` | Shared inspection-call limit, from 1 to 20 |
+| `REPO_ASSISTANT_DEBUG` | `false` | Log safe tool-call summaries |
+| `REPO_ASSISTANT_SEARCH_FALLBACK` | `false` | Fall back from search to a known-path read |
+| `GITHUB_TOKEN` | unset | GitHub access for review and factory workflows |
+| `GITHUB_REPOSITORY` | unset | Target repository in `owner/repo` form |
+| `PR_NUMBER` | unset | Pull request to review |
+| `BASE_SHA` / `HEAD_SHA` | unset | Commits that define the PR diff |
+
+PR review limits are separate from the assistant budget:
+
+- `PR_REVIEW_MAX_FILES` — default `30`;
+- `PR_REVIEW_MAX_DIFF_LINES` — default `4000`;
+- `PR_REVIEW_MAX_CONTEXT_READS` — default `20`; and
+- `PR_REVIEW_MAX_FINDINGS` — default `10`.
+
+Reliability settings include `REPO_ASSISTANT_MAX_ATTEMPTS`, `REPO_ASSISTANT_INITIAL_DELAY_MS`, `REPO_ASSISTANT_MAX_DELAY_MS`, and `REPO_ASSISTANT_TIMEOUT_MS`.
+
+Copy `.env.example` to `.env` for the provider configuration. Do not commit `.env` or credentials.
+
+## Safety boundaries
+
+Flowly keeps model decisions separate from trusted mutation code:
+
+- repository inspection is read-only and path-confined;
+- files, symlinks, dependencies, generated output, and oversized reads are bounded or skipped;
+- factory implementation runs in an isolated clone with no network access;
+- trusted adapters control Git and GitHub mutations;
+- verification runs have timeouts, bounded output, and command limits;
+- factory branches must be `factory/*`;
+- independent review receives the issue, acceptance criteria, diff, and verification results, not implementer scratch data; and
+- draft publication has no approval or merge path.
+
+Deterministic adversarial checks cover these boundaries. Run them with:
 
 ```bash
-npm run eval -- run              # run the bundled suite (deterministic, no LLM key)
-npm run eval -- gate             # enforce versioned suite.gate thresholds
-npm run eval -- run --live --json  # provider-backed run
-npm run eval -- run --judge-model openrouter/qwen/qwen3-coder  # score with an LLM judge
-npm run eval -- compare <config.json>
-npm run eval -- leaderboard
-npm run eval -- report <runId>
-npm run eval -- regression <baselineId> <candidateId> --json
-npm run eval -- review <runId> --accept cap-1,cap-2 --reject cap-3
+npm test
 ```
 
-Deterministic mode reuses the capstone decision functions, so it is fully
-reproducible without a provider key — safe for CI. `--live` calls a real model
-through an OpenAI-compatible client; each model in the config resolves its own
-provider, key env, and base URL (fields `provider`, `apiKeyEnv`, `baseUrl`)
-with per-provider defaults in `eval/framework/providers.ts`. In live mode the
-model drives the real investigation loop — each tool result is fed back to the
-provider, which replies with the next action until it decides to answer —
-rather than a single scripted retrieval. Results persist as JSON under
-`eval/results/` (override with `FLOWLY_EVAL_RESULTS_DIR`; the old
-`FLUE_EVAL_RESULTS_DIR` name remains a fallback). Every new report also
-records SHA-256 digests of the suite and the repository corpus visible to the
-inspection tools, so a result can be tied to its exact evaluation inputs.
-
-Per-model `baseUrl` and `apiKeyEnv` values control where credentials are sent.
-Flowly rejects these overrides unless the operator has reviewed the config and
-passes `--trust-model-overrides`. Prefer provider defaults or the operator-owned
-`FLOWLY_EVAL_BASE_URL` and `FLOWLY_EVAL_API_KEY` environment variables.
-
-The `review` subcommand records human accept/reject verdicts on a saved
-report (ORI-Eval-style human-in-the-loop scoring) and recomputes the
-acceptance rate; use `report` to see each scenario's reviewed status.
-
-The `regression` subcommand compares two saved model versions without provider
-calls or writes. It requires matching suite/corpus lineage, mode, judge, and
-scenario IDs. Any loss in pass rate, quality, or tool success fails, including
-individual scenario losses hidden by aggregate gains. It exits 0 on success,
-1 on regression or incompatible reports, and 2 on invalid usage. See the
-[evaluation guide](eval/README.md#compare-saved-model-versions) for CI use and
-the [issue #38 audit](eval/README.md#issue-38-implementation-audit) for scope limits.
-
-### Benchmark suites
-
-A suite is a JSON or YAML file with a `suite` (scenarios + expected sources/keywords)
-and `models` list. The bundled `eval/suites/sample.json` runs the seven
-capstone scenarios. Each `models[]` entry names its own `provider` (and
-optionally `apiKeyEnv`/`baseUrl`), so one config can benchmark openrouter,
-anthropic, and deepseek models against their own endpoints and keys. Custom
-suites define their own prompts and expectations; scenario ids must map to
-decision functions in deterministic mode (see `eval/framework/runner.ts` and the
-bundled capstone deciders).
-
-Live suites can add a typed `workload` to a scenario: `github-issue` includes
-the captured issue repository, number, title, and body; `pull-request-review`
-also includes the captured diff; and `coding-task` describes the requested
-change. Flowly puts this context in the model prompt. Coding-task answers must
-contain a unified diff. Flowly runs that diff through `git apply --check`
-against the configured repository, records patch applicability in the report,
-and fails the scenario when the patch does not apply. This check does not
-change the working tree. See `eval/suites/workloads.example.yaml`.
-
-Suites can define a versioned `gate` with minimum pass, quality, and tool
-success rates and optional maximum average latency and cost. `npm run eval --
-gate <config.json|config.yaml>` exits non-zero when any configured threshold regresses;
-`--no-save` avoids writing reports in CI. The bundled deterministic gate is
-part of `npm run check`, so pull requests cannot silently weaken the known
-capstone baseline. Latency and cost thresholds are supported for controlled
-live environments but deliberately omitted from the deterministic CI gate,
-where runner speed and estimated provider pricing are not stable release
-signals.
-
-### Scoring
-
-Each scenario is scored on four dimensions: tool success, citation accuracy,
-retrieval relevance, and answer completeness. A judge (keyword-based by
-default, or an LLM judge via `--judge-model <spec>`, built through the same
-provider registry as the evaluated models) turns the dimensions into a 0..1
-quality score. Reports record the judge used (`keyword` or the judge model id)
-and each scenario's judge rationale. Token usage and cost prefer values reported by the
-provider in `--live` mode (reported `prompt_tokens`/`completion_tokens` and
-billed `total_cost`); they fall back to estimates from the pricing table in
-`eval/framework/providers.ts` when a provider reports no usage. Each report
-records `usageSource: provider | estimated` so you can tell which applied.
-See `.github/workflows/eval.example` for a CI integration example.
-
-### Factory-inspired scope
-
-Flowly follows the pragmatic parts of Poolside's
-[Model Factory](https://poolside.ai/blog/introducing-the-model-factory):
-workflows and benchmark policy are versioned code, pipeline stages remain
-explicit and decoupled, deterministic evaluations gate changes, reports carry
-lineage plus quality/latency/reliability/cost signals, and both PR and factory
-paths retain human review. Flowly intentionally does not copy foundation-model
-infrastructure such as cluster schedulers, GPU preemption, data lakes, or
-automated dataset mixing. Its workload is GitHub-triggered repository analysis
-and isolated code changes; Actions concurrency, durable factory leases, and
-the existing `just-bash` workspace isolation are the appropriately scaled
-mechanisms until measured queue or data-volume pressure justifies more.
-
-## Repository inspection tools
-
-The repository assistant uses file tools, search tools, explicit contracts, and structured results
-to select evidence and feed it back into the agent loop.
-
-### When to select each tool
-
-| Tool              | Select when                                                                                        |
-| ----------------- | -------------------------------------------------------------------------------------------------- |
-| `list_files`      | The repository structure or a file path is unknown.                                                |
-| `search_docs`     | You are looking for documented architecture, configuration, or design context.                     |
-| `search_code`     | You are looking for a symbol, phrase, configuration, or implementation whose path is unknown.      |
-| `read_file`       | An exact file path is already known and surrounding context is needed.                             |
-| `retrieve`        | You need conceptual retrieval over indexed source and docs, not a literal match.                   |
-| `related_context` | You know a path and need explicit imports, owners, dependencies, linked docs, or issue references. |
-
-Selection rules baked into the agent instructions and the
-`analyzing-repositories` skill:
-
-- Do not call `list_files` before every task.
-- Do not read a file merely because its filename looks relevant.
-- Search results are leads, not proof; read the relevant files before making
-  architectural claims.
-- Stop using tools once sufficient evidence has been collected.
-- Answer directly when the question is conceptual and needs no repository
-  evidence.
-
-### How structured output feeds back into the loop
-
-Every tool returns a structured JSON result plus an `inspection` budget
-snapshot:
-
-```json
-{
-  "path": "src/config.ts",
-  "startLine": 1,
-  "endLine": 4,
-  "totalLines": 5,
-  "content": "1: export const PORT = ...\n2: ...",
-  "truncated": false,
-  "inspection": { "used": 1, "remaining": 7, "limit": 8 }
-}
-```
-
-The model observes the result, reflects on whether it has enough evidence, and
-either calls the next tool or answers. `search_docs` and `search_code` results
-name candidate files and line numbers; the model then calls `read_file` on the
-strongest candidate. `inspection.remaining` tells the model whether it can keep
-inspecting. When the budget is exhausted, every tool rejects further calls with
-an error that repeats the snapshot, and the agent answers from collected
-evidence.
-
-### Evaluation scenarios
-
-A tiny fixture repository and runner live in [`eval/`](./eval/README.md). The
-five scenarios:
-
-| Scenario               | Prompt                                                              | Expected tool pattern                                          |
-| ---------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------- |
-| A: direct read         | Read `src/config.ts` and explain how the port is configured.        | `read_file`                                                    |
-| B: search then read    | Find where user authentication is implemented and explain the flow. | `search_code` → `read_file`                                    |
-| C: structure discovery | Give me a high-level overview of this repository.                   | `list_files` → selected `read_file` calls                      |
-| D: negative search     | Where is payment processing implemented?                            | `search_code` → `read_file`; report no evidence, do not invent |
-| E: no unnecessary tool | What is the difference between listing files and searching code?    | Answer directly, no tool call                                  |
-
-The expected tool sequences are simulated deterministically in
-`tests/eval-scenarios.test.ts`. Run the live model-driven version with:
-
-```bash
-./eval/repository/run-live-tool-selection.sh # requires provider keys; logs tool calls
-```
-
-### Safe debug logs
-
-Enable with `REPO_ASSISTANT_DEBUG=true`. Each tool call logs one line to
-stderr:
-
-```
-[repo-assistant] read_file success input={"path":"src/config.ts","startLine":1} count=4 used=1 remaining=7/8
-```
-
-Debug logs contain only the tool name, a sanitized input summary, success or
-failure, a result count, and the budget snapshot. They never log provider API
-keys, file contents, absolute repository paths, or model reasoning.
-
-### Learning notes
-
-1. Tool names and descriptions form an API for the model; precise contracts
-   improve tool selection.
-2. Search results are evidence candidates, while file reads provide the context
-   needed for grounded conclusions.
-3. Agent safety depends on controls outside the model, including path
-   confinement, output bounds, timeouts, and a shared tool budget.
-
-## Plan, execute, and reflect
-
-The agent separates reasoning from execution. Before it calls an inspection tool, it declares a
-short 3–5 step plan, executes each step, and then reflects on whether the plan was optimal.
-
-### Architecture
-
-```text
-User question
-   │
-   ▼
-create_plan  ──▶  Plan stored (3–5 steps)
-   │
-   ▼
-Execute each step
-   ├── Step 1 → search_code
-   ├── Step 2 → read_file
-   ├── Step 3 → read_file
-   └── Step 4 → answer (no tool call)
-   │
-   ▼
-reflect_plan  ──▶  "Could Step 2 and 3 be merged?"
-   │
-   ▼
-Final answer
-```
-
-If a step returns no results, `replan` generates a revised plan before
-continuing—the stretch-goal dynamic replanning loop.
-
-### Planning tools
-
-| Tool           | Consumes budget? | Purpose                                           |
-| -------------- | ---------------- | ------------------------------------------------- |
-| `create_plan`  | No               | Declare 3–5 steps before executing                |
-| `replan`       | No               | Revise the plan when a step returns no results    |
-| `reflect_plan` | No               | State whether steps could be simplified or merged |
-
-The six inspection tools (`list_files`, `read_file`, `search_code`,
-`search_docs`, `retrieve`, `related_context`) still consume the shared budget as before. Planning
-tools are
-meta-tools that structure the agent's reasoning without inspecting the
-repository.
-
-### Programmatic planner and executor
-
-The `planner/` module also provides deterministic functions for testing:
-
-- `createPlan(question)` — rule-based plan generation (maps question patterns
-  to tool sequences)
-- `executePlan(plan, tools, signal?)` — runs each step against the matching
-  tool and propagates cancellation
-- `shouldReplan(results)` / `replan(plan, results)` — detects empty results
-  and produces a revised plan
-- `reflectOnPlan(plan, results, couldSimplify, note)` — counts statuses and
-  records the reflection
-
-These let tests run without a provider key while proving the same contracts
-the model uses.
-
-### Evaluation scenarios
-
-The repository-tool evaluation scenarios also include a planning step first:
-
-| Scenario               | Plan                                             | Execution                                                      |
-| ---------------------- | ------------------------------------------------ | -------------------------------------------------------------- |
-| A: direct read         | `create_plan` → [read_file, answer]              | `read_file`                                                    |
-| B: search then read    | `create_plan` → [search_code, read_file, answer] | `search_code` → `read_file`                                    |
-| C: structure discovery | `create_plan` → [list_files, read_file, answer]  | `list_files` → `read_file`                                     |
-| D: negative search     | `create_plan` → [search_code, answer] → `replan` | `search_code` (empty) → `replan` → `search_code` → `read_file` |
-| E: conceptual          | `create_plan` → [answer]                         | no tool call                                                   |
-
-Run with debug to see the plan-execute-reflect cycle:
-
-```bash
-REPOSITORY_PATH=./eval/fixtures/sample-repo REPO_ASSISTANT_DEBUG=true \
-  npm start -- --input '{"message":"Find where user authentication is implemented."}'
-```
-
-### Learning notes
-
-1. Planning before tool execution reduced unnecessary tool calls and made the
-   agent's behavior more predictable.
-2. Separating the planner from the executor simplified debugging because each
-   execution step could be inspected independently.
-3. The initial 3–5 step plan was usually sufficient, but adding a simple
-   replanning mechanism made the agent more robust when a search returned no
-   useful results.
-
-## Day 18: Production reliability
-
-This section documents the Day 18 learning focus: **retries, timeouts, and
-fallbacks**. The agent hardens one complete tool workflow (user question →
-tool call → context → answer) so it fails safely and informs the user clearly.
-
-### Reliability policy
-
-| Aspect                | Value                        | Configurable via                  |
-| --------------------- | ---------------------------- | --------------------------------- |
-| Max attempts          | 3                            | `REPO_ASSISTANT_MAX_ATTEMPTS`     |
-| Initial backoff       | 500 ms                       | `REPO_ASSISTANT_INITIAL_DELAY_MS` |
-| Max backoff           | 5 s                          | `REPO_ASSISTANT_MAX_DELAY_MS`     |
-| Per-operation timeout | 15 s                         | `REPO_ASSISTANT_TIMEOUT_MS`       |
-| Backoff strategy      | Exponential with full jitter | —                                 |
-
-#### Retried (transient) failures
-
-- HTTP 408 (request timeout)
-- HTTP 429 (rate limit)
-- HTTP 500, 502, 503, 504
-- Connection resets (`ECONNRESET`, `ECONNREFUSED`)
-- Operation timeouts (`ETIMEDOUT`, `ECONNABORTED`)
-
-#### Not retried (permanent) failures
-
-- Authentication failures (HTTP 401)
-- Permission errors (HTTP 403, `EACCES`, `EPERM`)
-- File not found (HTTP 404, `ENOENT`)
-- Invalid tool responses (malformed, missing fields, oversized)
-- Schema validation failures
-
-### Error classification
-
-| Error type                 | Category              | Retryable | User message                                |
-| -------------------------- | --------------------- | --------- | ------------------------------------------- |
-| `TimeoutError`             | timeout               | yes       | "The repository service timed out."         |
-| `RateLimitError`           | rate_limit            | yes       | "Rate limited. Please retry shortly."       |
-| `AuthenticationError`      | authentication        | no        | "Check that the API key is valid."          |
-| `PermissionError`          | permission            | no        | "Permission denied."                        |
-| `NotFoundError`            | not_found             | no        | "File does not exist or is not accessible." |
-| `InvalidToolResponseError` | invalid_tool_response | no        | "Unexpected response, result discarded."    |
-| `ExternalServiceError`     | external_service      | yes       | "Service temporarily unavailable."          |
-
-### Tool-output validation
-
-Every tool result is validated before returning to the agent:
-
-- **Missing required fields** → `InvalidToolResponseError`
-- **Malformed shapes** → `InvalidToolResponseError`
-- **Oversized content** (> 200k chars) → `InvalidToolResponseError`
-- **Empty search results** → returned as a controlled result (not an error)
-
-### Fallback behaviour
-
-1. Attempt `search_code` (primary).
-2. If search fails with a transient error and a known path is available,
-   attempt `read_file` (fallback).
-3. If both fail, return a clear partial-response message: "Repository search
-   is temporarily unavailable and the fallback file read also failed."
-4. Permanent errors (auth, permission, not-found) do **not** trigger fallback.
-5. The agent never fabricates repository information.
-
-The fallback seam lives in `reliability/fallback-tool.ts` (composition) and
-`reliability/fallback.ts` (execution). The live agent enables it with
-`REPO_ASSISTANT_SEARCH_FALLBACK=true`; the registry (`tools/inspection-
-registry.ts`) composes `search_code`/`search_docs` with a `read_file` fallback
-when the flag is set. Results carry `fallbackUsed: true` when the fallback
-read supplied the content, and a `partialMessage` when it never ran or also
-failed.
-
-### User-facing errors
-
-Errors returned to the model (and ultimately the user) are safe:
-
-- No stack traces, provider internals, API keys, or raw error objects.
-- Concise messages with retry guidance and partial-answer indicators.
-- Examples: "The repository service timed out after three attempts."
-  "I could not access that file because it does not exist."
-  "Repository search is temporarily unavailable. I could not verify the answer."
-
-### Observability
-
-When `REPO_ASSISTANT_DEBUG=true`, each retry attempt logs a structured JSON
-event to stderr:
-
-```json
-{
-  "operation": "search_code",
-  "attempt": 1,
-  "maxAttempts": 3,
-  "durationMs": 42,
-  "errorCategory": "external_service",
-  "retried": false,
-  "fallbackUsed": false,
-  "outcome": "error"
-}
-```
-
-Logged fields: operation name, attempt number, max attempts, duration, error
-category, whether retried, whether fallback was used, and final outcome. Never
-logs secrets, tokens, file contents, or sensitive prompts.
-
-### Failure-injection demo
-
-```bash
-./demo/reliability.sh        # run all scenarios
-./demo/reliability.sh 1      # recover from transient failure
-./demo/reliability.sh 2      # timeout simulation
-./demo/reliability.sh 3      # malformed response
-./demo/reliability.sh 4      # baseline (no failures)
-```
-
-Environment variables for failure injection:
-
-| Variable                           | Effect                                     |
-| ---------------------------------- | ------------------------------------------ |
-| `FAIL_FIRST_N_REQUESTS=2`          | First N calls fail with a simulated 503    |
-| `SIMULATE_TOOL_TIMEOUT=true`       | Operations hang until the timeout fires    |
-| `SIMULATE_MALFORMED_RESPONSE=true` | Return garbled output instead of real data |
-| `FAIL_OPERATION=search_code`       | Restrict failure to one operation          |
-
-### Budget interaction
-
-Retries do **not** consume additional inspection budget. The reliability
-wrapper consumes one budget slot per logical call; retry attempts use a
-pass-through budget internally. This prevents retries from accidentally
-multiplying budget consumption.
-
-### Learning notes
-
-1. Retrying only transient failures with exponential backoff and jitter
-   prevented cascading failures while keeping latency bounded.
-2. Typed, structured errors with user-safe messages kept provider internals
-   and stack traces out of user-facing responses.
-3. A search→read fallback preserved usefulness when the primary tool failed,
-   while permanent errors failed fast instead of hiding configuration problems.
-
-## Grounded repository analysis
-
-The assistant combines documentation search, source-code search, and file reading in a bounded
-investigation loop that produces grounded answers with citations.
-
-### What the doc-aware agent does
-
-A user asks a repository question (e.g., "How does authentication work?"). The
-agent:
-
-1. Creates a short investigation plan.
-2. Searches documentation files (README, AGENTS, CHANGELOG, docs/**, Markdown).
-3. Searches the source code.
-4. Reads the most relevant files.
-5. Stops when it has enough evidence.
-6. Returns a concise answer with exact file references.
-7. Clearly states when the evidence is insufficient.
-
-### Architecture
-
-```text
-User question
-     │
-     ▼
-Planner / Agent loop (max 5 iterations)
-     │
-     ├──▶ search_docs   (documentation files: README, AGENTS, docs/**)
-     │
-     ├──▶ search_code   (source files: .ts, .js, .py, etc.)
-     │
-     ├──▶ read_file     (specific file with line range)
-     │
-     └──▶ list_files    (structure discovery)
-     │
-     ▼
-Evidence collector (deduplicated, size-limited)
-     │
-     ▼
-Grounded answer with citations + confidence
-```
-
-### Available tools
-
-| Tool              | Consumes budget? | Purpose                                         |
-| ----------------- | ---------------- | ----------------------------------------------- |
-| `search_docs`     | Yes              | Search documentation files for a literal string |
-| `search_code`     | Yes              | Search source files for a literal string        |
-| `read_file`       | Yes              | Read a bounded line range from a known file     |
-| `list_files`      | Yes              | List files and directories under a path         |
-| `retrieve`        | Yes              | Semantic retrieval over the repository index    |
-| `related_context` | Yes              | Cited repository relationship lookup            |
-| `create_plan`     | No               | Declare a 3–5 step plan before executing        |
-| `replan`          | No               | Revise the plan when a step returns no results  |
-| `reflect_plan`    | No               | Reflect on whether steps could be simplified    |
-
-`search_docs` searches files with documentation extensions (`.md`, `.markdown`,
-`.txt`) and documentation basenames (README, AGENTS, SOUL, CHANGELOG,
-CONTRIBUTING, LICENSE). It excludes the same ignored directories as
-`search_code` (node_modules, dist, .git, etc.).
-
-`related_context` builds a repository-local in-memory relationship index lazily
-and performs no network or write operations. It extracts relative JavaScript/
-TypeScript imports and exports, package-manifest dependencies, `CODEOWNERS`
-rules, Markdown links, and explicit GitHub issue/PR references. Every returned
-edge identifies its relationship, source, target, and repository-relative
-file/line citation. Unsupported or malformed inputs are skipped and surfaced
-as bounded diagnostics. Use `retrieve` for textual or conceptual similarity;
-use `related_context` only for explicit relationships involving a known path.
-
-### Planning-loop limits
-
-- Maximum **5 investigation iterations** (tool calls).
-- No repeated identical tool + arguments calls (blocked by the call tracker).
-- Evidence is deduplicated by file path + line range.
-- The loop stops early when the decider determines sufficient evidence exists.
-- Failed tool calls become error entries — they never crash the loop.
-- Budget exhaustion stops the loop immediately.
-
-### How citations work
-
-Every key finding in the final answer includes a citation in the format
-`path/to/file.ts:startLine-endLine`. The agent only cites files whose content
-was actually retrieved by a tool in the current run — it never fabricates
-citations.
-
-Confidence levels:
-
-| Level        | When                                                                    |
-| ------------ | ----------------------------------------------------------------------- |
-| High         | Read evidence from 2+ files, or both documentation and code corroborate |
-| Medium       | Read evidence from a single file                                        |
-| Low          | Only search leads (no confirming file reads)                            |
-| Insufficient | No relevant evidence found                                              |
-
-When confidence is not High, the answer explains what evidence is missing.
-When evidence is insufficient, the agent explicitly says so rather than
-hallucinating.
-
-### How to run the demo
-
-```bash
-./demo/repository-analysis.sh              # all scenarios
-./demo/repository-analysis.sh auth         # only auth-related scenarios
-./demo/repository-analysis.sh payment      # only the negative-search scenario
-```
-
-The demo uses deterministic decision functions (no LLM required) and the
-bundled fixture repository. Each scenario displays the question, tools used,
-cited files, answer, confidence, and whether the run completed successfully.
-
-Sample output:
-
-```
-Scenario: Authentication flow (docs + code)
-  Tools used:   search_docs → search_code → read_file
-  Cited files:  AGENTS.md:1-7, src/auth.ts:1-7, docs/architecture.md:7
-  Confidence:   High
-  Success:      true
-```
-
-### How to run tests
-
-```bash
-npm test                              # all tests
-npx tsx --test tests/doc-aware.test.ts  # only grounded-analysis tests
-```
-
-The grounded-analysis test suite covers:
-
-1. Documentation search finds relevant Markdown files.
-2. Documentation search excludes irrelevant directories.
-3. The agent uses documentation and code evidence together.
-4. Repeated identical tool calls are blocked.
-5. The loop stops at the configured maximum.
-6. The agent stops early when sufficient evidence exists.
-7. Failed tool calls do not crash the loop.
-8. Answers contain file citations.
-9. The agent returns insufficient evidence instead of hallucinating.
-10. Confidence reflects the available evidence.
-
-### Known limitations
-
-- The investigation loop uses deterministic decision functions for testing.
-  A live LLM run requires a provider API key and is non-deterministic.
-- Flue does not expose a public `maxSteps`/`maxTurns` option; the 5-iteration
-  limit is enforced by the programmatic loop, not by Flue's runtime.
-- `search_docs` treats `.md`, `.markdown`, and `.txt` as documentation. Other
-  text formats (`.rst`, `.org`) are not yet included.
-- Evidence excerpts are truncated to 500 characters; very long file reads may
-  lose detail in the evidence collector.
-- The confidence heuristic is rule-based, not semantic; it does not assess
-  whether the evidence actually answers the question.
-
-### Learning notes
-
-1. Combining documentation and code evidence produces more grounded answers
-   than either source alone — docs explain intent, code confirms implementation.
-2. A bounded investigation loop with duplicate-call blocking and early stopping
-   prevents wasted tool calls while ensuring sufficient evidence collection.
-3. Structured citations and confidence levels make the agent's answers
-   auditable — users can verify every claim against the cited file.
+See [eval/README.md](./eval/README.md) for the `FACTORY-001` through `FACTORY-008` safety catalog and model-evaluation commands.
+
+## Useful commands
+
+| Command | Purpose |
+| --- | --- |
+| `npm run check` | Typecheck, test, evaluation gate, build, and documentation checks |
+| `npm run typecheck` | Run TypeScript checks |
+| `npm test` | Run Node's built-in test suite |
+| `npm run build` | Build with Vite |
+| `npm run eval:repository` | Run seven deterministic repository scenarios |
+| `npm run demo:repository` | Run repository-analysis demos |
+| `npm run demo:factory` | Inspect factory controls without side effects |
+| `npm run demo:end-to-end` | Run indexing, retrieval, citation, and evaluation demo |
+| `npm run factory -- runs list` | Inspect persisted factory runs |
+| `npm run memory -- list` | Inspect repository instincts |
+| `prek run --all-files` | Run the local oxlint and oxfmt hooks |
 
 ## Project structure
 
 ```text
-flowly/
-├── agents/
-│   ├── repo-assistant.ts       # general inspection agent
-│   └── pr-reviewer.ts          # PR review agent (never auto-approves)
-├── factory/
-│   ├── capabilities.ts         # least-capability stage manifests
-│   ├── capability-guard.ts     # trusted adapter enforcement
-│   ├── defaults.ts             # deterministic classifier/planner/reviewer ports
-│   ├── dispatch.ts             # issues.labeled.factory → factory task
-│   ├── git.ts                  # isolated clone + factory-branch Git boundary
-│   ├── implementation.ts       # controlled implementation stage runner
-│   ├── intake.ts               # issue classification + progress boundary
-│   ├── orchestrator.ts         # persisted factory state transitions
-│   ├── plan.ts                 # read-only analyst/planner stage
-│   ├── pipeline.ts             # independent review + draft PR stage
-│   ├── publisher.ts            # trusted draft-PR GitHub adapter
-│   ├── review.ts               # isolated review evidence + AC verdicts
-│   ├── run.ts                  # classify → plan → implement → review → draft PR
-│   ├── schema.ts               # Valibot snapshot contract for factory runs
-│   ├── store.ts                # memory + local-file factory run persistence
-│   ├── run-state-store.ts      # issue-comment store for Actions retries
-│   ├── types.ts                # structured stage inputs and outputs
-│   ├── verification.ts         # bounded repository-native checks
-│   ├── workspace-lifecycle.ts  # isolated workspace allocation, resume, and GC
-│   ├── workspace-store.ts      # persisted factory workspace records
-│   ├── events.ts               # append-only run events and projections
-├── github/
-│   ├── adapter.ts              # trusted review publisher
-│   ├── client.ts               # thin GitHub REST client
-│   └── events/                 # event router: config, router, dedupe, logger
-├── memory/
-│   ├── engine.ts               # deterministic evidence, promotion, decay, and scope
-│   ├── extractors.ts           # structured factory and review observations
-│   ├── schema.ts               # persisted instinct and policy validation
-│   ├── service.ts              # stage-scoped learning API
-│   └── store.ts                # local file and trusted GitHub-comment stores
-├── review/
-│   ├── diff.ts                 # unified-diff parser
-│   ├── filters.ts              # skip lockfiles / generated / vendored
-│   ├── limits.ts               # file-aware review limits
-│   ├── model-runners.ts        # specialist/advisor provider runners
-│   ├── pipeline.ts             # pre-publication review orchestration
-│   ├── pr-data.ts              # git + GitHub PR data source
-│   ├── review-state.ts         # persistent review state
-│   ├── review-state-store.ts   # state via filtered PR comment
-│   ├── review-tools.ts         # review-specific tool factories
-│   └── schema.ts               # ReviewResult Valibot schema
-├── scripts/
-│   ├── factory.ts              # operator run inspection CLI (npm run factory)
-│   ├── flowly-eval.ts          # eval benchmark CLI (npm run eval)
-│   ├── flue-eval.ts            # legacy compatibility entrypoint
-│   ├── memory.ts               # inspect or explicitly reject/deprecate instincts
-│   ├── review-pr.ts            # CI entrypoint (npm run review-pr)
-│   ├── run-factory.ts          # issues.labeled.factory pipeline (npm run run-factory)
-│   └── route-event.ts          # event router CLI (npm run route-event)
-├── investigation/
-│   ├── answer.ts
-│   ├── call-tracker.ts
-│   ├── evidence.ts
-│   ├── loop.ts
-│   └── types.ts
-├── index/
-│   ├── repository-indexer.ts   # lazy TF-IDF index backing `retrieve`
-│   └── repository-relationship-index.ts # cited relationship graph
-├── planner/
-│   ├── plan-run.ts             # plan lifecycle + programmatic executor + replan
-│   ├── plan-store.ts
-│   ├── planner.ts              # create_plan tool
-│   ├── reflection.ts           # reflect_plan tool
-│   └── types.ts
-├── workspace.ts                 # versioned workspace store + snapshots
-├── reliability/
-│   ├── errors.ts
-│   ├── failure-injection.ts
-│   ├── fallback.ts
-│   ├── fallback-tool.ts           # search→read fallback composition seam
-│   ├── observability.ts
-│   ├── resilient-tool.ts       # retry + timeout + validation wrapper
-│   ├── retry.ts
-│   └── validation.ts
-├── tools/
-│   ├── contracts.ts            # tool names + shared limits
-│   ├── inspection-registry.ts  # ordered composition of inspection tools
-│   ├── list-files.ts
-│   ├── read-file.ts
-│   ├── repository-search.ts    # bounded literal search
-│   ├── repository.ts           # RepositoryReader + StepBudget
-│   ├── result-stats.ts         # shared tool-result counting helper
-│   ├── retrieve.ts             # semantic retrieval over the index
-│   ├── search-code.ts
-│   ├── search-docs.ts
-│   ├── search-utils.ts
-│   └── search.ts               # scope-parameterized search seam
-├── skills/
-│   └── analyzing-repositories/
-│       └── SKILL.md
-├── tests/
-│   ├── doc-aware.test.ts
-│   ├── eval-scenarios.test.ts
-│   ├── fallback-tool.test.ts
-│   ├── helpers.ts
-│   ├── planner.test.ts
-│   ├── reliability.test.ts
-│   ├── repository.test.ts
-│   └── tools.test.ts
-├── demo/
-│   ├── README.md               # newcomer path and example guide
-│   ├── repository-analysis.ts/.sh
-│   ├── factory-controls.ts/.sh # read-only factory control tour
-│   ├── reliability.sh          # live failure-injection scenarios
-│   └── end-to-end.ts/.sh       # index → retrieve → cite → evaluate
-├── eval/
-│   ├── README.md
-│   ├── framework/              # config, model loop, metrics, reports, gates
-│   ├── repository/             # deterministic suite + live tool-selection runner
-│   ├── security/               # factory trust-boundary eval catalog
-│   ├── suites/sample.json      # bundled 7-scenario suite
-│   └── fixtures/sample-repo/   # bundled evaluation fixture
-├── docs/
-│   ├── adr/                    # architecture decision records (0001–0009)
-│   ├── showcase/               # static Flowly showcase pages and stylesheet
-│   ├── favicon.svg
-│   ├── favicon.ico
-│   ├── apple-touch-icon.png
-│   ├── icon-192.png
-│   ├── icon-512.png
-│   ├── site.webmanifest
-│   └── index.html              # landing page (hand-maintained)
-├── .planning/
-│   └── codebase/               # codemap: STACK, ARCHITECTURE, CONCERNS, …
-├── sandbox.ts
-├── app.ts                      # Flue 2 route map
-├── flue.config.ts
-├── vite.config.ts              # Flue 2 Vite build integration
-└── README.md
+agents/       Repository assistant, PR reviewer, and factory implementer
+factory/      Issue pipeline, capability guards, workspaces, and publisher
+github/       GitHub client, review adapter, and event router
+review/       Diff parsing, review limits, state, and specialist pipeline
+memory/       Opt-in repository instincts from structured outcomes
+planner/      Plan, execute, replan, and reflect helpers
+reliability/  Retry, timeout, validation, fallback, and safe errors
+tools/        Confined repository inspection tools and TF-IDF retrieval
+eval/         Deterministic/live benchmarks and security evaluations
+demo/         Key-free examples
+docs/         Architecture decision records (0001–NNNN) and the static site
+  adr/          # architecture decision records (0001–0009)
 ```
 
 ## Development
 
-Run the local checks (`typecheck`, `test`, `build`, in that order):
-
 ```bash
+npm install
 npm run check
 ```
 
-- `npm run typecheck` — `tsc`
-- `npm test` — `tsx --test tests/*.test.ts` (Node's built-in test runner)
-- `npm run build` — `vite build` (emits `dist/`, gitignored)
+`npm run check` runs these checks in order:
 
-## Learning notes
+1. TypeScript typecheck
+2. tests
+3. deterministic evaluation gate
+4. Vite build
+5. documentation-tree check
 
-This agent loop is not a hard-coded sequence. Flue sends the question, tools,
-instructions, and skill metadata to the model. The model observes the question,
-chooses a tool and its arguments, receives the result, reflects on whether it
-has enough evidence, and either acts again or returns an answer. The harness
-validates typed tool input and records each result in the session context.
+Linting and formatting are managed separately by `prek` and use `oxlint`/`oxfmt` from `PATH`.
 
-The important safety controls live outside the model: a narrow capability set,
-path confinement, bounded output, a finite inspection budget, and a cooperative
-submission deadline.
+## More documentation
 
-## Resources
-
+- [Runnable examples](./demo/README.md)
+- [Evaluation and safety guide](./eval/README.md)
+- [Architecture decisions](./docs/adr/README.md)
 - [Flue quick start](https://flueframework.com/docs/getting-started/quickstart/)
 - [Flue tools](https://flueframework.com/docs/guide/tools/)
-- [ReAct paper](https://arxiv.org/abs/2210.03629)
-- [OpenAI agents overview](https://platform.openai.com/docs/guides/agents)
 
 ## License
 

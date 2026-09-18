@@ -66,7 +66,7 @@ The default model needs `OPENROUTER_API_KEY`. Set `REPO_ASSISTANT_MODEL` to use 
 the Flue catalog.
 
 For issue-to-draft-PR automation, follow
-[Use Flowly with any GitHub repository](../README.md#use-flowly-with-any-github-repository). You
+[Run the GitHub factory](../README.md#run-the-github-factory). You
 must adapt the checked-in workflow, provide the target checkout and credentials, and install its
 toolchain. The factory writes only in an isolated clone and a `factory/*` branch. It stops on failed
 verification, never approves or merges, and publishes only a draft PR after independent review.
