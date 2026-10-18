@@ -14,6 +14,8 @@
     "run-factory": "node --import tsx scripts/run-factory.ts",
     "factory": "tsx scripts/factory.ts",
     "memory": "tsx scripts/memory.ts",
+    "ops-digest": "tsx scripts/ops-digest.ts",
+    "ops-digest:publish": "tsx scripts/publish-ops-digest.ts",
     "route-event": "node --import tsx scripts/route-event.ts",
     "test": "tsx --test tests/*.test.ts",
     "typecheck": "tsc",

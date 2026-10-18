@@ -22,6 +22,7 @@ Flowly runs in your own environment. It is not a hosted service or a one-click G
 | Automate issue-to-draft-PR work | [Run the GitHub factory](#run-the-github-factory) |
 | Review pull requests | [Run the PR reviewer](#run-the-pr-reviewer) |
 | Benchmark models or inspect safety controls | [Read the evaluation guide](./eval/README.md) |
+| Prepare an approval-gated Slack operations digest | [Ops digest pilot](./docs/ops-digest.md) |
 
 ## What Flowly does
 

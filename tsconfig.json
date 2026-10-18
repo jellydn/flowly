@@ -22,6 +22,7 @@
     "github/**/*.ts",
     "factory/**/*.ts",
     "memory/**/*.ts",
+    "ops-digest/**/*.ts",
     "scripts/**/*.ts",
     "eval/**/*.ts",
     "demo/**/*.ts",

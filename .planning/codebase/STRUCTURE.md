@@ -16,12 +16,13 @@ flowly/
 ├── github/            # Trusted GitHub client/adapter + event router
 ├── index/             # TF-IDF and relationship repository indexes
 ├── memory/            # Repository-instinct schema, evidence engine, stores, and stage context
+├── ops-digest/        # Bounded Slack collection, frozen SQLite approval state, separate publisher
 ├── scripts/           # CI and operator CLI entrypoints
 ├── eval/              # Repository, model, and factory-security evaluations
 ├── demo/              # Feature-oriented runnable examples
 ├── docs/              # Hand-maintained docs page + ADRs
 ├── skills/            # Flue skills (analyzing-repositories)
-├── tests/             # Node test-runner tests (54 files + helpers)
+├── tests/             # Node test-runner tests (55 files + helpers)
 ├── .planning/         # Codebase map + internal planning docs
 ├── .github/workflows/ # CI + event-router/review/factory workflow + examples
 ├── sandbox.ts         # Empty toolset replacing default FS/shell tools
@@ -89,8 +90,14 @@ flowly/
 **`scripts/`:**
 
 - Purpose: CI entrypoints and local operator CLIs
-- Contains: `review-pr.ts`, `run-factory.ts`, `factory.ts`, `route-event.ts`, `flowly-eval.ts`, `flue-eval.ts` (compatibility), `memory.ts`, `check-doc-tree.ts`
+- Contains: `review-pr.ts`, `run-factory.ts`, `factory.ts`, `route-event.ts`, `flowly-eval.ts`, `flue-eval.ts` (compatibility), `memory.ts`, `ops-digest.ts`, `publish-ops-digest.ts`, `check-doc-tree.ts`
 - Key files: `review-pr.ts`, `route-event.ts`, `run-factory.ts`, `flowly-eval.ts`, `memory.ts`
+
+**`ops-digest/`:**
+
+- Purpose: Operator-run operations digest with no model or deployment dependency
+- Contains: `config.ts`, `slack.ts`, `collect.ts`, `store.ts`, `publisher.ts`
+- Key files: `store.ts` (immutable hash-bound approvals and send intent), `publisher.ts` (separate publication and reconciliation)
 
 **`eval/`:**
 
@@ -107,13 +114,13 @@ flowly/
 **`docs/`:**
 
 - Purpose: Hand-maintained docs
-- Contains: `index.html`, `adr/` (0001–0009, README, template), `showcase/` (three-page product showcase: `showcase/index.html`, `showcase/features.html`, `showcase/how-it-works.html`, `showcase/styles.css`, `showcase/favicon.svg`), favicon package (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `site.webmanifest`)
+- Contains: `index.html`, `ops-digest.md`, `adr/` (0001–0009, README, template), `showcase/` (three-page product showcase: `showcase/index.html`, `showcase/features.html`, `showcase/how-it-works.html`, `showcase/styles.css`, `showcase/favicon.svg`), favicon package (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `site.webmanifest`)
 - Key files: `index.html`, `adr/README.md`, and the indexed ADRs `0001`–`0009`
 
 **`tests/`:**
 
 - Purpose: All automated tests (single directory, not co-located)
-- Contains: 54 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
+- Contains: 55 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
 - Key files: `helpers.ts`, `event-router.test.ts`, `bench-runner.test.ts`
 
 ## Key File Locations
