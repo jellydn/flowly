@@ -49,6 +49,9 @@ export class FactoryVerificationRunner {
         `Factory plans must contain between 1 and ${MAX_COMMANDS} verification commands.`,
       );
     }
+    if (options?.network.mode === 'deny' && process.platform !== 'linux') {
+      throw new Error('Denied-network factory verification requires Linux network namespaces.');
+    }
     const results: VerificationCommandResult[] = [];
     for (const command of commands) {
       assertCommand(command);

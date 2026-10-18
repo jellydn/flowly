@@ -71,18 +71,41 @@ describe('FactoryVerificationRunner', () => {
     await assert.rejects(() => runner.run([''], workspace), /empty or exceeds/);
   });
 
-  test('runs denied-network verification in a network namespace with no routes', async () => {
+  test('rejects denied-network verification on unsupported platforms', async () => {
     const workspace = await temporaryWorkspace();
     const runner = new FactoryVerificationRunner();
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
 
-    const [result] = await runner.run(
-      ['test "$(tail -n +2 /proc/net/route | wc -l)" -eq 0 && ! sudo --non-interactive true'],
-      workspace,
-      { network: { mode: 'deny', hosts: [] } },
-    );
-
-    assert.equal(result.exitCode, 0, result.stderr);
+    try {
+      for (const value of ['darwin', 'win32', 'freebsd']) {
+        Object.defineProperty(process, 'platform', { value });
+        await assert.rejects(
+          () =>
+            runner.run(['printf executed'], workspace, { network: { mode: 'deny', hosts: [] } }),
+          /Denied-network factory verification requires Linux network namespaces/,
+        );
+      }
+    } finally {
+      Object.defineProperty(process, 'platform', platform);
+    }
   });
+
+  test(
+    'runs denied-network verification in a network namespace with no routes',
+    { skip: process.platform !== 'linux' && 'Requires Linux network namespaces and /proc' },
+    async () => {
+      const workspace = await temporaryWorkspace();
+      const runner = new FactoryVerificationRunner();
+
+      const [result] = await runner.run(
+        ['test "$(tail -n +2 /proc/net/route | wc -l)" -eq 0 && ! sudo --non-interactive true'],
+        workspace,
+        { network: { mode: 'deny', hosts: [] } },
+      );
+
+      assert.equal(result.exitCode, 0, result.stderr);
+    },
+  );
 });
 
 async function temporaryWorkspace(): Promise<string> {
