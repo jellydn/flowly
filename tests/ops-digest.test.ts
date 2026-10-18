@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -52,6 +53,33 @@ test('weekday windows include the weekend and preserve local cutoff through both
   assert.throws(() => parseConfig({ ...config, timezone: 'not/a-zone' }));
   assert.throws(() => parseConfig({ ...config, channels: ['DPRIVATE'] }));
   assert.throws(() => parseConfig({ ...config, audienceConfirmed: false }));
+});
+
+test('DM and legacy G IDs fail closed, including publication of previously frozen runs', async () => {
+  for (const channel of ['DPRIVATE', 'GMPIM', 'GLEGACY']) {
+    assert.throws(() => parseConfig({ ...config, channels: [channel] }));
+    assert.throws(() => parseConfig({ ...config, destination: channel }));
+  }
+  assert.equal(parseConfig({ ...config, channels: ['CPRIVATE'] }).channels[0], 'CPRIVATE');
+  const store = new DigestStore(':memory:');
+  try {
+    const input = snapshot();
+    input.config = { ...config, destination: 'GMPIM' };
+    const run = store.freeze('legacy', input);
+    store.approve(run.id, 'operator', run.hash);
+    let calls = 0;
+    const call: SlackCall = async () => {
+      calls++;
+      return auth;
+    };
+    await assert.rejects(publish(store, run.id, 'GMPIM', call), /destination/);
+    assert.equal(store.get(run.id)?.state, 'approved');
+    store.claim(run.id, 'UBOT');
+    await assert.rejects(reconcile(store, run.id, 'GMPIM', call), /destination/);
+    assert.equal(calls, 0);
+  } finally {
+    store.close();
+  }
 });
 
 test('collector paginates history and old unresolved replies, deduplicates, and enforces [start,end)', async () => {
@@ -123,6 +151,43 @@ test('pagination and message limits produce explicit coverage gaps', async () =>
     {},
   );
   assert.equal(cyclic.complete, false);
+});
+
+test('evidence and attachment omissions remain visible after freeze and reopen', async () => {
+  const collected = await collect(config, window, [], async (method) => {
+    if (method === 'auth.test') return auth;
+    if (method === 'conversations.replies') return { ok: true, messages: [] };
+    return {
+      ok: true,
+      messages: [
+        { ts: eventTs, text: 'a'.repeat(1001) },
+        {
+          ts: `${Number(eventTs) + 1}.000000`,
+          text: 'attachments',
+          attachments: Array.from({ length: 6 }, (_, i) => ({ text: `attachment-${i}` })),
+        },
+      ],
+    };
+  });
+  assert.equal(collected.messages[0].text.length, 1000);
+  assert.match(collected.messages[1].text, /attachment-4/);
+  assert.doesNotMatch(collected.messages[1].text, /attachment-5/);
+  const dir = mkdtempSync(join(tmpdir(), 'ops-omissions-'));
+  let store = new DigestStore(join(dir, 'state.db'));
+  try {
+    store.freeze('omissions', collected);
+    store.close();
+    store = new DigestStore(join(dir, 'state.db'));
+    const text = store.get('omissions')?.text ?? '';
+    assert.match(text, /Attachment limit reached/);
+    assert.match(text, /Evidence limit reached/);
+    assert.match(text, /\[excerpt shortened\]/);
+    assert.match(text, /old-message edits and deletions/);
+    assert.match(text, /Rich content is not rendered/);
+  } finally {
+    store.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('429 honors Retry-After, stops after budget, and never retries a send', async () => {
@@ -278,6 +343,42 @@ test('thread capacity cannot silently lose frozen roots and repeated tracking is
     assert.ok(store.threads('TTEST').some((root) => root.ts === oldTs));
   } finally {
     store.close();
+  }
+});
+
+test('removed-channel roots can be resolved locally without restoring source access', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ops-resolve-'));
+  const path = join(dir, 'state.db');
+  const configPath = join(dir, 'config.json');
+  const store = new DigestStore(path);
+  try {
+    writeFileSync(configPath, JSON.stringify(config));
+    for (let i = 0; i < 50; i++) store.track('TTEST', { channel: 'COLD', ts: `${i}.000000` });
+    const call: SlackCall = async (method, args) => {
+      if (method === 'auth.test') return auth;
+      assert.equal(args.channel, 'COPS');
+      return {
+        ok: true,
+        messages: method === 'conversations.history' ? [{ ts: eventTs, text: 'new event' }] : [],
+      };
+    };
+    const result = await collect(config, window, store.threads('TTEST'), call);
+    assert.throws(() => store.freeze('replacement', result), /Tracking changed/);
+    const invoke = (command: string) =>
+      spawnSync(
+        process.execPath,
+        ['--import', 'tsx', 'scripts/ops-digest.ts', command, configPath, path, 'COLD', '0.000000'],
+        { encoding: 'utf8', env: { PATH: process.env.PATH } },
+      );
+    assert.equal(invoke('track').status, 1);
+    const resolved = invoke('resolve');
+    assert.equal(resolved.status, 0, resolved.stderr);
+    assert.equal(store.threads('TTEST').length, 49);
+    store.freeze('replacement', result);
+    assert.ok(store.threads('TTEST').some((root) => root.channel === 'COPS'));
+  } finally {
+    store.close();
+    rmSync(dir, { recursive: true, force: true });
   }
 });
 

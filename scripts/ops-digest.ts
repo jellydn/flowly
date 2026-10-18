@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
 import { userInfo } from 'node:os';
-import { collect } from '../ops-digest/collect.ts';
+import { collect, validTimestamp } from '../ops-digest/collect.ts';
 import { digestWindow, parseConfig } from '../ops-digest/config.ts';
 import { slackClient } from '../ops-digest/slack.ts';
 import { DigestStore, runId } from '../ops-digest/store.ts';
@@ -42,8 +42,11 @@ try {
     store.approve(id, userInfo().username, hash);
     console.log('Approved frozen content and destination');
   } else if (command === 'track' || command === 'resolve') {
-    if (!config.channels.includes(target) || !hash)
-      throw new Error('Allowlisted channel and thread timestamp required');
+    if (!/^[CG][A-Z0-9]{2,}$/.test(target) || !validTimestamp(hash))
+      throw new Error('Valid channel and thread timestamp required');
+    // Local cleanup must work after a channel is removed from the read allowlist.
+    if (command === 'track' && !config.channels.includes(target))
+      throw new Error('Allowlisted channel required for tracking');
     store[command](config.workspace, { channel: target, ts: hash });
     console.log('Thread tracking updated');
   } else throw new Error('Unknown command');

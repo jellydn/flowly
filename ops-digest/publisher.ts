@@ -9,7 +9,11 @@ export async function publish(
   call: SlackCall,
 ): Promise<void> {
   const current = store.get(id);
-  if (!current || current.snapshot.config.destination !== destination) {
+  if (
+    !/^C[A-Z0-9]{2,}$/.test(destination) ||
+    !current ||
+    current.snapshot.config.destination !== destination
+  ) {
     throw new Error('Publisher destination mismatch');
   }
   if (current.state === 'sent') return;
@@ -38,6 +42,7 @@ export async function reconcile(
 ): Promise<void> {
   const run = store.get(id);
   if (
+    !/^C[A-Z0-9]{2,}$/.test(destination) ||
     !run ||
     run.state !== 'sending' ||
     !run.sending ||

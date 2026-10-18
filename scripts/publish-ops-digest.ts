@@ -9,7 +9,7 @@ if (!['publish', 'reconcile'].includes(command) || !dbPath || !id) {
   throw new Error('Usage: publish-ops-digest <publish|reconcile> <db> <run-id>');
 }
 const destination = process.env.OPS_SLACK_DESTINATION;
-if (!destination || !/^[CG][A-Z0-9]{2,}$/.test(destination)) {
+if (!destination || !/^C[A-Z0-9]{2,}$/.test(destination)) {
   throw new Error('Fixed OPS_SLACK_DESTINATION required');
 }
 const store = new DigestStore(dbPath);

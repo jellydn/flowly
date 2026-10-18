@@ -1,6 +1,7 @@
 import * as v from 'valibot';
 
-const channel = v.pipe(v.string(), v.regex(/^[CG][A-Z0-9]{2,}$/));
+// G IDs can also identify group DMs. Legacy G private channels are outside this pilot.
+const channel = v.pipe(v.string(), v.regex(/^C[A-Z0-9]{2,}$/));
 export const configSchema = v.strictObject({
   workspace: v.pipe(v.string(), v.regex(/^T[A-Z0-9]{2,}$/)),
   channels: v.pipe(v.array(channel), v.minLength(1), v.maxLength(10)),

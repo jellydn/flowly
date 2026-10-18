@@ -34,7 +34,7 @@ export async function collect(
     messages: [],
     threads: [],
     gaps: [
-      'Polling cannot discover replies to old roots that were never tracked. Thread status requires human review.',
+      'Polling excludes replies to untracked old roots, old-message edits and deletions. Thread status requires human review. Rich content is not rendered; only message text and attachment text/fallback are retained.',
     ],
   };
   const roots = new Map<string, ThreadRoot>();
@@ -73,11 +73,22 @@ export async function collect(
             .map((a) => a.text ?? a.fallback ?? '')
             .join('\n')
         : '';
+      if (Array.isArray(row.attachments) && row.attachments.length > 5) {
+        snapshot.gaps.push(
+          'Attachment limit reached: attachments beyond the first five are omitted.',
+        );
+      }
+      const text = `${row.text}\n${attachments}`;
+      if (text.length > 1000) {
+        snapshot.gaps.push(
+          'Evidence limit reached: some message text is truncated to 1,000 characters.',
+        );
+      }
       messages.set(key, {
         channel,
         ts: row.ts,
         root,
-        text: `${row.text}\n${attachments}`.slice(0, 1000),
+        text: text.slice(0, 1000),
       });
     }
   }
@@ -136,9 +147,10 @@ export function draftDigest(snapshot: Snapshot): string {
       .replace(/https?:\/\/\S+/gi, '[link omitted]')
       .replace(/[<>&@\p{C}]/gu, ' ')
       .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 140);
-    lines.push(`- ${message.channel} ${message.ts}: ${excerpt}`);
+      .trim();
+    lines.push(
+      `- ${message.channel} ${message.ts}: ${excerpt.slice(0, 140)}${excerpt.length > 140 ? ' [excerpt shortened]' : ''}`,
+    );
     lines.push(
       `  Source: https://app.slack.com/client/${snapshot.config.workspace}/${message.channel}/thread/${message.channel}-${message.root}`,
     );

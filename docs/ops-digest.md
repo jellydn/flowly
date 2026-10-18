@@ -56,6 +56,11 @@ Set `audienceConfirmed` to true **only** after confirming everyone in the destin
 may see every source channel. This is an operator attestation; the job cannot prove
 audience equivalence. Private sources must not be copied to a broader audience.
 
+Only `C…` IDs are accepted for sources and destination. These cover public and modern
+private channels. Legacy `G…` private channels are excluded because the same prefix
+can identify a group DM. This fail-closed pilot does not add conversation-info scopes
+to distinguish them. Existing frozen runs with a `G…` destination cannot publish.
+
 One run per workspace and civil date is allowed. The frozen config, evidence,
 coverage notes and final text are hashed together. Recollection returns the original
 run, even if config or Slack content changed. Approval binds that hash, actor and
@@ -108,12 +113,16 @@ Slack delivery. Normal success and reconciled success both persist a receipt.
 - Newly observed roots remain tracked until an operator resolves them. New replies
   on tracked old roots are collected even if no new parent appears in history.
   Seed known unresolved roots with `track CONFIG DB CHANNEL THREAD_TS`; remove a
-  resolved root with `resolve CONFIG DB CHANNEL THREAD_TS`. Resolution is not inferred
+  resolved root with `resolve CONFIG DB CHANNEL THREAD_TS`. Local resolution also
+  permits removed source IDs (including legacy `G…` IDs) without restoring read access;
+  new tracking still requires current allowlist membership. Resolution is not inferred
   from message content. Roots never observed/seeded, deleted messages and edits to
   old messages are outside polling coverage; every draft discloses this limitation.
 - At most 10 source channels, 50 tracked roots, 3 pages × 100 rows per history/replies
   request, 100 retained events, 1,000 characters of evidence per event, 140-character
-  excerpts, and 35,000 characters of final text. Oversized drafts fail before approval.
+  excerpts (marked when shortened), and 35,000 characters of final text. Oversized drafts fail before approval.
+  Attachment/evidence truncation produces frozen coverage warnings. Rich content is not
+  rendered; every digest discloses that only text and attachment text/fallback are retained.
   Pagination, access and limit failures appear in coverage notes. Partial digests can
   be approved, but their warnings are part of the immutable published text.
 - Each HTTP attempt has a 10-second timeout and a 2 MB decoded response cap. Reads
