@@ -10,6 +10,13 @@ const fingerprint = (value: string): string => createHash('sha256').update(value
 const digest = v.pipe(v.string(), v.regex(/^[a-f0-9]{64}$/));
 const finite = v.pipe(v.number(), v.finite(), v.minValue(0));
 const rate = v.pipe(finite, v.maxValue(1));
+/** One expiry policy for CLI preflight, HTTP requests, and direct store callers. */
+export const shareExpirySchema = v.pipe(
+  finite,
+  v.integer(),
+  v.minValue(60),
+  v.maxValue(30 * 86400),
+);
 const summarySchema = v.strictObject({
   qualityScore: rate,
   avgLatencyMs: finite,
@@ -107,8 +114,7 @@ export class EvaluationShareStore {
   }
   publish(snapshot: SharedSnapshot, ttlSeconds: number, now = Date.now()) {
     const safe = v.parse(snapshotSchema, snapshot);
-    if (!Number.isInteger(ttlSeconds) || ttlSeconds < 60 || ttlSeconds > 30 * 86400)
-      throw new Error('Expiry must be 60–2592000 seconds');
+    v.parse(shareExpirySchema, ttlSeconds);
     const id = randomBytes(16).toString('hex');
     const token = randomBytes(32).toString('base64url');
     const json = JSON.stringify(safe);
@@ -183,7 +189,7 @@ export function createEvaluationShareServer(store: EvaluationShareStore, adminTo
           chunks.push(Buffer.from(chunk));
         }
         const body = v.parse(
-          v.strictObject({ snapshot: snapshotSchema, ttlSeconds: finite }),
+          v.strictObject({ snapshot: snapshotSchema, ttlSeconds: shareExpirySchema }),
           JSON.parse(Buffer.concat(chunks).toString()),
         );
         const published = store.publish(body.snapshot, body.ttlSeconds);

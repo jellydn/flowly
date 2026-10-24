@@ -1,4 +1,5 @@
-import { createSharedSnapshot } from '../eval/framework/sharing.ts';
+import * as v from 'valibot';
+import { createSharedSnapshot, shareExpirySchema } from '../eval/framework/sharing.ts';
 import { createFileBenchmarkStore } from '../eval/framework/store.ts';
 
 async function main() {
@@ -40,12 +41,7 @@ async function main() {
   const token = process.env.FLOWLY_SHARE_ADMIN_TOKEN ?? '';
   if (token.length < 32) throw new Error('Sharing requires FLOWLY_SHARE_ADMIN_TOKEN');
   if (command === 'revoke' && !/^[a-f0-9]{32}$/.test(id)) throw new Error('Invalid share ID');
-  const ttlSeconds = Number(ttl);
-  if (
-    command === 'publish' &&
-    (!Number.isInteger(ttlSeconds) || ttlSeconds < 60 || ttlSeconds > 2592000)
-  )
-    throw new Error('Expiry must be 60–2592000 seconds');
+  const ttlSeconds = command === 'publish' ? v.parse(shareExpirySchema, Number(ttl)) : undefined;
   const response = await fetch(
     new URL(command === 'publish' ? '/api/shares' : `/api/shares/${id}`, origin),
     {
