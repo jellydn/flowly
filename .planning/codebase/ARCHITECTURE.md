@@ -38,6 +38,10 @@ map, record an ADR and keep both documents in sync:
 | [0009 – Factory safety evals](../../docs/adr/0009-factory-safety-evals.md)                     | Versioned FACTORY-001–008 invariants with deterministic adapter attacks in CI                                                                                                                                                                                                                        | Accepted |
 | [0010 – VPS pilot and providers](../../docs/adr/0010-vps-pilot-and-provider-policy.md)         | User-owned VPS, simple operator approval, BYOK plus technically/contractually valid ChatGPT subscription access; no mandatory review-before-push or exact-commit human receipt; no auto-merge/deploy                                                                                                 | Accepted |
 
+Proposed [ADR 0011](../../docs/adr/0011-projects-and-runners.md) extends this design
+with project identity, risk-based local/VPS execution and connected local runners.
+It is not implemented; existing environment-based entrypoints remain unchanged.
+
 See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to add a new record.
 
 ## Layers
