@@ -22,7 +22,7 @@ flowly/
 ├── demo/              # Feature-oriented runnable examples
 ├── docs/              # Hand-maintained docs page + ADRs
 ├── skills/            # Flue skills (analyzing-repositories)
-├── tests/             # Node test-runner tests (56 files + helpers)
+├── tests/             # Node test-runner tests (57 files + helpers)
 ├── .planning/         # Codebase map + internal planning docs
 ├── .github/workflows/ # CI + event-router/review/factory workflow + examples
 ├── sandbox.ts         # Empty toolset replacing default FS/shell tools
@@ -90,7 +90,7 @@ flowly/
 **`scripts/`:**
 
 - Purpose: CI entrypoints and local operator CLIs
-- Contains: `review-pr.ts`, `run-factory.ts`, `factory.ts`, `route-event.ts`, `flowly-eval.ts`, `flue-eval.ts` (compatibility), `eval-dashboard.ts`, `memory.ts`, `ops-digest.ts`, `publish-ops-digest.ts`, `check-doc-tree.ts`
+- Contains: `review-pr.ts`, `run-factory.ts`, `factory.ts`, `route-event.ts`, `flowly-eval.ts`, `flue-eval.ts` (compatibility), `eval-dashboard.ts`, `eval-share.ts`, `eval-share-server.ts`, `memory.ts`, `ops-digest.ts`, `publish-ops-digest.ts`, `check-doc-tree.ts`
 - Key files: `review-pr.ts`, `route-event.ts`, `run-factory.ts`, `flowly-eval.ts`, `memory.ts`
 
 **`ops-digest/`:**
@@ -102,7 +102,7 @@ flowly/
 **`eval/`:**
 
 - Purpose: Feature-oriented repository, model, and factory-security evaluation
-- Contains: `repository/` (scenarios, run-deterministic.sh, run-live-tool-selection.sh), `framework/` (types, schema, config, metrics, store, runner, judge, providers, model-loop, patch, index, dashboard.ts, dashboard.html, dashboard.css, dashboard.js), `security/` (invariants, fixtures, runner, live), `suites/sample.json`, `suites/workloads.example.yaml`, `fixtures/sample-repo/`, `README.md`
+- Contains: `repository/` (scenarios, run-deterministic.sh, run-live-tool-selection.sh), `framework/` (types, schema, config, metrics, store, runner, judge, providers, model-loop, patch, index, dashboard.ts, dashboard.html, dashboard.css, dashboard.js, sharing.ts, shared.html, shared.js), `security/` (invariants, fixtures, runner, live), `suites/sample.json`, `suites/workloads.example.yaml`, `fixtures/sample-repo/`, `README.md`
 - Key files: `repository/scenarios.ts`, `framework/runner.ts`, `framework/schema.ts`, `security/invariants.ts`
 
 **`demo/`:**
@@ -120,7 +120,7 @@ flowly/
 **`tests/`:**
 
 - Purpose: All automated tests (single directory, not co-located)
-- Contains: 56 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
+- Contains: 57 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
 - Key files: `helpers.ts`, `event-router.test.ts`, `bench-runner.test.ts`
 
 ## Key File Locations
