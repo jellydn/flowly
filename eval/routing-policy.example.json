@@ -1,0 +1,11 @@
+{
+  "referenceRunId": "replace-with-a-fresh-live-run-id",
+  "workloads": ["repository-question", "github-issue", "pull-request-review", "coding-task"],
+  "minQualityScore": 0.9,
+  "maxCostUsdPerScenario": 0.05,
+  "maxAvgLatencyMs": 15000,
+  "maxAgeHours": 168,
+  "minRuns": 2,
+  "minScenarios": 2,
+  "optimize": "cost"
+}

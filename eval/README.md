@@ -261,6 +261,38 @@ This is a single-host deployment, not a multi-tenant identity service. Before in
 the operator must provide TLS, proxy request/rate limits, durable storage/backups, access-log
 header redaction, and a retention policy for expired records. Do not log bearer links.
 
+## Advisory model routing
+
+Copy `eval/routing-policy.example.json`, set `referenceRunId` to the live run whose
+versioned suite/corpus you want to target, and set explicit quality, average latency,
+per-scenario USD cost, freshness, and sample constraints. Run:
+
+```bash
+npm run eval:recommend -- path/to/policy.json
+```
+
+JSON output contains one decision per requested workload, ranked candidates, rejection
+reasons, metrics, and the exact report IDs, scenario IDs, judge, and suite/corpus lineage.
+Supported workloads are repository questions, GitHub issues, PR reviews, and coding tasks.
+Choose `optimize: "cost"`, `"quality"`, or `"latency"`; ties use quality, cost, latency,
+then model identity. Cost is averaged per scenario, not compared as unequal suite totals.
+Metrics are recomputed from scenario results, not trusted from a saved summary.
+
+Recommendations require at least two distinct live runs and two distinct target scenarios
+per run. Every included run must meet all constraints; an older success cannot hide a
+newer incompatible or stale run. Only reports matching the reference suite, corpus, mode,
+judge, scenario IDs, and workload assignments are comparable. Unknown/invalid cost,
+future timestamps, missing lineage, duplicate run identities, failed/error/tool-rejected or
+human-rejected evidence block eligibility. Coding work also needs measured applicable
+patches. Deterministic fixture runs test the software but **cannot** justify model selection.
+No eligible evidence produces `recommendedModel: null`, never a confident fallback.
+
+Exit codes: 0 means all requested workloads have advice, 1 means at least one has no
+recommendation, and 2 means invalid input. Advice is read-only and local: it never invokes
+providers, uploads evidence, changes credentials, or writes production routing. Repeated
+benchmark samples are not a statistical guarantee; validate recommendations against your
+own production workloads and require operator approval before changing factory models.
+
 ## Related guides
 
 - [Runnable examples](../demo/README.md)
