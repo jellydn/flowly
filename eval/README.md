@@ -218,6 +218,49 @@ boundary. Do not put it on a public proxy.
 development proxy; access control must be enforced by that proxy. The UI uses text nodes,
 not report-supplied HTML, and a restrictive content security policy.
 
+## Opt-in hosted report sharing
+
+Deploy `npm run eval:share-server` behind an HTTPS reverse proxy on a trusted host.
+Set `FLOWLY_SHARE_ADMIN_TOKEN` to a cryptographically random secret (at least 32 characters),
+`FLOWLY_SHARE_DB` to a durable SQLite file (default `.eval-shares/shares.sqlite`), and
+`PORT` (default 4311). The default bind is loopback; `FLOWLY_SHARE_BIND` can change it.
+The hosted service cannot browse local runs: it never opens the benchmark report store.
+Give it no provider credentials, source checkout, or local evaluation directory.
+
+On the publishing machine, set `FLOWLY_SHARE_ORIGIN` to the HTTPS origin and configure
+the same admin token through your secret manager. HTTP is accepted only on loopback
+for development. Redirects are rejected so an endpoint cannot forward admin credentials.
+
+```bash
+npm run eval:share -- preview <runId>             # inspect the exact safe projection; no network
+npm run eval:share -- publish <runId> 86400       # explicit upload, expires in one day
+npm run eval:share -- revoke <shareId>            # remove access to that snapshot
+```
+
+No normal evaluation, CI, dashboard request, or routing recommendation uploads anything.
+Publication requires lineage and at least one scenario. Snapshots contain only validated
+numeric/boolean metrics, workload enums, canonical timestamps, lineage digests, and SHA-256
+fingerprints of run/suite/model/judge/scenario IDs. They omit **all** prompts, answers, source
+paths, errors, rationales, labels, provider configuration, and arbitrary text—even identifier
+fields can contain secrets. Fingerprints are correlatable, not anonymization of low-entropy
+IDs. Keep the original report/config/corpus privately to resolve fingerprints and reproduce
+the run; the shared snapshot is intentionally not a full reproducibility bundle.
+
+The publisher receives an immutable snapshot digest, share ID, expiry, and bearer link.
+The random 256-bit reader secret is in the URL fragment, not server request logs. The page
+removes it from browser history and sends it only in an Authorization header. Reopen the
+original complete link after reload. Anyone with the complete link can read until expiry
+(60 seconds–30 days) or revocation. Tokens are stored only as hashes. Admin access does not
+grant reader access. Invalid, expired, and revoked reader links all return 404. Responses
+disable caching and referrers; the viewer loads no third-party scripts or fonts.
+
+Revocation prevents future reads; it cannot erase copies already downloaded by recipients.
+Protect the DB, WAL, backups, and admin token with host permissions. Rotate the admin token
+by restarting the service; existing reader links remain valid until revoked or expired.
+This is a single-host deployment, not a multi-tenant identity service. Before internet rollout,
+the operator must provide TLS, proxy request/rate limits, durable storage/backups, access-log
+header redaction, and a retention policy for expired records. Do not log bearer links.
+
 ## Related guides
 
 - [Runnable examples](../demo/README.md)
