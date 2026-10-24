@@ -38,6 +38,8 @@ export function recommendModelRouting(
   const compatible = (report: BenchmarkReport) => {
     if (!reference || report.mode !== 'live') return false;
     try {
+      // Only incompatibility throws here. The reference is not a quality floor:
+      // cheaper models may qualify under the operator's independent thresholds.
       evaluateBenchmarkRegression(reference, report);
       return reference.results.every(
         (result) =>
