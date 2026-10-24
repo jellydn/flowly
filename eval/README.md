@@ -195,6 +195,26 @@ These checks cover capability manifests, path confinement, workspace ownership, 
 isolation, and draft-only publication. They do not claim that a model or workflow is safe without
 the trusted enforcement code and repository-specific verification.
 
+## Read-only evaluation dashboard
+
+Run `npm run eval:dashboard` after saving runs with `npm run eval -- run`.
+The server binds only to loopback, on port 4310 (`PORT` overrides it). It reads
+`FLOWLY_EVAL_RESULTS_DIR` (legacy `FLUE_EVAL_RESULTS_DIR`, default `eval/results`).
+No benchmark execution, review mutation, or provider calls are available through HTTP.
+
+Filter history by suite, model, mode, and date. Select baseline and candidate runs
+to inspect scenario metrics and evidence. Regression checks reuse the CLI's strict
+suite/corpus/mode/judge/scenario compatibility checks. Unknown cost and unmeasured
+patch/human rates remain explicit; failed scenarios are not hidden by a good average.
+Reports without lineage are visible but cannot produce a regression verdict.
+
+The dashboard is for a trusted local operator. It exposes repository evidence, not
+provider configuration. Known credential formats and configured secret values are
+redacted, but this is not a safe public publishing boundary. Do not put it on a public
+proxy. `FLOWLY_DASHBOARD_HOST` can allow an exact Host header for a trusted, authenticated
+development proxy; access control must be enforced by that proxy. The UI uses text nodes,
+not report-supplied HTML, and a restrictive content security policy.
+
 ## Related guides
 
 - [Runnable examples](../demo/README.md)

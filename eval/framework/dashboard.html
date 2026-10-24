@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flowly · Evaluations</title>
+    <link rel="stylesheet" href="/dashboard.css" />
+    <script src="/dashboard.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <span class="brand">● flowly</span><span class="badge">Read-only · Local reports</span>
+    </header>
+    <main>
+      <p class="eyebrow">Evaluation workspace</p>
+      <h1>Evidence before decisions.</h1>
+      <p class="intro">
+        Explore historical runs. Compare models. Inspect the evidence behind each score.
+      </p>
+      <section class="filters" aria-label="Filter reports">
+        <label
+          >Suite<select id="suite">
+            <option value="">All suites</option>
+          </select></label
+        >
+        <label
+          >Model<select id="model">
+            <option value="">All models</option>
+          </select></label
+        >
+        <label
+          >Mode<select id="mode">
+            <option value="">All modes</option>
+            <option>live</option>
+            <option>deterministic</option>
+          </select></label
+        >
+        <label>From date<input id="since" type="date" /></label>
+      </section>
+      <p id="status" role="status">Loading saved reports…</p>
+      <section aria-labelledby="history-title">
+        <h2 id="history-title">Historical leaderboard</h2>
+        <p class="muted">
+          Ranked by quality. Rows from different lineages are not equivalent evidence.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Model / run</th>
+                <th>Quality</th>
+                <th>Latency</th>
+                <th>Tokens</th>
+                <th>Cost</th>
+                <th>Tool success</th>
+                <th>Patch</th>
+                <th>Human</th>
+                <th>State</th>
+              </tr>
+            </thead>
+            <tbody id="runs"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="comparison" aria-labelledby="comparison-title">
+        <h2 id="comparison-title">Run comparison</h2>
+        <div class="filters">
+          <label>Baseline<select id="baseline"></select></label
+          ><label>Candidate<select id="candidate"></select></label>
+        </div>
+        <p id="regression" role="status">Select two runs to check regression status.</p>
+        <div id="details" class="details"></div>
+      </section>
+      <footer>
+        No model calls. No writes. Unknown cost is never treated as free. Local evidence can contain
+        repository content; do not expose this dashboard publicly.
+      </footer>
+    </main>
+  </body>
+</html>
