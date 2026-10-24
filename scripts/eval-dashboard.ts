@@ -4,7 +4,7 @@ import { createFileBenchmarkStore } from '../eval/framework/store.ts';
 const port = Number(process.env.PORT ?? 4310);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid PORT');
 const secrets = Object.entries(process.env)
-  .filter(([key]) => /KEY|TOKEN|SECRET|PASSWORD/.test(key))
+  .filter(([key]) => /KEY|TOKEN|SECRET|PASSWORD|AUTH_CONFIG/.test(key))
   .map(([, value]) => value ?? '');
 const store = createFileBenchmarkStore(
   process.env.FLOWLY_EVAL_RESULTS_DIR ?? process.env.FLUE_EVAL_RESULTS_DIR ?? 'eval/results',

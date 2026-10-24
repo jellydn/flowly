@@ -4,7 +4,11 @@ const number = (value, suffix = '') =>
 const rate = (value) =>
   value == null || !Number.isFinite(value) ? 'Not measured' : `${Math.round(value * 100)}%`;
 const cost = (value) =>
-  value == null || !Number.isFinite(value) ? 'Unknown' : `$${value.toFixed(4)}`;
+  value == null || !Number.isFinite(value)
+    ? 'Unknown'
+    : value > 0 && value < 0.0001
+      ? '<$0.0001'
+      : `$${value.toFixed(4)}`;
 const node = (tag, text) => {
   const element = document.createElement(tag);
   element.textContent = text;

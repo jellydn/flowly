@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { get } from 'node:http';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 import { createEvaluationDashboard } from '../eval/framework/dashboard.ts';
-import { createMemoryBenchmarkStore } from '../eval/framework/store.ts';
+import { createFileBenchmarkStore, createMemoryBenchmarkStore } from '../eval/framework/store.ts';
 import { buildReport } from '../eval/framework/metrics.ts';
 import { runBenchmark } from '../eval/framework/runner.ts';
 import { capstoneScenarios } from '../eval/repository/scenarios.ts';
@@ -61,6 +66,50 @@ test('dashboard serves persisted evidence, compares runs, and rejects writes and
   const candidate = projected.find((item: { failed: number }) => item.failed === 1);
   assert.equal(baseline.suiteId, 'coding-task', 'task is not a secret token prefix');
   assert.equal(baseline.runId, candidate.runId, 'exercise colliding redacted display labels');
+
+  // Run the served client with a minimal DOM; assert displayed cells, not formatter internals.
+  class Element {
+    textContent = '';
+    value = '';
+    className = '';
+    children: Element[] = [];
+    get lastChild() {
+      return this.children.at(-1)!;
+    }
+    replaceChildren(...children: Element[]) {
+      this.children = children;
+    }
+    append(...children: Element[]) {
+      this.children.push(...children);
+    }
+    add(child: Element) {
+      this.append(child);
+    }
+    addEventListener() {}
+  }
+  const elements = new Map<string, Element>();
+  const costs = [0, 0.000001, 0.000049, 0.0001, null];
+  runInNewContext(await (await fetch(`${base}/dashboard.js`)).text(), {
+    document: {
+      createElement: () => new Element(),
+      getElementById: (id: string) => {
+        if (!elements.has(id)) elements.set(id, new Element());
+        return elements.get(id);
+      },
+    },
+    Option: Element,
+    fetch: async () => ({
+      ok: true,
+      json: async () =>
+        costs.map((costUsd) => ({ ...baseline, summary: { ...baseline.summary, costUsd } })),
+    }),
+  });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.deepEqual(
+    elements.get('runs')!.children.map((row) => row.children[4].textContent),
+    ['$0.0000', '<$0.0001', '<$0.0001', '$0.0001', 'Unknown'],
+  );
+
   const evidence = JSON.parse(candidate.results[0].evidence);
   for (const secret of secrets) {
     assert.ok(!evidence.answer.includes(secret));
@@ -96,4 +145,31 @@ test('dashboard serves persisted evidence, compares runs, and rejects writes and
   assert.equal((await fetch(`${base}/.env`)).status, 404);
   await store.save({ ...changed, lineage: undefined });
   assert.equal((await fetch(`${base}/api/regression?${comparison}`)).status, 409);
+
+  // Exercise the CLI's environment selection, not just explicitly supplied needles.
+  const dir = await mkdtemp(path.join(tmpdir(), 'flowly-dashboard-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const authConfig = JSON.stringify({ auths: { registry: { auth: 'synthetic-registry-auth' } } });
+  changed.results[0].answer = authConfig;
+  await createFileBenchmarkStore(dir).save(changed);
+  server.closeAllConnections();
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  const child = spawn(process.execPath, ['--import', 'tsx', 'scripts/eval-dashboard.ts'], {
+    env: {
+      ...process.env,
+      PORT: String(address.port),
+      FLOWLY_EVAL_RESULTS_DIR: dir,
+      DOCKER_AUTH_CONFIG: authConfig,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  t.after(async () => {
+    if (child.exitCode !== null || child.signalCode !== null) return;
+    const exited = once(child, 'exit');
+    child.kill();
+    await exited;
+  });
+  await once(child.stdout, 'data', { signal: AbortSignal.timeout(10_000) });
+  const cliReports = await (await fetch(`${base}/api/reports`)).json();
+  assert.equal(JSON.parse(cliReports[0].results[0].evidence).answer, '[redacted]');
 });

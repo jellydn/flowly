@@ -210,8 +210,11 @@ Reports without lineage are visible but cannot produce a regression verdict.
 
 The dashboard is for a trusted local operator. It exposes repository evidence, not
 provider configuration. Known credential formats and configured secret values are
-redacted, but this is not a safe public publishing boundary. Do not put it on a public
-proxy. `FLOWLY_DASHBOARD_HOST` can allow an exact Host header for a trusted, authenticated
+redacted, including the complete value of `DOCKER_AUTH_CONFIG`. Separately extracted
+nested auth fields need separate redaction; the dashboard does not parse credential
+containers or guarantee removal of unknown secrets. This is not a safe public publishing
+boundary. Do not put it on a public proxy.
+`FLOWLY_DASHBOARD_HOST` can allow an exact Host header for a trusted, authenticated
 development proxy; access control must be enforced by that proxy. The UI uses text nodes,
 not report-supplied HTML, and a restrictive content security policy.
 
