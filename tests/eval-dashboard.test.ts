@@ -10,9 +10,10 @@ import { capstoneScenarios } from '../eval/repository/scenarios.ts';
 
 test('dashboard serves persisted evidence, compares runs, and rejects writes and foreign hosts', async (t) => {
   const scenario = capstoneScenarios[0];
+  const secrets = ['private-secret', 'private"password', 'private\\password', 'private\npassword'];
   const report = await runBenchmark(
     {
-      id: 'test',
+      id: 'coding-task',
       name: 'Test',
       repositoryPath: 'eval/fixtures/sample-repo',
       scenarios: [{ ...scenario, prompt: scenario.question }],
@@ -21,19 +22,21 @@ test('dashboard serves persisted evidence, compares runs, and rejects writes and
     { mode: 'deterministic', deciders: { [scenario.id]: scenario.decide } },
   );
   const store = createMemoryBenchmarkStore();
+  report.runId = 'sk-baseline-123';
   await store.save(report);
   const changed = buildReport({
     ...report,
-    runId: 'candidate',
+    runId: 'sk-candidate-456',
     results: report.results.map((result) => ({
       ...result,
       passed: false,
-      answer: '<script>sk-test-secret</script> private-secret',
+      answer: `<script>sk-test-secret</script> ${secrets.join(' ')}`,
+      errors: secrets,
       metrics: { ...result.metrics, qualityScore: 0 },
     })),
   });
   await store.save(changed);
-  const server = createEvaluationDashboard(store, { secrets: ['private-secret'] });
+  const server = createEvaluationDashboard(store, { secrets });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   t.after(
@@ -52,10 +55,25 @@ test('dashboard serves persisted evidence, compares runs, and rejects writes and
   assert.ok(!text.includes('sk-test-secret'));
   assert.ok(!text.includes('private-secret'));
   assert.match(text, /redacted/);
-  assert.equal(JSON.parse(text).length, 2);
-  const regression = await fetch(
-    `${base}/api/regression?baseline=${report.runId}&candidate=candidate`,
-  );
+  const projected = JSON.parse(text);
+  assert.equal(projected.length, 2);
+  const baseline = projected.find((item: { failed: number }) => item.failed === 0);
+  const candidate = projected.find((item: { failed: number }) => item.failed === 1);
+  assert.equal(baseline.suiteId, 'coding-task', 'task is not a secret token prefix');
+  assert.equal(baseline.runId, candidate.runId, 'exercise colliding redacted display labels');
+  const evidence = JSON.parse(candidate.results[0].evidence);
+  for (const secret of secrets) {
+    assert.ok(!evidence.answer.includes(secret));
+    assert.ok(!evidence.errors.includes(secret));
+  }
+  assert.deepEqual(evidence.citationAccuracy, changed.results[0].metrics.citationAccuracy);
+  assert.deepEqual(evidence.retrievalRelevance, changed.results[0].metrics.retrievalRelevance);
+  assert.deepEqual(evidence.answerCompleteness, changed.results[0].metrics.answerCompleteness);
+  assert.match(baseline.key, /^[a-f0-9]{64}$/);
+  assert.notEqual(baseline.key, candidate.key, 'redacted labels must not collapse selection keys');
+  const comparison = new URLSearchParams({ baseline: baseline.key, candidate: candidate.key });
+  const regression = await fetch(`${base}/api/regression?${comparison}`);
+  assert.equal(regression.status, 200);
   assert.equal((await regression.json()).passed, false);
   assert.equal(
     (await fetch(`${base}/api/regression?baseline=missing&candidate=candidate`)).status,
@@ -77,8 +95,5 @@ test('dashboard serves persisted evidence, compares runs, and rejects writes and
   );
   assert.equal((await fetch(`${base}/.env`)).status, 404);
   await store.save({ ...changed, lineage: undefined });
-  assert.equal(
-    (await fetch(`${base}/api/regression?baseline=${report.runId}&candidate=candidate`)).status,
-    409,
-  );
+  assert.equal((await fetch(`${base}/api/regression?${comparison}`)).status, 409);
 });

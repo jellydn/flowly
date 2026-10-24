@@ -22,8 +22,8 @@ function fill(select, values, placeholder) {
 
 async function compare() {
   const current = ++revision;
-  const baseline = reports.find((report) => report.runId === $('baseline').value);
-  const candidate = reports.find((report) => report.runId === $('candidate').value);
+  const baseline = reports.find((report) => report.key === $('baseline').value);
+  const candidate = reports.find((report) => report.key === $('candidate').value);
   $('details').replaceChildren();
   for (const report of [baseline, candidate]) {
     if (!report) continue;
@@ -67,7 +67,7 @@ async function compare() {
   if (!baseline || !candidate) return;
   try {
     const response = await fetch(
-      `/api/regression?${new URLSearchParams({ baseline: baseline.runId, candidate: candidate.runId })}`,
+      `/api/regression?${new URLSearchParams({ baseline: baseline.key, candidate: candidate.key })}`,
     );
     const result = response.ok ? await response.json() : null;
     const message = result
@@ -124,7 +124,7 @@ function render() {
   for (const id of ['baseline', 'candidate'])
     fill(
       $(id),
-      filtered.map((report) => [report.runId, `${report.model} · ${report.runId}`]),
+      filtered.map((report) => [report.key, `${report.model} · ${report.runId}`]),
       'Select a run',
     );
   compare();

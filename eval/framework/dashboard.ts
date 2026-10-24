@@ -1,18 +1,26 @@
+import { createHash } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { computeSummary, evaluateBenchmarkRegression } from './metrics.ts';
 import type { BenchmarkStore } from './store.ts';
 import type { BenchmarkReport } from './types.ts';
 
+// Redacted display IDs can collide; selection must retain the original report identity.
+const reportKey = (report: BenchmarkReport): string =>
+  createHash('sha256')
+    .update(JSON.stringify([report.suiteId, report.runId]))
+    .digest('hex');
+
 /** Project fields explicitly: model configuration and future report fields stay private. */
 export function dashboardReport(report: BenchmarkReport, secrets: string[] = []) {
   const clean = (value: string): string => {
-    let text = value.replace(/(?:sk-|gh[pousr]_|github_pat_)[\w-]+/g, '[redacted]');
+    let text = value.replace(/\b(?:sk-|gh[pousr]_|github_pat_)[\w-]+/g, '[redacted]');
     for (const secret of secrets)
       if (secret.length >= 8) text = text.split(secret).join('[redacted]');
     return text;
   };
   return {
+    key: reportKey(report),
     runId: clean(report.runId),
     suiteId: clean(report.suiteId),
     model: clean(report.model.id),
@@ -41,18 +49,20 @@ export function dashboardReport(report: BenchmarkReport, secrets: string[] = [])
       tools: result.metrics.toolSuccess.passed,
       patch: result.metrics.patchApplicability?.passed ?? null,
       human: result.metrics.humanAccepted ?? null,
-      evidence: clean(
-        JSON.stringify(
-          {
-            answer: result.answer,
-            sources: result.citedSources,
-            tools: result.toolsUsed,
-            errors: result.errors,
-            rationale: result.judgeRationale,
-          },
-          null,
-          2,
-        ),
+      evidence: JSON.stringify(
+        {
+          answer: result.answer,
+          sources: result.citedSources,
+          tools: result.toolsUsed,
+          errors: result.errors,
+          rationale: result.judgeRationale,
+          citationAccuracy: result.metrics.citationAccuracy,
+          retrievalRelevance: result.metrics.retrievalRelevance,
+          answerCompleteness: result.metrics.answerCompleteness,
+        },
+        // Redact before JSON escaping changes quotes, backslashes, and newlines.
+        (_key, value) => (typeof value === 'string' ? clean(value) : value),
+        2,
       ),
     })),
   };
@@ -89,8 +99,13 @@ export function createEvaluationDashboard(
           ),
         );
       } else if (url.pathname === '/api/regression') {
-        const baseline = await store.load(url.searchParams.get('baseline') ?? '');
-        const candidate = await store.load(url.searchParams.get('candidate') ?? '');
+        const reports = await store.list();
+        const baseline = reports.find(
+          (report) => reportKey(report) === url.searchParams.get('baseline'),
+        );
+        const candidate = reports.find(
+          (report) => reportKey(report) === url.searchParams.get('candidate'),
+        );
         if (!baseline || !candidate) {
           response.writeHead(404).end('Report not found');
           return;
