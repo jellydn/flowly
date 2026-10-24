@@ -25,7 +25,10 @@
     "demo:end-to-end": "tsx demo/end-to-end.ts",
     "capstone:eval": "npm run eval:repository --",
     "capstone:demo": "npm run demo:end-to-end --",
-    "eval": "tsx scripts/flowly-eval.ts"
+    "eval": "tsx scripts/flowly-eval.ts",
+    "eval:dashboard": "tsx scripts/eval-dashboard.ts",
+    "eval:share": "tsx scripts/eval-share.ts",
+    "eval:share-server": "tsx scripts/eval-share-server.ts"
   },
   "dependencies": {
     "@flue/runtime": "^2.0.0",

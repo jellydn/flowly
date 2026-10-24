@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flowly · Shared evaluation</title>
+    <link rel="stylesheet" href="/dashboard.css" />
+    <script src="/shared.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <span class="brand">● flowly</span><span class="badge">Immutable · Bearer-link access</span>
+    </header>
+    <main>
+      <p class="eyebrow">Shared evidence</p>
+      <h1>Evaluation snapshot</h1>
+      <p id="status" role="status">Checking access…</p>
+      <article id="report" hidden></article>
+      <footer>
+        Metrics v1: quality is the mean scenario score; latency is the mean in milliseconds; cost
+        and tokens are totals. Tool and patch rates count measured checks; human rate counts
+        reviewed scenarios only. Null means unknown or not measured. Identifiers are SHA-256
+        fingerprints; match them to the original local report to reproduce the run. No prompts,
+        answers, paths, or provider configuration are shared. Anyone with the complete link can read
+        until expiry or revocation.
+      </footer>
+    </main>
+  </body>
+</html>
