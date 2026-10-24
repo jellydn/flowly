@@ -15,14 +15,14 @@ Flowly runs in your own environment. It is not a hosted service or a one-click G
 
 ## Choose a path
 
-| Goal | Start here |
-| --- | --- |
-| Try Flowly without credentials | [Run the demos](#try-it-without-credentials) |
-| Ask questions about a local checkout | [Analyze a repository](#analyze-a-repository) |
-| Automate issue-to-draft-PR work | [Run the GitHub factory](#run-the-github-factory) |
-| Review pull requests | [Run the PR reviewer](#run-the-pr-reviewer) |
-| Benchmark models or inspect safety controls | [Read the evaluation guide](./eval/README.md) |
-| Prepare an approval-gated Slack operations digest | [Ops digest pilot](./docs/ops-digest.md) |
+| Goal                                              | Start here                                        |
+| ------------------------------------------------- | ------------------------------------------------- |
+| Try Flowly without credentials                    | [Run the demos](#try-it-without-credentials)      |
+| Ask questions about a local checkout              | [Analyze a repository](#analyze-a-repository)     |
+| Automate issue-to-draft-PR work                   | [Run the GitHub factory](#run-the-github-factory) |
+| Review pull requests                              | [Run the PR reviewer](#run-the-pr-reviewer)       |
+| Benchmark models or inspect safety controls       | [Read the evaluation guide](./eval/README.md)     |
+| Prepare an approval-gated Slack operations digest | [Ops digest pilot](./docs/ops-digest.md)          |
 
 ## What Flowly does
 
@@ -179,17 +179,17 @@ The default configuration routes:
 
 The most common settings are:
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `REPOSITORY_PATH` | `../oak` | Checkout the assistant may inspect |
-| `REPO_ASSISTANT_MODEL` | `openrouter/qwen/qwen3-coder` | Flue model specifier |
-| `REPO_ASSISTANT_MAX_STEPS` | `8` | Shared inspection-call limit, from 1 to 20 |
-| `REPO_ASSISTANT_DEBUG` | `false` | Log safe tool-call summaries |
-| `REPO_ASSISTANT_SEARCH_FALLBACK` | `false` | Fall back from search to a known-path read |
-| `GITHUB_TOKEN` | unset | GitHub access for review and factory workflows |
-| `GITHUB_REPOSITORY` | unset | Target repository in `owner/repo` form |
-| `PR_NUMBER` | unset | Pull request to review |
-| `BASE_SHA` / `HEAD_SHA` | unset | Commits that define the PR diff |
+| Variable                         | Default                       | Purpose                                        |
+| -------------------------------- | ----------------------------- | ---------------------------------------------- |
+| `REPOSITORY_PATH`                | `../oak`                      | Checkout the assistant may inspect             |
+| `REPO_ASSISTANT_MODEL`           | `openrouter/qwen/qwen3-coder` | Flue model specifier                           |
+| `REPO_ASSISTANT_MAX_STEPS`       | `8`                           | Shared inspection-call limit, from 1 to 20     |
+| `REPO_ASSISTANT_DEBUG`           | `false`                       | Log safe tool-call summaries                   |
+| `REPO_ASSISTANT_SEARCH_FALLBACK` | `false`                       | Fall back from search to a known-path read     |
+| `GITHUB_TOKEN`                   | unset                         | GitHub access for review and factory workflows |
+| `GITHUB_REPOSITORY`              | unset                         | Target repository in `owner/repo` form         |
+| `PR_NUMBER`                      | unset                         | Pull request to review                         |
+| `BASE_SHA` / `HEAD_SHA`          | unset                         | Commits that define the PR diff                |
 
 PR review limits are separate from the assistant budget:
 
@@ -225,19 +225,19 @@ See [eval/README.md](./eval/README.md) for the `FACTORY-001` through `FACTORY-00
 
 ## Useful commands
 
-| Command | Purpose |
-| --- | --- |
-| `npm run check` | Typecheck, test, evaluation gate, build, and documentation checks |
-| `npm run typecheck` | Run TypeScript checks |
-| `npm test` | Run Node's built-in test suite |
-| `npm run build` | Build with Vite |
-| `npm run eval:repository` | Run seven deterministic repository scenarios |
-| `npm run demo:repository` | Run repository-analysis demos |
-| `npm run demo:factory` | Inspect factory controls without side effects |
-| `npm run demo:end-to-end` | Run indexing, retrieval, citation, and evaluation demo |
-| `npm run factory -- runs list` | Inspect persisted factory runs |
-| `npm run memory -- list` | Inspect repository instincts |
-| `prek run --all-files` | Run the local oxlint and oxfmt hooks |
+| Command                        | Purpose                                                           |
+| ------------------------------ | ----------------------------------------------------------------- |
+| `npm run check`                | Typecheck, test, evaluation gate, build, and documentation checks |
+| `npm run typecheck`            | Run TypeScript checks                                             |
+| `npm test`                     | Run Node's built-in test suite                                    |
+| `npm run build`                | Build with Vite                                                   |
+| `npm run eval:repository`      | Run seven deterministic repository scenarios                      |
+| `npm run demo:repository`      | Run repository-analysis demos                                     |
+| `npm run demo:factory`         | Inspect factory controls without side effects                     |
+| `npm run demo:end-to-end`      | Run indexing, retrieval, citation, and evaluation demo            |
+| `npm run factory -- runs list` | Inspect persisted factory runs                                    |
+| `npm run memory -- list`       | Inspect repository instincts                                      |
+| `prek run --all-files`         | Run the local oxlint and oxfmt hooks                              |
 
 ## Project structure
 
@@ -253,7 +253,7 @@ tools/        Confined repository inspection tools and TF-IDF retrieval
 eval/         Deterministic/live benchmarks and security evaluations
 demo/         Key-free examples
 docs/         Architecture decision records (0001–NNNN) and the static site
-  adr/          # architecture decision records (0001–0010)
+  adr/          # architecture decision records (0001–0011)
 ```
 
 ## Development

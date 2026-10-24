@@ -21,6 +21,11 @@ upstream project would discard working controls without proving better results.
 | [Prioritized follow-ups](./roadmap.md)                     | Small delivery units, acceptance criteria, dependencies, complexity, and issue links                                  |
 | [VPS and provider evidence](./deployment-and-providers.md) | ai-flow operations, HermesHub BYOK/subscription paths, official provider constraints and accepted policy              |
 
+For local projects, VPS repository intake and connected local runners, see
+[Projects and runners](./projects-and-runners.md) and
+[proposed ADR 0011](../../adr/0011-projects-and-runners.md). These extend the
+research; they do not enable remote execution or change accepted ADR 0010.
+
 ## Findings that change the recommendation
 
 - **Clone isolation is not host isolation.** Flowly's implementer uses a confined
