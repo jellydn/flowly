@@ -17,6 +17,7 @@ format. Each record captures the context, the decision, and the consequences.
 | [0007](./0007-factory-workspace-lifecycle.md)    | Isolated factory workspace lifecycle                         | Accepted |
 | [0008](./0008-factory-operator-control-plane.md) | Factory operator control plane                               | Accepted |
 | [0009](./0009-factory-safety-evals.md)           | Adversarial factory safety evals                             | Accepted |
+| [0010](./0010-vps-pilot-and-provider-policy.md)  | User-owned VPS pilot, simple approval and provider policy    | Accepted |
 
 ## Codebase map
 
@@ -39,7 +40,7 @@ documentation systems stay consistent.
 ## Creating a new ADR
 
 ```bash
-cp docs/adr/template.md docs/adr/0010-your-title.md
+cp docs/adr/template.md docs/adr/0011-your-title.md
 # fill in Context / Decision / Consequences, then add it to the index
 # and cross-link it from .planning/codebase/ARCHITECTURE.md
 ```

@@ -1,0 +1,956 @@
+{
+  "checkedAt": "2026-10-24",
+  "method": "Read-only shallow clones of default branches plus GitHub repository and latest-five-commits APIs. No upstream code installed or executed. License hints are not license conclusions; see comparison.md.",
+  "projects": [
+    {
+      "requestedRepository": "OpenHands/OpenHands",
+      "canonicalRepository": "OpenHands/OpenHands",
+      "defaultBranch": "main",
+      "archived": false,
+      "pushedAt": "2026-10-24T12:32:46Z",
+      "revision": "fee10e3d2909ebbf9950578575b1ee011492171e",
+      "commitUrl": "https://github.com/OpenHands/OpenHands/commit/fee10e3d2909ebbf9950578575b1ee011492171e",
+      "commitDate": "2026-10-24T11:13:14+02:00",
+      "commitSubject": "refactor(files): express tree resize width in CSS (#18903)",
+      "githubLicenseHint": "MIT",
+      "recentDefaultBranchCommits": [
+        {
+          "url": "https://github.com/OpenHands/OpenHands/commit/fee10e3d2909ebbf9950578575b1ee011492171e",
+          "date": "2026-10-24T09:13:14Z",
+          "subject": "refactor(files): express tree resize width in CSS (#18903)"
+        },
+        {
+          "url": "https://github.com/OpenHands/OpenHands/commit/7b452520613fdf71771fc10285ed0df1ceef8697",
+          "date": "2026-10-24T08:23:55Z",
+          "subject": "refactor(backends): express measured panel height in CSS (#18902)"
+        },
+        {
+          "url": "https://github.com/OpenHands/OpenHands/commit/084a4106040a0d64a02ac04eecf88ea8a8a8f31b",
+          "date": "2026-10-24T07:00:36Z",
+          "subject": "refactor(automations): express run bar heights in CSS (#18857)"
+        },
+        {
+          "url": "https://github.com/OpenHands/OpenHands/commit/3dce57817d13db6572dd50c1e5436d0ffe397fd0",
+          "date": "2026-10-24T06:59:46Z",
+          "subject": "refactor(onboarding): express slide offsets in CSS (#18856)"
+        },
+        {
+          "url": "https://github.com/OpenHands/OpenHands/commit/11eba891cb2455f87253888d9d3bf3f6b0f12bc1",
+          "date": "2026-10-23T17:18:58Z",
+          "subject": "fix(chat): keep drag-selection inside the message feed (#18680)"
+        }
+      ],
+      "inspectedSources": [
+        {
+          "path": "README.md",
+          "url": "https://github.com/OpenHands/OpenHands/blob/fee10e3d2909ebbf9950578575b1ee011492171e/README.md"
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/OpenHands/OpenHands/blob/fee10e3d2909ebbf9950578575b1ee011492171e/LICENSE"
+        },
+        {
+          "path": "docker/entrypoint.sh",
+          "url": "https://github.com/OpenHands/OpenHands/blob/fee10e3d2909ebbf9950578575b1ee011492171e/docker/entrypoint.sh"
+        },
+        {
+          "path": "docker/Dockerfile",
+          "url": "https://github.com/OpenHands/OpenHands/blob/fee10e3d2909ebbf9950578575b1ee011492171e/docker/Dockerfile"
+        },
+        {
+          "path": "config/defaults.json",
+          "url": "https://github.com/OpenHands/OpenHands/blob/fee10e3d2909ebbf9950578575b1ee011492171e/config/defaults.json"
+        },
+        {
+          "path": "docs/SELF_HOSTING.md",
+          "url": "https://github.com/OpenHands/OpenHands/blob/fee10e3d2909ebbf9950578575b1ee011492171e/docs/SELF_HOSTING.md"
+        }
+      ]
+    },
+    {
+      "requestedRepository": "FoundationAgents/MetaGPT",
+      "canonicalRepository": "FoundationAgents/MetaGPT",
+      "defaultBranch": "main",
+      "archived": false,
+      "pushedAt": "2026-01-21T10:12:33Z",
+      "revision": "11cdf466d042aece04fc6cfd13b28e1a70341b1f",
+      "commitUrl": "https://github.com/FoundationAgents/MetaGPT/commit/11cdf466d042aece04fc6cfd13b28e1a70341b1f",
+      "commitDate": "2026-01-21T18:12:32+08:00",
+      "commitSubject": "Merge pull request #1897 from Ruyuan37/windows_terminal_adaptation",
+      "githubLicenseHint": "MIT",
+      "recentDefaultBranchCommits": [
+        {
+          "url": "https://github.com/FoundationAgents/MetaGPT/commit/11cdf466d042aece04fc6cfd13b28e1a70341b1f",
+          "date": "2026-01-21T10:12:32Z",
+          "subject": "Merge pull request #1897 from Ruyuan37/windows_terminal_adaptation"
+        },
+        {
+          "url": "https://github.com/FoundationAgents/MetaGPT/commit/de17c62ae81a2693698bcacdf9b9deac267b506d",
+          "date": "2025-11-12T06:32:24Z",
+          "subject": "[terminal.py] Add Windows Terminal support to terminal.py"
+        },
+        {
+          "url": "https://github.com/FoundationAgents/MetaGPT/commit/fc6e8433747be02826dec818627ed5cec0950e77",
+          "date": "2025-10-04T05:57:57Z",
+          "subject": "Update README.md"
+        },
+        {
+          "url": "https://github.com/FoundationAgents/MetaGPT/commit/1dfce070d29041fbd10dc9deb4a2db48bd5aebc7",
+          "date": "2025-06-30T11:45:55Z",
+          "subject": "Merge pull request #1786 from garylin2099/simplify_rz"
+        },
+        {
+          "url": "https://github.com/FoundationAgents/MetaGPT/commit/5aae56e863f08d217e5aaae9190a0071e55ef39d",
+          "date": "2025-06-30T11:41:26Z",
+          "subject": "Merge pull request #1820 from cmodi-meta/llama-api-support"
+        }
+      ],
+      "inspectedSources": [
+        {
+          "path": "README.md",
+          "url": "https://github.com/FoundationAgents/MetaGPT/blob/11cdf466d042aece04fc6cfd13b28e1a70341b1f/README.md"
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/FoundationAgents/MetaGPT/blob/11cdf466d042aece04fc6cfd13b28e1a70341b1f/LICENSE"
+        },
+        {
+          "path": "metagpt/team.py",
+          "url": "https://github.com/FoundationAgents/MetaGPT/blob/11cdf466d042aece04fc6cfd13b28e1a70341b1f/metagpt/team.py"
+        }
+      ]
+    },
+    {
+      "requestedRepository": "disler/super-simple-software-factory",
+      "canonicalRepository": "disler/super-simple-software-factory",
+      "defaultBranch": "main",
+      "archived": false,
+      "pushedAt": "2026-08-04T13:43:58Z",
+      "revision": "de31374882e7a4e3e5b7bb9bd09e69dc2f779356",
+      "commitUrl": "https://github.com/disler/super-simple-software-factory/commit/de31374882e7a4e3e5b7bb9bd09e69dc2f779356",
+      "commitDate": "2026-08-02T12:57:38-05:00",
+      "commitSubject": "\ud83d\ude80",
+      "githubLicenseHint": "MIT",
+      "recentDefaultBranchCommits": [
+        {
+          "url": "https://github.com/disler/super-simple-software-factory/commit/de31374882e7a4e3e5b7bb9bd09e69dc2f779356",
+          "date": "2026-08-02T17:57:38Z",
+          "subject": "\ud83d\ude80"
+        }
+      ],
+      "inspectedSources": [
+        {
+          "path": "README.md",
+          "url": "https://github.com/disler/super-simple-software-factory/blob/de31374882e7a4e3e5b7bb9bd09e69dc2f779356/README.md"
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/disler/super-simple-software-factory/blob/de31374882e7a4e3e5b7bb9bd09e69dc2f779356/LICENSE"
+        },
+        {
+          "path": ".claude/skills/sssf/templates/adws/adw_modules/runner.py",
+          "url": "https://github.com/disler/super-simple-software-factory/blob/de31374882e7a4e3e5b7bb9bd09e69dc2f779356/.claude/skills/sssf/templates/adws/adw_modules/runner.py"
+        },
+        {
+          "path": ".claude/skills/sssf/templates/adws/adw_modules/agents.py",
+          "url": "https://github.com/disler/super-simple-software-factory/blob/de31374882e7a4e3e5b7bb9bd09e69dc2f779356/.claude/skills/sssf/templates/adws/adw_modules/agents.py"
+        },
+        {
+          "path": ".claude/skills/sssf/templates/adws/adw_modules/gates.py",
+          "url": "https://github.com/disler/super-simple-software-factory/blob/de31374882e7a4e3e5b7bb9bd09e69dc2f779356/.claude/skills/sssf/templates/adws/adw_modules/gates.py"
+        },
+        {
+          "path": ".claude/skills/sssf/templates/adws/adw_modules/tracer.py",
+          "url": "https://github.com/disler/super-simple-software-factory/blob/de31374882e7a4e3e5b7bb9bd09e69dc2f779356/.claude/skills/sssf/templates/adws/adw_modules/tracer.py"
+        }
+      ]
+    },
+    {
+      "requestedRepository": "warpdotdev/warp",
+      "canonicalRepository": "warpdotdev/warp",
+      "defaultBranch": "master",
+      "archived": false,
+      "pushedAt": "2026-10-23T16:02:57Z",
+      "revision": "1e6c3ae465d6a925a9b97ae03877aaadd159b8f1",
+      "commitUrl": "https://github.com/warpdotdev/warp/commit/1e6c3ae465d6a925a9b97ae03877aaadd159b8f1",
+      "commitDate": "2026-10-22T19:21:45-04:00",
+      "commitSubject": "Project ACP MCP tool calls with their tool name, server identity, and late input (#16615)",
+      "githubLicenseHint": "AGPL-3.0",
+      "recentDefaultBranchCommits": [
+        {
+          "url": "https://github.com/warpdotdev/warp/commit/1e6c3ae465d6a925a9b97ae03877aaadd159b8f1",
+          "date": "2026-10-22T23:21:45Z",
+          "subject": "Project ACP MCP tool calls with their tool name, server identity, and late input (#16615)"
+        },
+        {
+          "url": "https://github.com/warpdotdev/warp/commit/692f75fd9a7bc579df2be74ba3a9547101097d44",
+          "date": "2026-10-22T23:07:47Z",
+          "subject": "[REMOTE-3650] Support Claude and Codex in pre-warmed sandboxes (#16624)"
+        },
+        {
+          "url": "https://github.com/warpdotdev/warp/commit/edf27fd58c0ae4051506bcbb5938ecea07638e04",
+          "date": "2026-10-22T20:38:12Z",
+          "subject": "[REMOTE-3614] Update bundled TLS certificate verification and roots (#16622)"
+        },
+        {
+          "url": "https://github.com/warpdotdev/warp/commit/d1d6200bf4b0d348595c6854ec02a01986021ac6",
+          "date": "2026-10-22T19:50:55Z",
+          "subject": "Fix legacy MCP protocol-version fallback for server-error responses (#16620)"
+        },
+        {
+          "url": "https://github.com/warpdotdev/warp/commit/3cee055a9539d9fb794a65ff58786479e3c66936",
+          "date": "2026-10-22T18:30:20Z",
+          "subject": "Allow pending session sharers to execute commands locally (#16544)"
+        }
+      ],
+      "inspectedSources": [
+        {
+          "path": "README.md",
+          "url": "https://github.com/warpdotdev/warp/blob/1e6c3ae465d6a925a9b97ae03877aaadd159b8f1/README.md"
+        },
+        {
+          "path": "LICENSE-AGPL",
+          "url": "https://github.com/warpdotdev/warp/blob/1e6c3ae465d6a925a9b97ae03877aaadd159b8f1/LICENSE-AGPL"
+        },
+        {
+          "path": "LICENSE-MIT",
+          "url": "https://github.com/warpdotdev/warp/blob/1e6c3ae465d6a925a9b97ae03877aaadd159b8f1/LICENSE-MIT"
+        },
+        {
+          "path": "crates/ai/src/agent/orchestration_config.rs",
+          "url": "https://github.com/warpdotdev/warp/blob/1e6c3ae465d6a925a9b97ae03877aaadd159b8f1/crates/ai/src/agent/orchestration_config.rs"
+        }
+      ]
+    },
+    {
+      "requestedRepository": "humanlayer/humanlayer",
+      "canonicalRepository": "humanlayer/humanlayer",
+      "defaultBranch": "main",
+      "archived": false,
+      "pushedAt": "2026-10-24T02:13:27Z",
+      "revision": "2f66a45b186d88488fa356862be0117db1ccae9f",
+      "commitUrl": "https://github.com/humanlayer/humanlayer/commit/2f66a45b186d88488fa356862be0117db1ccae9f",
+      "commitDate": "2026-10-23T19:13:27-07:00",
+      "commitSubject": "Merge pull request #1132 from humanlayer/dexhorthy-patch-13",
+      "githubLicenseHint": "Apache-2.0",
+      "recentDefaultBranchCommits": [
+        {
+          "url": "https://github.com/humanlayer/humanlayer/commit/2f66a45b186d88488fa356862be0117db1ccae9f",
+          "date": "2026-10-24T02:13:27Z",
+          "subject": "Merge pull request #1132 from humanlayer/dexhorthy-patch-13"
+        },
+        {
+          "url": "https://github.com/humanlayer/humanlayer/commit/e07770356fc7f3d8fe765c76480d56ab4be6e0d3",
+          "date": "2026-10-23T22:18:12Z",
+          "subject": "Update README.md"
+        },
+        {
+          "url": "https://github.com/humanlayer/humanlayer/commit/f16f286acfc66605e90e5dd43d76093e422a1f3c",
+          "date": "2026-10-23T21:14:19Z",
+          "subject": "Merge pull request #1131 from humanlayer/dex/remove-deprecated-packages"
+        },
+        {
+          "url": "https://github.com/humanlayer/humanlayer/commit/abd837931201cd60b0317b8a0456dae928a37558",
+          "date": "2026-10-23T21:06:58Z",
+          "subject": "Keep bun.lock to main's versions"
+        },
+        {
+          "url": "https://github.com/humanlayer/humanlayer/commit/c6abb67ac8eadeb8cdc08c31225fed4e3c2c87c8",
+          "date": "2026-10-23T20:59:50Z",
+          "subject": "Rebuild bun.lock from main's resolutions"
+        }
+      ],
+      "inspectedSources": [
+        {
+          "path": "README.md",
+          "url": "https://github.com/humanlayer/humanlayer/blob/2f66a45b186d88488fa356862be0117db1ccae9f/README.md"
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/humanlayer/humanlayer/blob/2f66a45b186d88488fa356862be0117db1ccae9f/LICENSE"
+        },
+        {
+          "path": "apps/riptide-daemon/src/agents/shared/run-session.ts",
+          "url": "https://github.com/humanlayer/humanlayer/blob/2f66a45b186d88488fa356862be0117db1ccae9f/apps/riptide-daemon/src/agents/shared/run-session.ts"
+        },
+        {
+          "path": "apps/riptide-daemon/src/agents/claudecode/approvals.ts",
+          "url": "https://github.com/humanlayer/humanlayer/blob/2f66a45b186d88488fa356862be0117db1ccae9f/apps/riptide-daemon/src/agents/claudecode/approvals.ts"
+        }
+      ]
+    },
+    {
+      "requestedRepository": "kentcdodds/kody",
+      "canonicalRepository": "kody-hq/kody",
+      "defaultBranch": "main",
+      "archived": false,
+      "pushedAt": "2026-10-24T12:10:50Z",
+      "revision": "1e01a0514305d2e1c378ef447ccb3f7218d0a2b1",
+      "commitUrl": "https://github.com/kody-hq/kody/commit/1e01a0514305d2e1c378ef447ccb3f7218d0a2b1",
+      "commitDate": "2026-10-24T06:09:35-06:00",
+      "commitSubject": "feat(package-apps): run package apps as their publisher, with a logged visitor fallback (#4278)",
+      "githubLicenseHint": "NOASSERTION",
+      "recentDefaultBranchCommits": [
+        {
+          "url": "https://github.com/kody-hq/kody/commit/1e01a0514305d2e1c378ef447ccb3f7218d0a2b1",
+          "date": "2026-10-24T12:09:35Z",
+          "subject": "feat(package-apps): run package apps as their publisher, with a logged visitor fallback (#4278)"
+        },
+        {
+          "url": "https://github.com/kody-hq/kody/commit/440d97cf8acaea9526f59ca636d7e2ab28e05946",
+          "date": "2026-10-24T11:17:08Z",
+          "subject": "Friction sweep: hermetic CLI login tests and Artifacts delete-in-progress (#4282)"
+        },
+        {
+          "url": "https://github.com/kody-hq/kody/commit/c8af083f7e6a4a3b04e58e4c7da98f11d64ce89f",
+          "date": "2026-10-24T10:16:26Z",
+          "subject": "fix(ci): retry npm ci on registry ECONNRESET in Validate setup (#4281)"
+        },
+        {
+          "url": "https://github.com/kody-hq/kody/commit/bd3d58349adabec30baf24e12af02b9abce73368",
+          "date": "2026-10-24T09:26:53Z",
+          "subject": "docs: describe forks, authorize failures, and workflow retries as they work today (#4280)"
+        },
+        {
+          "url": "https://github.com/kody-hq/kody/commit/51c3a853c43e67600ab1bde6eb08a2965371b050",
+          "date": "2026-10-24T09:22:48Z",
+          "subject": "Remove leftover tautological and lone-absence test asserts (#4279)"
+        }
+      ],
+      "inspectedSources": [
+        {
+          "path": "README.md",
+          "url": "https://github.com/kody-hq/kody/blob/1e01a0514305d2e1c378ef447ccb3f7218d0a2b1/README.md"
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/kody-hq/kody/blob/1e01a0514305d2e1c378ef447ccb3f7218d0a2b1/LICENSE"
+        },
+        {
+          "path": "packages/worker/src/mcp/memory/service.ts",
+          "url": "https://github.com/kody-hq/kody/blob/1e01a0514305d2e1c378ef447ccb3f7218d0a2b1/packages/worker/src/mcp/memory/service.ts"
+        },
+        {
+          "path": "packages/worker/src/mcp/capabilities/meta/search.ts",
+          "url": "https://github.com/kody-hq/kody/blob/1e01a0514305d2e1c378ef447ccb3f7218d0a2b1/packages/worker/src/mcp/capabilities/meta/search.ts"
+        },
+        {
+          "path": "packages/worker/src/mcp/capabilities/meta/execute.ts",
+          "url": "https://github.com/kody-hq/kody/blob/1e01a0514305d2e1c378ef447ccb3f7218d0a2b1/packages/worker/src/mcp/capabilities/meta/execute.ts"
+        },
+        {
+          "path": "packages/jobs-worker/src/scheduled.ts",
+          "url": "https://github.com/kody-hq/kody/blob/1e01a0514305d2e1c378ef447ccb3f7218d0a2b1/packages/jobs-worker/src/scheduled.ts"
+        }
+      ]
+    },
+    {
+      "requestedRepository": "tobi/ultimate",
+      "canonicalRepository": "tobi/ultimate",
+      "defaultBranch": "main",
+      "archived": false,
+      "pushedAt": "2026-10-24T03:57:02Z",
+      "revision": "11d1d4cd3f383150ca8b14b0ca6092cbfd9c85c2",
+      "commitUrl": "https://github.com/tobi/ultimate/commit/11d1d4cd3f383150ca8b14b0ca6092cbfd9c85c2",
+      "commitDate": "2026-10-24T03:35:48+02:00",
+      "commitSubject": "dream: a refused granted admission never frees another change's lock",
+      "githubLicenseHint": "MIT",
+      "recentDefaultBranchCommits": [
+        {
+          "url": "https://github.com/tobi/ultimate/commit/11d1d4cd3f383150ca8b14b0ca6092cbfd9c85c2",
+          "date": "2026-10-24T01:35:48Z",
+          "subject": "dream: a refused granted admission never frees another change's lock"
+        },
+        {
+          "url": "https://github.com/tobi/ultimate/commit/a9cedbb3b4d66c31fbec10a0ac0759af2322f54e",
+          "date": "2026-10-24T01:33:30Z",
+          "subject": "automations, dream: fix the third review's findings"
+        },
+        {
+          "url": "https://github.com/tobi/ultimate/commit/a02e8516fe58d543bcf488e59f8633e12d967a7d",
+          "date": "2026-10-24T01:27:01Z",
+          "subject": "Merge main (role checks, end states, messages split) into automation triggers"
+        },
+        {
+          "url": "https://github.com/tobi/ultimate/commit/7dc22c6dbc3f4c8c461413d35e3e669547b252c9",
+          "date": "2026-10-24T01:26:25Z",
+          "subject": "automations, dream, lineage: fix the second review's findings"
+        },
+        {
+          "url": "https://github.com/tobi/ultimate/commit/167625a7ed7889fda9b6ba27a0eee0973c57276a",
+          "date": "2026-10-24T00:57:30Z",
+          "subject": "automations, dream: fix the review's blocking findings"
+        }
+      ],
+      "inspectedSources": [
+        {
+          "path": "README.md",
+          "url": "https://github.com/tobi/ultimate/blob/11d1d4cd3f383150ca8b14b0ca6092cbfd9c85c2/README.md"
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/tobi/ultimate/blob/11d1d4cd3f383150ca8b14b0ca6092cbfd9c85c2/LICENSE"
+        },
+        {
+          "path": "server/harness.ts",
+          "url": "https://github.com/tobi/ultimate/blob/11d1d4cd3f383150ca8b14b0ca6092cbfd9c85c2/server/harness.ts"
+        },
+        {
+          "path": "server/project-setup.ts",
+          "url": "https://github.com/tobi/ultimate/blob/11d1d4cd3f383150ca8b14b0ca6092cbfd9c85c2/server/project-setup.ts"
+        },
+        {
+          "path": "bin/ultimate.ts",
+          "url": "https://github.com/tobi/ultimate/blob/11d1d4cd3f383150ca8b14b0ca6092cbfd9c85c2/bin/ultimate.ts"
+        }
+      ]
+    },
+    {
+      "requestedRepository": "anomalyco/opencode",
+      "canonicalRepository": "anomalyco/opencode",
+      "defaultBranch": "dev",
+      "archived": false,
+      "pushedAt": "2026-10-24T13:08:12Z",
+      "revision": "20a6cc72917586eb5314be075f96dbb21d16c480",
+      "commitUrl": "https://github.com/anomalyco/opencode/commit/20a6cc72917586eb5314be075f96dbb21d16c480",
+      "commitDate": "2026-10-24T12:20:37Z",
+      "commitSubject": "chore(core): refresh bundled models.dev snapshot",
+      "githubLicenseHint": "MIT",
+      "recentDefaultBranchCommits": [
+        {
+          "url": "https://github.com/anomalyco/opencode/commit/20a6cc72917586eb5314be075f96dbb21d16c480",
+          "date": "2026-10-24T12:20:37Z",
+          "subject": "chore(core): refresh bundled models.dev snapshot"
+        },
+        {
+          "url": "https://github.com/anomalyco/opencode/commit/f20760b8bf3bced0fa5620b6afe7b78dd615ee36",
+          "date": "2026-10-24T08:54:51Z",
+          "subject": "docs(console): document cost and allowance in inference responses (#58660)"
+        },
+        {
+          "url": "https://github.com/anomalyco/opencode/commit/1873fbe304ebeda5051bfd3a54fd091cb277e545",
+          "date": "2026-10-24T08:43:56Z",
+          "subject": "feat(app): show Go allowance when a session costs nothing (#58566)"
+        },
+        {
+          "url": "https://github.com/anomalyco/opencode/commit/9109bcf136653dc53de0500f95af085e2e5f034b",
+          "date": "2026-10-24T08:43:38Z",
+          "subject": "feat(tui): show Go allowance when a session costs nothing (#58565)"
+        },
+        {
+          "url": "https://github.com/anomalyco/opencode/commit/4cba1b7f5ded9b9fb3a3336baa1510b1ed3378aa",
+          "date": "2026-10-24T08:32:36Z",
+          "subject": "feat(core): record reported cost and Go allowance (#58562)"
+        }
+      ],
+      "inspectedSources": [
+        {
+          "path": "README.md",
+          "url": "https://github.com/anomalyco/opencode/blob/20a6cc72917586eb5314be075f96dbb21d16c480/README.md"
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/anomalyco/opencode/blob/20a6cc72917586eb5314be075f96dbb21d16c480/LICENSE"
+        },
+        {
+          "path": "packages/core/src/permission.ts",
+          "url": "https://github.com/anomalyco/opencode/blob/20a6cc72917586eb5314be075f96dbb21d16c480/packages/core/src/permission.ts"
+        },
+        {
+          "path": "packages/core/src/session/store.ts",
+          "url": "https://github.com/anomalyco/opencode/blob/20a6cc72917586eb5314be075f96dbb21d16c480/packages/core/src/session/store.ts"
+        }
+      ]
+    },
+    {
+      "requestedRepository": "SWE-agent/SWE-agent",
+      "canonicalRepository": "SWE-agent/SWE-agent",
+      "defaultBranch": "main",
+      "archived": false,
+      "pushedAt": "2026-10-19T22:57:44Z",
+      "revision": "3ea751c087f32b16e039a2233dd6eefecef325d5",
+      "commitUrl": "https://github.com/SWE-agent/SWE-agent/commit/3ea751c087f32b16e039a2233dd6eefecef325d5",
+      "commitDate": "2026-07-16T11:21:18-04:00",
+      "commitSubject": "fix: map multimodal subset to sb-cli's swe-bench-m (#1458)",
+      "githubLicenseHint": "MIT",
+      "recentDefaultBranchCommits": [
+        {
+          "url": "https://github.com/SWE-agent/SWE-agent/commit/3ea751c087f32b16e039a2233dd6eefecef325d5",
+          "date": "2026-07-16T15:21:18Z",
+          "subject": "fix: map multimodal subset to sb-cli's swe-bench-m (#1458)"
+        },
+        {
+          "url": "https://github.com/SWE-agent/SWE-agent/commit/1dd50afb587781df7ab500dd45119e848ce3c126",
+          "date": "2026-07-16T15:20:33Z",
+          "subject": "fix: strip query/fragment from repo URLs; correct parse error text (#1463)"
+        },
+        {
+          "url": "https://github.com/SWE-agent/SWE-agent/commit/1132b3e80a45487ce8423f75d0e180874bf84caa",
+          "date": "2026-07-07T15:57:06Z",
+          "subject": "docs: fix removed problem_statement flags in command line tutorial (#1447)"
+        },
+        {
+          "url": "https://github.com/SWE-agent/SWE-agent/commit/7506615844a1159b7dc21ebe86098e0512ae1f9f",
+          "date": "2026-07-07T15:56:44Z",
+          "subject": "docs: fix traj-to-demo command in demonstrations guide (#1448)"
+        },
+        {
+          "url": "https://github.com/SWE-agent/SWE-agent/commit/10ab1a978954a117b1b577b8c39fbeb78fedf69f",
+          "date": "2026-07-07T14:34:16Z",
+          "subject": "fix: normalize Content-Type parameters in multimodal image processing (#1446)"
+        }
+      ],
+      "inspectedSources": [
+        {
+          "path": "README.md",
+          "url": "https://github.com/SWE-agent/SWE-agent/blob/3ea751c087f32b16e039a2233dd6eefecef325d5/README.md"
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/SWE-agent/SWE-agent/blob/3ea751c087f32b16e039a2233dd6eefecef325d5/LICENSE"
+        },
+        {
+          "path": "sweagent/environment/swe_env.py",
+          "url": "https://github.com/SWE-agent/SWE-agent/blob/3ea751c087f32b16e039a2233dd6eefecef325d5/sweagent/environment/swe_env.py"
+        }
+      ]
+    },
+    {
+      "requestedRepository": "Pythagora-io/gpt-pilot",
+      "canonicalRepository": "Pythagora-io/gpt-pilot",
+      "defaultBranch": "main",
+      "archived": false,
+      "pushedAt": "2026-06-18T18:38:25Z",
+      "revision": "9b763fdaf0020c7d8abacc7b58b2b09e57494623",
+      "commitUrl": "https://github.com/Pythagora-io/gpt-pilot/commit/9b763fdaf0020c7d8abacc7b58b2b09e57494623",
+      "commitDate": "2026-06-12T09:28:32+02:00",
+      "commitSubject": "Merge pull request #1183 from Pythagora-io/security/remove-malicious-telemetry-loader",
+      "githubLicenseHint": "NOASSERTION",
+      "recentDefaultBranchCommits": [
+        {
+          "url": "https://github.com/Pythagora-io/gpt-pilot/commit/9b763fdaf0020c7d8abacc7b58b2b09e57494623",
+          "date": "2026-06-12T07:28:32Z",
+          "subject": "Merge pull request #1183 from Pythagora-io/security/remove-malicious-telemetry-loader"
+        },
+        {
+          "url": "https://github.com/Pythagora-io/gpt-pilot/commit/8c174942b372efe4cf7ee2e977b7f2f0a2bc4bbe",
+          "date": "2026-06-11T19:38:13Z",
+          "subject": "security: remove malicious telemetry loader and payload"
+        },
+        {
+          "url": "https://github.com/Pythagora-io/gpt-pilot/commit/a372904facd53ee99d85add7ee79aea2b7a8506a",
+          "date": "2025-11-10T13:12:31Z",
+          "subject": "Update README.md"
+        },
+        {
+          "url": "https://github.com/Pythagora-io/gpt-pilot/commit/dd404dc24f6c544ffb4ef167cd20d056136d2284",
+          "date": "2025-09-03T11:09:02Z",
+          "subject": "Update cloud-staging-build.yaml, update build"
+        },
+        {
+          "url": "https://github.com/Pythagora-io/gpt-pilot/commit/1044de56b22e36722a717f86307d54970f9800ca",
+          "date": "2025-08-25T07:40:08Z",
+          "subject": "version 2.0.10"
+        }
+      ],
+      "inspectedSources": [
+        {
+          "path": "README.md",
+          "url": "https://github.com/Pythagora-io/gpt-pilot/blob/9b763fdaf0020c7d8abacc7b58b2b09e57494623/README.md"
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/Pythagora-io/gpt-pilot/blob/9b763fdaf0020c7d8abacc7b58b2b09e57494623/LICENSE"
+        },
+        {
+          "path": "core/agents/orchestrator.py",
+          "url": "https://github.com/Pythagora-io/gpt-pilot/blob/9b763fdaf0020c7d8abacc7b58b2b09e57494623/core/agents/orchestrator.py"
+        }
+      ]
+    },
+    {
+      "requestedRepository": "openai/codex",
+      "canonicalRepository": "openai/codex",
+      "defaultBranch": "main",
+      "archived": false,
+      "pushedAt": "2026-10-23T18:51:12Z",
+      "revision": "970111f6cb62cc02fe36a82ea7d71b37a2889c97",
+      "commitUrl": "https://github.com/openai/codex/commit/970111f6cb62cc02fe36a82ea7d71b37a2889c97",
+      "commitDate": "2026-10-23T18:50:54Z",
+      "commitSubject": "Allow configuring GCP project and location in provider settings (#56560)",
+      "githubLicenseHint": "Apache-2.0",
+      "recentDefaultBranchCommits": [
+        {
+          "url": "https://github.com/openai/codex/commit/970111f6cb62cc02fe36a82ea7d71b37a2889c97",
+          "date": "2026-10-23T18:50:54Z",
+          "subject": "Allow configuring GCP project and location in provider settings (#56560)"
+        },
+        {
+          "url": "https://github.com/openai/codex/commit/7848e3393c1cd19a575b386525017e33d950d84b",
+          "date": "2026-10-23T18:50:29Z",
+          "subject": "Remove Guardian snapshot-specific context helpers (#56559)"
+        },
+        {
+          "url": "https://github.com/openai/codex/commit/2d86506823c0709d161ff9cd58d15657f829e11e",
+          "date": "2026-10-23T18:48:35Z",
+          "subject": "Exercise retained sampling in Guardian transport tests (#56557)"
+        },
+        {
+          "url": "https://github.com/openai/codex/commit/4b1cf9a4c9be0f5c2871ce1837fb50b4ad08ad3a",
+          "date": "2026-10-23T18:48:10Z",
+          "subject": "Use conversations for all Guardian v2 async classification (#56556)"
+        },
+        {
+          "url": "https://github.com/openai/codex/commit/5deceaa92732d1e4a400b93854e369e33f7e4bee",
+          "date": "2026-10-23T18:41:23Z",
+          "subject": "Apply sync Guardian message limits during transcript preparation (#56555)"
+        }
+      ],
+      "inspectedSources": [
+        {
+          "path": "README.md",
+          "url": "https://github.com/openai/codex/blob/970111f6cb62cc02fe36a82ea7d71b37a2889c97/README.md"
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/openai/codex/blob/970111f6cb62cc02fe36a82ea7d71b37a2889c97/LICENSE"
+        },
+        {
+          "path": "codex-rs/exec-server/src/process_sandbox.rs",
+          "url": "https://github.com/openai/codex/blob/970111f6cb62cc02fe36a82ea7d71b37a2889c97/codex-rs/exec-server/src/process_sandbox.rs"
+        }
+      ]
+    },
+    {
+      "requestedRepository": "google-gemini/gemini-cli",
+      "canonicalRepository": "google-gemini/gemini-cli",
+      "defaultBranch": "main",
+      "archived": false,
+      "pushedAt": "2026-10-24T01:15:52Z",
+      "revision": "cd1b45c2db0a5ea7b7fc3b67c1ba5879601d6005",
+      "commitUrl": "https://github.com/google-gemini/gemini-cli/commit/cd1b45c2db0a5ea7b7fc3b67c1ba5879601d6005",
+      "commitDate": "2026-10-23T20:43:47Z",
+      "commitSubject": "feat(cli): add models command and --list-models flag for model discovery (#29880)",
+      "githubLicenseHint": "Apache-2.0",
+      "recentDefaultBranchCommits": [
+        {
+          "url": "https://github.com/google-gemini/gemini-cli/commit/cd1b45c2db0a5ea7b7fc3b67c1ba5879601d6005",
+          "date": "2026-10-23T20:43:47Z",
+          "subject": "feat(cli): add models command and --list-models flag for model discovery (#29880)"
+        },
+        {
+          "url": "https://github.com/google-gemini/gemini-cli/commit/5b36aacf5bf3d044badc881063f7671598c27c9d",
+          "date": "2026-10-23T20:19:13Z",
+          "subject": "fix(cli): convert Claude hook timeout from seconds to milliseconds during migration (#29899)"
+        },
+        {
+          "url": "https://github.com/google-gemini/gemini-cli/commit/d968ea0a247b4709e23fc03b782eaa05ce1bf4d4",
+          "date": "2026-10-23T17:14:46Z",
+          "subject": "fix(core): resolve relative file paths against active IDE workspace root (#29838)"
+        },
+        {
+          "url": "https://github.com/google-gemini/gemini-cli/commit/dbd6c91681ab0aca44e606277833e383e01114f5",
+          "date": "2026-10-23T16:26:40Z",
+          "subject": "fix(cli): correct Thai and Lao SARA AM display width (#29883)"
+        },
+        {
+          "url": "https://github.com/google-gemini/gemini-cli/commit/a3dd9f8c7bcb495a46d0b505b6f179996ccd8332",
+          "date": "2026-10-23T16:14:18Z",
+          "subject": "fix(cli): stop continuation stream processing and auto-nudge after request cancellation (#29868)"
+        }
+      ],
+      "inspectedSources": [
+        {
+          "path": "README.md",
+          "url": "https://github.com/google-gemini/gemini-cli/blob/cd1b45c2db0a5ea7b7fc3b67c1ba5879601d6005/README.md"
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/google-gemini/gemini-cli/blob/cd1b45c2db0a5ea7b7fc3b67c1ba5879601d6005/LICENSE"
+        },
+        {
+          "path": "packages/core/src/policy/sandboxPolicyManager.ts",
+          "url": "https://github.com/google-gemini/gemini-cli/blob/cd1b45c2db0a5ea7b7fc3b67c1ba5879601d6005/packages/core/src/policy/sandboxPolicyManager.ts"
+        },
+        {
+          "path": "packages/core/src/services/chatRecordingService.ts",
+          "url": "https://github.com/google-gemini/gemini-cli/blob/cd1b45c2db0a5ea7b7fc3b67c1ba5879601d6005/packages/core/src/services/chatRecordingService.ts"
+        }
+      ]
+    },
+    {
+      "requestedRepository": "cline/cline",
+      "canonicalRepository": "cline/cline",
+      "defaultBranch": "main",
+      "archived": false,
+      "pushedAt": "2026-10-24T07:04:13Z",
+      "revision": "40c5d99031fe1128189c5b52e40638d2b7787754",
+      "commitUrl": "https://github.com/cline/cline/commit/40c5d99031fe1128189c5b52e40638d2b7787754",
+      "commitDate": "2026-10-23T22:46:17-07:00",
+      "commitSubject": "fix(desktop): start Cloud on the local Cline/ClinePass model, else ClinePass or Sonnet 5.5 (#15320)",
+      "githubLicenseHint": "Apache-2.0",
+      "recentDefaultBranchCommits": [
+        {
+          "url": "https://github.com/cline/cline/commit/40c5d99031fe1128189c5b52e40638d2b7787754",
+          "date": "2026-10-24T05:46:17Z",
+          "subject": "fix(desktop): start Cloud on the local Cline/ClinePass model, else ClinePass or Sonnet 5.5 (#15320)"
+        },
+        {
+          "url": "https://github.com/cline/cline/commit/d39a149d1ed1570361f5068a7acfd43a7ba49325",
+          "date": "2026-10-24T04:21:49Z",
+          "subject": "chore(sdk): publish @cline/ui with the SDK packages (#15311)"
+        },
+        {
+          "url": "https://github.com/cline/cline/commit/f837744a1c774bc57c442d8bf25ca70eae95ee4a",
+          "date": "2026-10-24T04:17:29Z",
+          "subject": "fix(core): connect SSH remotes behind a ProxyJump alias (#15314)"
+        },
+        {
+          "url": "https://github.com/cline/cline/commit/ef3264f3e75da383524f493a5b0f539de50047af",
+          "date": "2026-10-24T04:16:13Z",
+          "subject": "fix(desktop): pasted Cline API key replaces stale browser sign-in; stack config rows in narrow panel (#14522)"
+        },
+        {
+          "url": "https://github.com/cline/cline/commit/2fb8fcee21339013b5b2b9126dcf1d30a3f35cec",
+          "date": "2026-10-24T04:10:14Z",
+          "subject": "fix(desktop): persist sidebar sort mode across restarts (#15315)"
+        }
+      ],
+      "inspectedSources": [
+        {
+          "path": "README.md",
+          "url": "https://github.com/cline/cline/blob/40c5d99031fe1128189c5b52e40638d2b7787754/README.md"
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/cline/cline/blob/40c5d99031fe1128189c5b52e40638d2b7787754/LICENSE"
+        },
+        {
+          "path": "apps/cline-hub/src/server/approvals.ts",
+          "url": "https://github.com/cline/cline/blob/40c5d99031fe1128189c5b52e40638d2b7787754/apps/cline-hub/src/server/approvals.ts"
+        }
+      ]
+    },
+    {
+      "requestedRepository": "block/goose",
+      "canonicalRepository": "aaif-goose/goose",
+      "defaultBranch": "main",
+      "archived": false,
+      "pushedAt": "2026-10-24T12:49:58Z",
+      "revision": "0276d567aa00d426161c51e9c0f52baabe5958ea",
+      "commitUrl": "https://github.com/aaif-goose/goose/commit/0276d567aa00d426161c51e9c0f52baabe5958ea",
+      "commitDate": "2026-10-24T12:41:47Z",
+      "commitSubject": "feat(allowlist): require HTTPS and validate redirects, block on policy failure (#12619)",
+      "githubLicenseHint": "Apache-2.0",
+      "recentDefaultBranchCommits": [
+        {
+          "url": "https://github.com/aaif-goose/goose/commit/0276d567aa00d426161c51e9c0f52baabe5958ea",
+          "date": "2026-10-24T12:41:47Z",
+          "subject": "feat(allowlist): require HTTPS and validate redirects, block on policy failure (#12619)"
+        },
+        {
+          "url": "https://github.com/aaif-goose/goose/commit/c3bfc5f7b0e230180ba3164ec1ee84fd951eaf0d",
+          "date": "2026-10-23T17:16:45Z",
+          "subject": "fix(prompt): surface MiniJinja render errors in custom system prompts (#12794)"
+        },
+        {
+          "url": "https://github.com/aaif-goose/goose/commit/e970eea8ac23067eb5f3bbad767e51cfaf917a91",
+          "date": "2026-10-23T05:44:28Z",
+          "subject": "fix(providers): request summarized thinking from Claude models (#13029)"
+        },
+        {
+          "url": "https://github.com/aaif-goose/goose/commit/3effaa5f15a641017ee8a4d8009b1bdd27e49c62",
+          "date": "2026-10-23T03:32:10Z",
+          "subject": "Allow callers to supply Goose session IDs (#13098)"
+        },
+        {
+          "url": "https://github.com/aaif-goose/goose/commit/47fc08cc15fff4d7d6a49bfd1416f5ab45ede4ed",
+          "date": "2026-10-23T01:44:18Z",
+          "subject": "fix(code-mode): keep recipe final_output tool for the model (#13102)"
+        }
+      ],
+      "inspectedSources": [
+        {
+          "path": "README.md",
+          "url": "https://github.com/aaif-goose/goose/blob/0276d567aa00d426161c51e9c0f52baabe5958ea/README.md"
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/aaif-goose/goose/blob/0276d567aa00d426161c51e9c0f52baabe5958ea/LICENSE"
+        },
+        {
+          "path": "crates/goose/src/agents/state_machine/ops_tool_approval.rs",
+          "url": "https://github.com/aaif-goose/goose/blob/0276d567aa00d426161c51e9c0f52baabe5958ea/crates/goose/src/agents/state_machine/ops_tool_approval.rs"
+        },
+        {
+          "path": "crates/goose/src/session/session_manager.rs",
+          "url": "https://github.com/aaif-goose/goose/blob/0276d567aa00d426161c51e9c0f52baabe5958ea/crates/goose/src/session/session_manager.rs"
+        }
+      ]
+    },
+    {
+      "requestedRepository": "Aider-AI/aider",
+      "canonicalRepository": "Aider-AI/aider",
+      "defaultBranch": "main",
+      "archived": false,
+      "pushedAt": "2026-05-22T14:02:20Z",
+      "revision": "5dc9490bb35f9729ef2c95d00a19ccd30c26339c",
+      "commitUrl": "https://github.com/Aider-AI/aider/commit/5dc9490bb35f9729ef2c95d00a19ccd30c26339c",
+      "commitDate": "2026-05-22T07:02:20-07:00",
+      "commitSubject": "Merge pull request #5173 from Cyberfilo/feat/anthropic_models-list-add-opus-4-5",
+      "githubLicenseHint": "Apache-2.0",
+      "recentDefaultBranchCommits": [
+        {
+          "url": "https://github.com/Aider-AI/aider/commit/5dc9490bb35f9729ef2c95d00a19ccd30c26339c",
+          "date": "2026-05-22T14:02:20Z",
+          "subject": "Merge pull request #5173 from Cyberfilo/feat/anthropic_models-list-add-opus-4-5"
+        },
+        {
+          "url": "https://github.com/Aider-AI/aider/commit/a7a54a9367fefb46fa576840e97f4479c46c7771",
+          "date": "2026-05-22T10:16:44Z",
+          "subject": "Apply ANTHROPIC_MODELS expansion"
+        },
+        {
+          "url": "https://github.com/Aider-AI/aider/commit/2ec3550e71c174efe84fe87d7fa669b66903fa41",
+          "date": "2026-05-22T10:16:21Z",
+          "subject": "Expand ANTHROPIC_MODELS list with recent Claude model names"
+        },
+        {
+          "url": "https://github.com/Aider-AI/aider/commit/6435cb8b1e885d7275327d4b61206b1b1618dfe1",
+          "date": "2026-05-16T00:55:02Z",
+          "subject": "Merge pull request #5132 from Mramaran/add-bash-tree-sitter-tags"
+        },
+        {
+          "url": "https://github.com/Aider-AI/aider/commit/ff191affc6e1413f33dad914d9930a5993aad853",
+          "date": "2026-05-15T09:49:50Z",
+          "subject": "feat: add bash tree-sitter tags for repomap support"
+        }
+      ],
+      "inspectedSources": [
+        {
+          "path": "README.md",
+          "url": "https://github.com/Aider-AI/aider/blob/5dc9490bb35f9729ef2c95d00a19ccd30c26339c/README.md"
+        },
+        {
+          "path": "LICENSE.txt",
+          "url": "https://github.com/Aider-AI/aider/blob/5dc9490bb35f9729ef2c95d00a19ccd30c26339c/LICENSE.txt"
+        },
+        {
+          "path": "aider/coders/base_coder.py",
+          "url": "https://github.com/Aider-AI/aider/blob/5dc9490bb35f9729ef2c95d00a19ccd30c26339c/aider/coders/base_coder.py"
+        }
+      ]
+    },
+    {
+      "requestedRepository": "continuedev/continue",
+      "canonicalRepository": "continuedev/continue",
+      "defaultBranch": "main",
+      "archived": false,
+      "pushedAt": "2026-10-22T18:15:55Z",
+      "revision": "5522c6f44ca0ac3528b37244818fbfa39b5af470",
+      "commitUrl": "https://github.com/continuedev/continue/commit/5522c6f44ca0ac3528b37244818fbfa39b5af470",
+      "commitDate": "2026-07-20T21:00:09-07:00",
+      "commitSubject": "docs: remove Sign in link (login flow retired) (#13005)",
+      "githubLicenseHint": "Apache-2.0",
+      "recentDefaultBranchCommits": [
+        {
+          "url": "https://github.com/continuedev/continue/commit/5522c6f44ca0ac3528b37244818fbfa39b5af470",
+          "date": "2026-07-21T04:00:09Z",
+          "subject": "docs: remove Sign in link (login flow retired) (#13005)"
+        },
+        {
+          "url": "https://github.com/continuedev/continue/commit/badf887d2d7f3e1fb2902ea1a6b1ddfee89f48c1",
+          "date": "2026-07-21T03:10:35Z",
+          "subject": "Merge pull request #13004 from continuedev/docs-custom-domain"
+        },
+        {
+          "url": "https://github.com/continuedev/continue/commit/485293ba49349b47f32549813a22a4d196d8f1e7",
+          "date": "2026-07-21T02:12:50Z",
+          "subject": "docs: serve docs site at docs.continue.dev root (basePath \"\" + CNAME)"
+        },
+        {
+          "url": "https://github.com/continuedev/continue/commit/d0a3c0b626b5bebc3bef4742eec05a0242be0bab",
+          "date": "2026-06-19T00:21:52Z",
+          "subject": "fix(gui): remove GitHub issue reporting entrypoints (#12816)"
+        },
+        {
+          "url": "https://github.com/continuedev/continue/commit/f0df398c9dcc24068deec3d3f294b0bbca65ce10",
+          "date": "2026-06-18T23:37:32Z",
+          "subject": "fix(gui): remove awkward inner scroll on onboarding API-key card (#12802)"
+        }
+      ],
+      "inspectedSources": [
+        {
+          "path": "README.md",
+          "url": "https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/README.md"
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/LICENSE"
+        },
+        {
+          "path": "extensions/cli/src/session.ts",
+          "url": "https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/session.ts"
+        },
+        {
+          "path": "extensions/cli/src/permissions/defaultPolicies.ts",
+          "url": "https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/permissions/defaultPolicies.ts"
+        }
+      ]
+    },
+    {
+      "requestedRepository": "OpenHands/software-agent-sdk",
+      "canonicalRepository": "OpenHands/software-agent-sdk",
+      "defaultBranch": "main",
+      "archived": false,
+      "pushedAt": "2026-10-24T08:46:23Z",
+      "revision": "acd96e6fa424c02432304395b9208f99be24b54d",
+      "commitUrl": "https://github.com/OpenHands/software-agent-sdk/commit/acd96e6fa424c02432304395b9208f99be24b54d",
+      "commitDate": "2026-10-23T13:45:18-04:00",
+      "commitSubject": "fix(security): pin Debian snapshot to 20261021 so system ca-certificates distrusts emSign G3 (#6167)",
+      "githubLicenseHint": "MIT",
+      "recentDefaultBranchCommits": [],
+      "inspectedSources": [
+        {
+          "path": "README.md",
+          "url": "https://github.com/OpenHands/software-agent-sdk/blob/acd96e6fa424c02432304395b9208f99be24b54d/README.md"
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/OpenHands/software-agent-sdk/blob/acd96e6fa424c02432304395b9208f99be24b54d/LICENSE"
+        },
+        {
+          "path": "openhands-workspace/openhands/workspace/docker/workspace.py",
+          "url": "https://github.com/OpenHands/software-agent-sdk/blob/acd96e6fa424c02432304395b9208f99be24b54d/openhands-workspace/openhands/workspace/docker/workspace.py"
+        }
+      ]
+    },
+    {
+      "requestedRepository": "warpdotdev/warp-factory-examples",
+      "canonicalRepository": "warpdotdev/warp-factory-examples",
+      "defaultBranch": "main",
+      "archived": false,
+      "pushedAt": "2026-08-25T19:06:38Z",
+      "revision": "84e7c952f1506c4bd2784d96fd40a6f4d6398cad",
+      "commitUrl": "https://github.com/warpdotdev/warp-factory-examples/commit/84e7c952f1506c4bd2784d96fd40a6f4d6398cad",
+      "commitDate": "2026-08-25T12:06:37-07:00",
+      "commitSubject": "Add 07-self-hosted-worker: route execution to your own infrastructure (#1)",
+      "githubLicenseHint": "MIT",
+      "recentDefaultBranchCommits": [],
+      "inspectedSources": [
+        {
+          "path": "README.md",
+          "url": "https://github.com/warpdotdev/warp-factory-examples/blob/84e7c952f1506c4bd2784d96fd40a6f4d6398cad/README.md"
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/warpdotdev/warp-factory-examples/blob/84e7c952f1506c4bd2784d96fd40a6f4d6398cad/LICENSE"
+        },
+        {
+          "path": "examples/07-self-hosted-worker/factory.yaml",
+          "url": "https://github.com/warpdotdev/warp-factory-examples/blob/84e7c952f1506c4bd2784d96fd40a6f4d6398cad/examples/07-self-hosted-worker/factory.yaml"
+        }
+      ]
+    }
+  ]
+}

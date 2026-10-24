@@ -253,7 +253,7 @@ tools/        Confined repository inspection tools and TF-IDF retrieval
 eval/         Deterministic/live benchmarks and security evaluations
 demo/         Key-free examples
 docs/         Architecture decision records (0001–NNNN) and the static site
-  adr/          # architecture decision records (0001–0009)
+  adr/          # architecture decision records (0001–0010)
 ```
 
 ## Development
@@ -278,6 +278,7 @@ Linting and formatting are managed separately by `prek` and use `oxlint`/`oxfmt`
 - [Runnable examples](./demo/README.md)
 - [Evaluation and safety guide](./eval/README.md)
 - [Architecture decisions](./docs/adr/README.md)
+- [Software factory research and roadmap](./docs/research/software-factories/README.md)
 - [Flue quick start](https://flueframework.com/docs/getting-started/quickstart/)
 - [Flue tools](https://flueframework.com/docs/guide/tools/)
 

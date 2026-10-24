@@ -114,8 +114,8 @@ flowly/
 **`docs/`:**
 
 - Purpose: Hand-maintained docs
-- Contains: `index.html`, `ops-digest.md`, `adr/` (0001–0009, README, template), `showcase/` (three-page product showcase: `showcase/index.html`, `showcase/features.html`, `showcase/how-it-works.html`, `showcase/styles.css`, `showcase/favicon.svg`), favicon package (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `site.webmanifest`)
-- Key files: `index.html`, `adr/README.md`, and the indexed ADRs `0001`–`0009`
+- Contains: `index.html`, `ops-digest.md`, `research/` (software factory comparison, current-state audit, security analysis, target/MVP, roadmap, VPS/provider evidence, and pinned upstream evidence), `adr/` (0001–0010, README, template), `showcase/` (three-page product showcase: `showcase/index.html`, `showcase/features.html`, `showcase/how-it-works.html`, `showcase/styles.css`, `showcase/favicon.svg`), favicon package (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `site.webmanifest`)
+- Key files: `index.html`, `adr/README.md`, and the indexed ADRs `0001`–`0010`
 
 **`tests/`:**
 
