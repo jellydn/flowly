@@ -16,10 +16,18 @@ export function dashboardReport(report: BenchmarkReport, secrets: string[] = [])
     runId: clean(report.runId),
     suiteId: clean(report.suiteId),
     model: clean(report.model.id),
-    ranAt: report.ranAt,
+    ranAt: clean(report.ranAt),
     mode: report.mode,
     judge: clean(report.judge ?? 'keyword'),
-    lineage: report.lineage,
+    lineage:
+      report.lineage &&
+      /^[a-f0-9]{64}$/.test(report.lineage.suiteDigest) &&
+      /^[a-f0-9]{64}$/.test(report.lineage.repositoryDigest)
+        ? {
+            suiteDigest: report.lineage.suiteDigest,
+            repositoryDigest: report.lineage.repositoryDigest,
+          }
+        : undefined,
     failed: report.results.filter((result) => !result.passed).length,
     summary: computeSummary(report.results),
     results: report.results.map((result) => ({
@@ -71,8 +79,8 @@ export function createEvaluationDashboard(
       response.writeHead(405, { Allow: 'GET' }).end('Read-only dashboard');
       return;
     }
-    const url = new URL(request.url ?? '/', 'http://localhost');
     try {
+      const url = new URL(request.url ?? '/', 'http://localhost');
       if (url.pathname === '/api/reports') {
         response.setHeader('Content-Type', 'application/json');
         response.end(
@@ -93,7 +101,11 @@ export function createEvaluationDashboard(
           response.end(
             JSON.stringify({
               passed: result.passed,
-              regressedScenarioIds: result.regressedScenarioIds,
+              regressedScenarioIds: dashboardReport(candidate, options.secrets)
+                .results.filter((_, index) =>
+                  result.regressedScenarioIds.includes(candidate.results[index].id),
+                )
+                .map((scenario) => scenario.id),
             }),
           );
         } catch {
