@@ -125,7 +125,11 @@ export function createFileBenchmarkStore(resultsDir: string): BenchmarkStore {
           }
         }
       }
-      return reports.sort((a, b) => b.ranAt.localeCompare(a.ranAt));
+      return reports.sort((a, b) =>
+        (typeof b.ranAt === 'string' ? b.ranAt : '').localeCompare(
+          typeof a.ranAt === 'string' ? a.ranAt : '',
+        ),
+      );
     },
     async leaderboard(suiteId?: string): Promise<LeaderboardEntry[]> {
       return toLeaderboard(await this.list(), suiteId);

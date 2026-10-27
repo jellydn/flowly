@@ -208,6 +208,10 @@ test('routing CLI reads persisted evidence without mutation and signals no-advic
   const store = createFileBenchmarkStore(dir);
   for (const run of reports())
     await store.save({ ...run, ranAt: new Date(Date.now() - 1000).toISOString() });
+  await writeFile(
+    path.join(dir, 'workloads', 'damaged.json'),
+    JSON.stringify({ ...reports()[2], runId: 'damaged', model: null }),
+  );
   const before = JSON.stringify(await store.list());
   const file = path.join(dir, 'policy.json');
   await writeFile(file, JSON.stringify(policy));
@@ -230,4 +234,34 @@ test('routing CLI reads persisted evidence without mutation and signals no-advic
   );
   await writeFile(file, '{}');
   assert.equal(invoke().status, 2);
+});
+
+test('routing isolates damaged saved reports without hiding damaged model evidence', async (t) => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'flowly-routing-damaged-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const store = createFileBenchmarkStore(dir);
+  for (const run of reports()) await store.save(run);
+  const file = path.join(dir, 'workloads', 'damaged.json');
+  for (const damage of [
+    { model: undefined },
+    { model: { id: 42, provider: 'test' } },
+    { ranAt: 42 },
+    { ranAt: { toString: null, valueOf: null } },
+    { results: reports()[2].results.map((result) => ({ ...result, errors: null })) },
+  ]) {
+    await writeFile(file, JSON.stringify({ ...reports()[2], runId: 'damaged', ...damage }));
+    const advice = recommendModelRouting(await store.list(), policy, now);
+    const identifiable = 'ranAt' in damage || 'results' in damage;
+    assert.equal(advice.decisions[0].recommendedModel?.id, identifiable ? 'quality' : 'cheap');
+  }
+  await writeFile(
+    path.join(dir, 'workloads', 'quality-1.json'),
+    JSON.stringify({ ...reports()[0], model: null }),
+  );
+  assert.ok(
+    recommendModelRouting(await store.list(), policy, now).decisions.every(
+      (decision) => decision.recommendedModel === null,
+    ),
+    'a damaged reference cannot be replaced with unrelated evidence',
+  );
 });

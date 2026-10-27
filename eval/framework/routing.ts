@@ -22,6 +22,34 @@ export const routingPolicySchema = v.strictObject({
 });
 export type RoutingPolicy = v.InferOutput<typeof routingPolicySchema>;
 
+const reportIdentity = v.object({
+  runId: v.string(),
+  suiteId: v.string(),
+  model: v.object({ id: v.string(), provider: v.string() }),
+});
+const metricPass = v.object({ passed: v.boolean() });
+const routingEvidence = v.object({
+  ranAt: v.string(),
+  results: v.array(
+    v.object({
+      id: v.string(),
+      workloadType: v.optional(workload),
+      passed: v.boolean(),
+      errors: v.array(v.string()),
+      metrics: v.object({
+        qualityScore: v.number(),
+        latencyMs: v.number(),
+        costUsd: v.number(),
+        tokensIn: v.number(),
+        tokensOut: v.number(),
+        toolSuccess: metricPass,
+        patchApplicability: v.nullable(metricPass),
+        humanAccepted: v.optional(v.boolean()),
+      }),
+    }),
+  ),
+});
+
 /** Advice only. Never invokes a model, changes credentials, or writes routing configuration. */
 export function recommendModelRouting(
   reports: BenchmarkReport[],
@@ -30,13 +58,24 @@ export function recommendModelRouting(
 ) {
   const policy = v.parse(routingPolicySchema, input);
   if (!Number.isFinite(now)) throw new Error('Invalid routing clock');
+  // Unidentifiable files cannot supply evidence. Keep identifiable damaged runs
+  // so they still block their model instead of exposing older successes.
+  reports = reports.filter((report) => v.is(reportIdentity, report));
   const reference = reports.find((report) => report.runId === policy.referenceRunId);
+  const timestamp = (report: BenchmarkReport) =>
+    typeof report.ranAt === 'string' ? Date.parse(report.ranAt) : Number.NaN;
   const fresh = (report: BenchmarkReport) => {
-    const time = Date.parse(report.ranAt);
+    const time = timestamp(report);
     return Number.isFinite(time) && time <= now && now - time <= policy.maxAgeHours * 3600000;
   };
   const compatible = (report: BenchmarkReport) => {
-    if (!reference || report.mode !== 'live') return false;
+    if (
+      !reference ||
+      report.mode !== 'live' ||
+      !v.is(routingEvidence, reference) ||
+      !v.is(routingEvidence, report)
+    )
+      return false;
     try {
       // Only incompatibility throws here. The reference is not a quality floor:
       // cheaper models may qualify under the operator's independent thresholds.
@@ -67,17 +106,17 @@ export function recommendModelRouting(
   }
   const decisions = [...new Set(policy.workloads)].map((target: BenchmarkWorkload['type']) => {
     const candidates = [...groups.values()].map((group) => {
-      group.sort(
-        (a, b) => Date.parse(b.ranAt) - Date.parse(a.ranAt) || a.runId.localeCompare(b.runId),
-      );
+      group.sort((a, b) => timestamp(b) - timestamp(a) || a.runId.localeCompare(b.runId));
       const latest = group[0];
       const reasons: string[] = [];
       if (!validReference)
         reasons.push(
           'Reference evidence is missing, ambiguous, stale, deterministic, or lacks valid lineage/scenarios',
         );
-      if (group.some((report) => !Number.isFinite(Date.parse(report.ranAt))))
+      if (group.some((report) => !Number.isFinite(timestamp(report))))
         reasons.push('Model history contains invalid timestamps');
+      if (group.some((report) => !v.is(routingEvidence, report)))
+        reasons.push('Model history contains malformed evidence');
       if (!fresh(latest) || !compatible(latest))
         reasons.push(
           'Latest model run is stale, future-dated, or incompatible; older successes cannot override it',
