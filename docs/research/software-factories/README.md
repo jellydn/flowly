@@ -20,6 +20,7 @@ upstream project would discard working controls without proving better results.
 | [Target architecture and MVP](./target-and-mvp.md)         | Incremental design, recovery rules, one vertical slice, and measurable acceptance                                     |
 | [Prioritized follow-ups](./roadmap.md)                     | Small delivery units, acceptance criteria, dependencies, complexity, and issue links                                  |
 | [VPS and provider evidence](./deployment-and-providers.md) | ai-flow operations, HermesHub BYOK/subscription paths, official provider constraints and accepted policy              |
+| [Per-job execution environments](./job-environments.md)    | Amp, Cursor and Devin managed/self-hosted boundaries; VPS isolation, cleanup and recovery proposal                    |
 
 ## Findings that change the recommendation
 

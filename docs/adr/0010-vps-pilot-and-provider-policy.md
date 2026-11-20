@@ -18,6 +18,12 @@ repositories `jellydn/ai-flow` and `jellydn/hermes-hub`. Their inspected source 
 the current OpenAI documentation provide [operational and provider evidence](../research/software-factories/deployment-and-providers.md),
 not proof that Flowly is deployed or that a subscription integration is ready.
 
+The [per-job environment comparison](../research/software-factories/job-environments.md)
+adds current Amp, Cursor and Devin evidence. It separates a persistent worker from
+its disposable job environments and proposes a rootless-container pilot with
+explicit shared-kernel limits. This supports the existing VPS decision; it does
+not select a hosted vendor, certify isolation, or authorize implementation/deployment.
+
 ## Decision
 
 1. **Run the pilot on the user's VPS.** Retain Flue and Flowly's control plane.

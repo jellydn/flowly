@@ -25,6 +25,7 @@ issues #154–#156 remain separate; none solves the factory execution boundaries
 | R8  | P2 / M          | One optional runtime adapter comparison                      | R7; same R1–R6 safety contract                                  |
 | R9  | P2 / M          | Trusted capability package discovery specification           | R4 and demonstrated user need; no executable package rollout    |
 | R10 | P1 / M          | Validate optional ChatGPT subscription access alongside BYOK | R1/R2 before live candidate execution; not a BYOK pilot blocker |
+| R11 | P1 / M          | Own per-attempt native resources and VPS capacity            | R1, R2, R3; required before R7 live pilot                       |
 
 ## R1 — Isolate native verification from host files and credentials
 
@@ -228,6 +229,22 @@ Acceptance criteria:
 Non-goals: a hosted shared subscription proxy, account sharing, credential UI,
 or production suitability claims based only on source inspection.
 
+## R11 — Own per-attempt native resources and VPS capacity
+
+The [cloud environment comparison](./job-environments.md) adds a missing lifecycle
+scope: the persistent worker must own native execution resources, not only clone
+directories. Extend `FactoryWorkspaceManager` and the single-worker admission path
+with runtime resource identity, fencing, fixed launch profiles, effective host
+resource preflight, startup reconciliation and idempotent cleanup. Start with one
+rootless backend and one active job; preserve plan-only and simple approval.
+
+R1 owns verifier confinement, R2 owns the Git/credential boundary, R3 owns leases
+and effects, and R6 owns portable candidate evidence. R11 integrates resource
+ownership without duplicating those contracts. Test duplicate allocation, quota
+exhaustion, cancellation descendants, restart and interrupted deletion on disposable
+infrastructure. Do not add a warm fleet, Kubernetes or a multi-provider framework.
+Full acceptance criteria: [#186](https://github.com/jellydn/flowly/issues/186).
+
 ## GitHub tracking
 
 Created after checking open and closed issues on 2026-10-24:
@@ -242,6 +259,7 @@ Created after checking open and closed issues on 2026-10-24:
 | R6: worker-loss recovery             | [#182](https://github.com/jellydn/flowly/issues/182) |
 | R7: measured MVP                     | [#183](https://github.com/jellydn/flowly/issues/183) |
 | R10: subscription compatibility      | [#184](https://github.com/jellydn/flowly/issues/184) |
+| R11: per-attempt runtime ownership   | [#186](https://github.com/jellydn/flowly/issues/186) |
 
 Each issue includes scope, acceptance criteria, dependencies, complexity and
 verification requirements. R8–R9 remain proposals to avoid speculative work.
