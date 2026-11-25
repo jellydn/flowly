@@ -20,11 +20,9 @@ export type FactoryPullRequestRecord = {
   body?: string | null;
 };
 
-const MARKER_PREFIX = '<!-- flowly-factory-run: ';
-
 /** Hidden idempotency key: one draft PR per factory run. */
 export function factoryRunMarker(runId: string): string {
-  return `${MARKER_PREFIX}${runId} -->`;
+  return `<!-- flowly-factory-run: ${runId} -->`;
 }
 
 export type FactoryPullRequestClient = {
@@ -95,14 +93,14 @@ export class FactoryDraftPrPublisher {
     const marker = factoryRunMarker(run.id);
     const ours = reusable.find((pullRequest) => pullRequest.body?.includes(marker));
     if (ours) return ours;
-    const foreign = reusable.find((pullRequest) => pullRequest.body?.includes(MARKER_PREFIX));
-    if (foreign) {
+    // A draft without this run's marker belongs to another run or predates
+    // markers; Flowly cannot prove it is this run's PR, so it fails closed.
+    const unowned = reusable[0];
+    if (unowned) {
       throw new Error(
-        `Factory publisher refused: draft PR #${foreign.number} on ${run.branch} belongs to another factory run.`,
+        `Factory publisher refused: draft PR #${unowned.number} on ${run.branch} has no marker for factory run ${run.id}.`,
       );
     }
-    // A draft from before run markers existed is still this branch's one PR.
-    if (reusable[0]) return reusable[0];
 
     const created = await this.client.createDraftPullRequest({
       title: `[factory] ${run.task.title}`,

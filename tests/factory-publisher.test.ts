@@ -33,36 +33,31 @@ describe('FactoryDraftPrPublisher', () => {
     assert.equal('mergePullRequest' in publisher, false);
   });
 
-  test('reuses an existing open draft for the same factory branch', async () => {
-    const run = await reviewedRun();
-    const existing = record({ number: 96, draft: true, state: 'open' });
-    const client = fakeClient([existing]);
-    const publisher = new FactoryDraftPrPublisher(client);
-    const first = await publisher.publish(run);
-    const second = await publisher.publish(run);
-
-    assert.equal(first.number, 96);
-    assert.equal(second.number, 96);
-    assert.equal(client.created.length, 0);
-  });
-
-  test('reuses the draft with this run marker and refuses a draft of another run', async () => {
+  test('reuses the open draft that carries this run marker', async () => {
     const run = await reviewedRun();
     const ours = record({ number: 97, body: `x\n${factoryRunMarker(run.id)}` });
     const other = record({
       number: 96,
       body: factoryRunMarker('00000000-0000-4000-8000-000000000000'),
     });
-    assert.equal(
-      (await new FactoryDraftPrPublisher(fakeClient([other, ours])).publish(run)).number,
-      97,
-    );
-    const client = fakeClient([other]);
-    await assert.rejects(
-      new FactoryDraftPrPublisher(client).publish(run),
-      /belongs to another factory run/,
-    );
+    const client = fakeClient([other, ours]);
+    const publisher = new FactoryDraftPrPublisher(client);
+
+    assert.equal((await publisher.publish(run)).number, 97);
+    assert.equal((await publisher.publish(run)).number, 97);
     assert.equal(client.created.length, 0);
+  });
+
+  test('refuses a draft of another run and a draft with no run marker', async () => {
+    const run = await reviewedRun();
+    for (const body of [factoryRunMarker('00000000-0000-4000-8000-000000000000'), 'old', null]) {
+      const client = fakeClient([record({ number: 96, body })]);
+      await assert.rejects(
+        new FactoryDraftPrPublisher(client).publish(run),
+        /draft PR #96 .* has no marker for factory run/,
+      );
+      assert.equal(client.created.length, 0);
+    }
   });
 
   test('a new draft PR body carries the run marker', async () => {

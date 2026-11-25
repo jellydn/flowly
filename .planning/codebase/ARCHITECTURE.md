@@ -60,7 +60,8 @@ executor, attempt, base SHA and VM name. After a restart, a run in `implementing
 implementation restarts in a fresh `<runId>-a<N>` clone and VM (earlier VMs are deleted),
 and verification reruns on the recorded commit. With `FLOWLY_MAX_ATTEMPTS`, a reclaim
 beyond the limit fails the run and deletes its VMs. Draft PR bodies carry a hidden
-`flowly-factory-run` marker, and the publisher refuses a draft that belongs to another run. The smolvm path makes no GitHub writes yet: it
+`flowly-factory-run` marker, and the publisher reuses only the draft with this run's marker;
+it refuses any other draft on the branch, also one with no marker (fail closed). The smolvm path makes no GitHub writes yet: it
 logs progress to stderr and stops after verification, before `git push`.
 
 See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to add a new record.
