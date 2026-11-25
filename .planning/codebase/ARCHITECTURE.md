@@ -42,6 +42,13 @@ Proposed [ADR 0011](../../docs/adr/0011-projects-and-runners.md) extends this de
 with project identity, risk-based local/VPS execution and connected local runners.
 It is not implemented; existing environment-based entrypoints remain unchanged.
 
+[ADR 0012](../../docs/adr/0012-experimental-sprite-executor.md) records a rejected
+proposal for a Fly.io Sprite executor. Usage-based billing has no fixed cost limit,
+so Flowly does not implement it. `FLOWLY_EXECUTOR` selects `local` (default) or the
+experimental fixed-cost `smolvm` executor (`factory/execution.ts`, `factory/smolvm.ts`):
+one offline microVM per run attempt. The smolvm executor is not yet connected to the
+pipeline, so `run-factory` stops before any side effect when it is selected.
+
 See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to add a new record.
 
 ## Layers

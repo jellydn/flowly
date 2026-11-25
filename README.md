@@ -253,7 +253,7 @@ tools/        Confined repository inspection tools and TF-IDF retrieval
 eval/         Deterministic/live benchmarks and security evaluations
 demo/         Key-free examples
 docs/         Architecture decision records (0001–NNNN) and the static site
-  adr/          # architecture decision records (0001–0011)
+  adr/          # architecture decision records (0001–0012)
 ```
 
 ## Development

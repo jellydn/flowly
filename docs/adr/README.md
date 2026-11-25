@@ -19,6 +19,7 @@ format. Each record captures the context, the decision, and the consequences.
 | [0009](./0009-factory-safety-evals.md)           | Adversarial factory safety evals                             | Accepted |
 | [0010](./0010-vps-pilot-and-provider-policy.md)  | User-owned VPS pilot, simple approval and provider policy    | Accepted |
 | [0011](./0011-projects-and-runners.md)           | Project identity and risk-based local and VPS runners        | Proposed |
+| [0012](./0012-experimental-sprite-executor.md)   | Experimental opt-in Fly.io Sprite executor                   | Rejected |
 
 ## Codebase map
 
@@ -32,7 +33,7 @@ documentation systems stay consistent.
 ## Conventions
 
 - Number ADRs sequentially; never reuse or renumber.
-- Status values: `Proposed`, `Accepted`, `Deprecated`, `Superseded by ADR-N`.
+- Status values: `Proposed`, `Accepted`, `Rejected`, `Deprecated`, `Superseded by ADR-N`.
 - Add a row to the index above for every new record.
 - Records are immutable once `Accepted` — record later changes in a new ADR.
 - Cross-link with the codebase map: record the decision here and reflect it in
@@ -41,7 +42,7 @@ documentation systems stay consistent.
 ## Creating a new ADR
 
 ```bash
-cp docs/adr/template.md docs/adr/0012-your-title.md
+cp docs/adr/template.md docs/adr/0013-your-title.md
 # fill in Context / Decision / Consequences, then add it to the index
 # and cross-link it from .planning/codebase/ARCHITECTURE.md
 ```
