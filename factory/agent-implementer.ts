@@ -4,7 +4,11 @@ import type { FactoryImplementer, FactoryImplementerInput } from './implementati
 
 const execFileAsync = promisify(execFile);
 
-type ImplementerRunner = (input: FactoryImplementerInput) => Promise<void>;
+/** `extraEnv` reaches only the implementer process, such as the smolvm VM identity. */
+export type ImplementerRunner = (
+  input: FactoryImplementerInput,
+  extraEnv?: Record<string, string>,
+) => Promise<void>;
 
 /** Run the writable implementation agent with its cwd confined to the isolated clone. */
 export function createAgentFactoryImplementer(
@@ -14,8 +18,8 @@ export function createAgentFactoryImplementer(
   return { implement: runner };
 }
 
-function runFlueImplementer(model: string): ImplementerRunner {
-  return async ({ task, plan, workspace, repositoryInstincts }) => {
+export function runFlueImplementer(model: string): ImplementerRunner {
+  return async ({ task, plan, workspace, repositoryInstincts }, extraEnv = {}) => {
     const prompt = [
       `Implement GitHub issue #${task.issueNumber}: ${task.title}`,
       '',
@@ -49,6 +53,7 @@ function runFlueImplementer(model: string): ImplementerRunner {
           ...process.env,
           FACTORY_WORKSPACE_PATH: workspace.path,
           FACTORY_IMPLEMENTER_MODEL: model,
+          ...extraEnv,
         },
         encoding: 'utf8',
         maxBuffer: 10 * 1024 * 1024,

@@ -23,7 +23,7 @@
  *   FLOWLY_LEARNING_POLICY – repository-relative learning-policy JSON file
  *   FLOWLY_MEMORY_ISSUE    – issue that holds the bot-authored memory snapshot
  *   FLOWLY_MEMORY_STORE    – local JSON memory file (development only)
- *   FLOWLY_EXECUTOR        – local (default) or smolvm (experimental, not wired yet)
+ *   FLOWLY_EXECUTOR        – local (default) or smolvm (experimental; needs FACTORY_RUN_STORE)
  *   FLOWLY_VM_IMAGE / FLOWLY_VM_BASE_PACK – smolvm guest source (exactly one)
  *   FLOWLY_VM_PREFIX, FLOWLY_VM_CPUS, FLOWLY_VM_MEMORY_MB, FLOWLY_RUN_TIMEOUT, FLOWLY_MAX_ATTEMPTS
  */
@@ -61,10 +61,13 @@ import type { FactoryManualConfirmation } from '../factory/types.ts';
 import { createRepositoryLearningFromEnv } from '../memory/config.ts';
 import { parseFactoryExecutor } from '../factory/execution.ts';
 import {
+  SmolvmExecutionAdapter,
   assertSmolvmAvailable,
   createSmolvmCommandRunner,
   parseSmolvmConfig,
 } from '../factory/smolvm.ts';
+import { SmolvmFactoryVerifier } from '../factory/smolvm-verifier.ts';
+import type { FactoryVerifier } from '../factory/implementation.ts';
 
 function fail(message: string): never {
   console.error(`[flowly-factory] ${message}`);
@@ -83,11 +86,12 @@ for (const name of REQUIRED_ENV) {
 }
 
 async function main(): Promise<void> {
-  if (parseFactoryExecutor(process.env) === 'smolvm') {
-    parseSmolvmConfig(process.env);
-    await assertSmolvmAvailable(createSmolvmCommandRunner());
-    // Fail closed until the smolvm SandboxDriver and verifier are wired; never fall back to local.
-    fail('FLOWLY_EXECUTOR=smolvm is not connected to the factory pipeline yet.');
+  const executor = parseFactoryExecutor(process.env);
+  const smolvmConfig = executor === 'smolvm' ? parseSmolvmConfig(process.env) : undefined;
+  if (smolvmConfig && !process.env.FACTORY_RUN_STORE) {
+    fail(
+      'FLOWLY_EXECUTOR=smolvm requires FACTORY_RUN_STORE, so the orphan VM sweep sees every run.',
+    );
   }
   const eventName = process.env.GITHUB_EVENT_NAME!;
   const eventPath = process.env.GITHUB_EVENT_PATH!;
@@ -115,6 +119,30 @@ async function main(): Promise<void> {
   const task = factoryTaskFromIssuesEvent(eventName, payload);
   const store = createFactoryRunStore(client, task.issueNumber);
   const events = new StoredFactoryEventLog(store, task.repository);
+  let verifier: FactoryVerifier = new FactoryVerificationRunner();
+  if (smolvmConfig) {
+    const runner = createSmolvmCommandRunner();
+    await assertSmolvmAvailable(runner);
+    const workers = new SmolvmExecutionAdapter(smolvmConfig, runner);
+    const verifierVms = new SmolvmExecutionAdapter(
+      { ...smolvmConfig, prefix: `${smolvmConfig.prefix}-verify` },
+      runner,
+    );
+    const activeRunIds = new Set(
+      (await store.listByRepository(task.repository))
+        .filter((run) => run.state !== 'completed' && run.state !== 'failed')
+        .map((run) => run.id),
+    );
+    for (const adapter of [workers, verifierVms]) {
+      for (const name of await adapter.sweepOrphans(activeRunIds)) {
+        console.error(`[flowly-factory] deleted orphan smolvm machine ${name}`);
+      }
+    }
+    verifier = new SmolvmFactoryVerifier(verifierVms);
+    // The host-side smolvm implementer needs the validated diff import (next phase).
+    // Fail closed before any run side effect; never fall back to local execution.
+    fail('FLOWLY_EXECUTOR=smolvm cannot implement yet: the diff import is not connected.');
+  }
   const gitAdapter = new FactoryGitAdapter({
     sourceRepository: repositoryPath,
     workspaceRoot,
@@ -149,7 +177,7 @@ async function main(): Promise<void> {
     progress: createIssueCommentProgress(client),
     git,
     implementer: createAgentFactoryImplementer(model),
-    verifier: new FactoryVerificationRunner(),
+    verifier,
     reviewer: review.reviewer,
     publisher: new FactoryDraftPrPublisher(createGitHubFactoryPullRequestClient(client)),
     readDiff: async (current) => {

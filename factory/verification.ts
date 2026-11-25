@@ -44,17 +44,12 @@ export class FactoryVerificationRunner {
     workspacePath: string,
     options?: { network: NetworkCapability },
   ): Promise<VerificationCommandResult[]> {
-    if (commands.length === 0 || commands.length > MAX_COMMANDS) {
-      throw new Error(
-        `Factory plans must contain between 1 and ${MAX_COMMANDS} verification commands.`,
-      );
-    }
+    assertVerificationCommands(commands);
     if (options?.network.mode === 'deny' && process.platform !== 'linux') {
       throw new Error('Denied-network factory verification requires Linux network namespaces.');
     }
     const results: VerificationCommandResult[] = [];
     for (const command of commands) {
-      assertCommand(command);
       results.push(await this.runCommand(command, workspacePath, options?.network));
     }
     return results;
@@ -118,6 +113,16 @@ export class FactoryVerificationRunner {
       });
     });
   }
+}
+
+/** Shared plan-command bounds for every verification backend. */
+export function assertVerificationCommands(commands: string[]): void {
+  if (commands.length === 0 || commands.length > MAX_COMMANDS) {
+    throw new Error(
+      `Factory plans must contain between 1 and ${MAX_COMMANDS} verification commands.`,
+    );
+  }
+  for (const command of commands) assertCommand(command);
 }
 
 function assertCommand(command: string): void {

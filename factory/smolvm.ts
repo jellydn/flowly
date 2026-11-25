@@ -47,7 +47,7 @@ const CONTROL_TIMEOUT_MS = 120_000;
 const START_TIMEOUT_MS = 600_000;
 const PREFIX_PATTERN = /^[a-z][a-z0-9-]{0,30}$/;
 /** Factory run ids are UUIDs; requiring that shape keeps the name filter strict. */
-const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+export const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const RUN_ID_PATTERN = new RegExp(`^${UUID}$`);
 const SECRET_ENV_PATTERN = /TOKEN|SECRET|PASSWORD|API_?KEY|CREDENTIAL/i;
 /**
@@ -143,6 +143,16 @@ export class SmolvmExecutionAdapter implements ExecutionAdapter {
     return `${this.config.prefix}-${runId}-a${attempt}`;
   }
 
+  /** The workspace of an existing attempt VM. No side effect. */
+  attach(runId: string, attempt: number): ExecutionWorkspace {
+    return { runId, attempt, name: this.machineName(runId, attempt), workdir: WORKDIR };
+  }
+
+  /** Copy one host file into the guest, for the sandbox driver's writeFile. */
+  async copyIn(workspace: ExecutionWorkspace, hostPath: string, guestPath: string): Promise<void> {
+    await this.control(['machine', 'cp', hostPath, `${workspace.name}:${guestPath}`]);
+  }
+
   async prepare(input: ExecutionPrepareInput): Promise<ExecutionWorkspace> {
     if (input.attempt > this.config.maxAttempts) {
       throw new Error(
@@ -191,7 +201,7 @@ export class SmolvmExecutionAdapter implements ExecutionAdapter {
       await this.deleteMachine(name).catch(() => undefined);
       throw error;
     }
-    return { runId: input.runId, attempt: input.attempt, name, workdir: WORKDIR };
+    return this.attach(input.runId, input.attempt);
   }
 
   async execute(
