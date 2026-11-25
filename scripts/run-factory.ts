@@ -23,6 +23,9 @@
  *   FLOWLY_LEARNING_POLICY – repository-relative learning-policy JSON file
  *   FLOWLY_MEMORY_ISSUE    – issue that holds the bot-authored memory snapshot
  *   FLOWLY_MEMORY_STORE    – local JSON memory file (development only)
+ *   FLOWLY_EXECUTOR        – local (default) or smolvm (experimental, not wired yet)
+ *   FLOWLY_VM_IMAGE / FLOWLY_VM_BASE_PACK – smolvm guest source (exactly one)
+ *   FLOWLY_VM_PREFIX, FLOWLY_VM_CPUS, FLOWLY_VM_MEMORY_MB, FLOWLY_RUN_TIMEOUT, FLOWLY_MAX_ATTEMPTS
  */
 
 import { readFile } from 'node:fs/promises';
@@ -56,6 +59,12 @@ import { parseFactoryAutonomyPolicy } from '../factory/autonomy.ts';
 import { parseFactoryCapabilityPolicy } from '../factory/capabilities.ts';
 import type { FactoryManualConfirmation } from '../factory/types.ts';
 import { createRepositoryLearningFromEnv } from '../memory/config.ts';
+import { parseFactoryExecutor } from '../factory/execution.ts';
+import {
+  assertSmolvmAvailable,
+  createSmolvmCommandRunner,
+  parseSmolvmConfig,
+} from '../factory/smolvm.ts';
 
 function fail(message: string): never {
   console.error(`[flowly-factory] ${message}`);
@@ -74,6 +83,12 @@ for (const name of REQUIRED_ENV) {
 }
 
 async function main(): Promise<void> {
+  if (parseFactoryExecutor(process.env) === 'smolvm') {
+    parseSmolvmConfig(process.env);
+    await assertSmolvmAvailable(createSmolvmCommandRunner());
+    // Fail closed until the smolvm SandboxDriver and verifier are wired; never fall back to local.
+    fail('FLOWLY_EXECUTOR=smolvm is not connected to the factory pipeline yet.');
+  }
   const eventName = process.env.GITHUB_EVENT_NAME!;
   const eventPath = process.env.GITHUB_EVENT_PATH!;
   let payload: unknown;
