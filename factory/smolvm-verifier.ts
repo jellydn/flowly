@@ -11,6 +11,13 @@ const execFileAsync = promisify(execFile);
 const DEFAULT_MAX_OUTPUT_BYTES = 64 * 1024;
 const WORKSPACE_ID_PATTERN = new RegExp(`^(${UUID})(?:-a([1-9]\\d*))?$`);
 
+/** Run id and attempt from a factory workspace id (`<runId>` or `<runId>-a<N>`). */
+export function parseWorkspaceRun(workspaceId: string): { runId: string; attempt: number } {
+  const match = WORKSPACE_ID_PATTERN.exec(workspaceId);
+  if (!match) throw new Error(`Cannot derive a factory run id from workspace ${workspaceId}.`);
+  return { runId: match[1], attempt: Number(match[2] ?? '1') };
+}
+
 export type TreeArchiver = (workspacePath: string, archivePath: string) => Promise<void>;
 
 /** Archive the committed tree only: no working-tree edits and no `.git` metadata. */
@@ -39,18 +46,12 @@ export class SmolvmFactoryVerifier implements FactoryVerifier {
 
   async run(commands: string[], workspacePath: string): Promise<VerificationCommandResult[]> {
     assertVerificationCommands(commands);
-    const match = WORKSPACE_ID_PATTERN.exec(path.basename(workspacePath));
-    if (!match) throw new Error(`Cannot derive a factory run id from workspace ${workspacePath}.`);
-    const runId = match[1];
+    const { runId, attempt } = parseWorkspaceRun(path.basename(workspacePath));
     const directory = await mkdtemp(path.join(os.tmpdir(), 'flowly-verify-'));
     try {
       const archivePath = path.join(directory, 'tree.tar');
       await this.archive(workspacePath, archivePath);
-      const workspace = await this.vms.recover({
-        runId,
-        attempt: Number(match[2] ?? '1'),
-        archivePath,
-      });
+      const workspace = await this.vms.recover({ runId, attempt, archivePath });
       const results: VerificationCommandResult[] = [];
       for (const command of commands) {
         const result = await this.vms.execute(workspace, { command });

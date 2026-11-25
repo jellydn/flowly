@@ -48,8 +48,10 @@ so Flowly does not implement it. `FLOWLY_EXECUTOR` selects `local` (default) or 
 experimental fixed-cost `smolvm` executor (`factory/execution.ts`, `factory/smolvm.ts`):
 one offline microVM per run attempt. `smolvm-sandbox.ts` is the Flue `SandboxDriver` that
 runs the implementer's tool calls in that VM, and `smolvm-verifier.ts` runs plan checks in a
-fresh VM built from the committed tree. The validated diff import is not connected yet, so
-`run-factory` stops before any run side effect when smolvm is selected.
+fresh VM built from the committed tree. `smolvm-implementer.ts` brings the candidate back as a
+tar that `tree-import.ts` parses in memory and validates (no `.git`, `..`, absolute paths,
+hard links, devices, or symlinks out of the tree) before it writes the trusted clone without
+following symlinks. The trusted Git adapter then commits and pushes as on the local path.
 
 See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to add a new record.
 

@@ -23,7 +23,8 @@
  *   FLOWLY_LEARNING_POLICY – repository-relative learning-policy JSON file
  *   FLOWLY_MEMORY_ISSUE    – issue that holds the bot-authored memory snapshot
  *   FLOWLY_MEMORY_STORE    – local JSON memory file (development only)
- *   FLOWLY_EXECUTOR        – local (default) or smolvm (experimental; needs FACTORY_RUN_STORE)
+ *   FLOWLY_EXECUTOR        – local (default) or smolvm (experimental; needs FACTORY_RUN_STORE;
+ *                            implementer tools and checks run in offline microVMs)
  *   FLOWLY_VM_IMAGE / FLOWLY_VM_BASE_PACK – smolvm guest source (exactly one)
  *   FLOWLY_VM_PREFIX, FLOWLY_VM_CPUS, FLOWLY_VM_MEMORY_MB, FLOWLY_RUN_TIMEOUT, FLOWLY_MAX_ATTEMPTS
  */
@@ -32,7 +33,8 @@ import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
-import { createAgentFactoryImplementer } from '../factory/agent-implementer.ts';
+import { createAgentFactoryImplementer, runFlueImplementer } from '../factory/agent-implementer.ts';
+import { createSmolvmFactoryImplementer } from '../factory/smolvm-implementer.ts';
 import { createIssueCommentProgress } from '../factory/defaults.ts';
 import { dispatchFactoryLabeledIssue, factoryTaskFromIssuesEvent } from '../factory/dispatch.ts';
 import { FactoryGitAdapter } from '../factory/git.ts';
@@ -67,7 +69,7 @@ import {
   parseSmolvmConfig,
 } from '../factory/smolvm.ts';
 import { SmolvmFactoryVerifier } from '../factory/smolvm-verifier.ts';
-import type { FactoryVerifier } from '../factory/implementation.ts';
+import type { FactoryImplementer, FactoryVerifier } from '../factory/implementation.ts';
 
 function fail(message: string): never {
   console.error(`[flowly-factory] ${message}`);
@@ -120,6 +122,7 @@ async function main(): Promise<void> {
   const store = createFactoryRunStore(client, task.issueNumber);
   const events = new StoredFactoryEventLog(store, task.repository);
   let verifier: FactoryVerifier = new FactoryVerificationRunner();
+  let implementer: FactoryImplementer = createAgentFactoryImplementer(model);
   if (smolvmConfig) {
     const runner = createSmolvmCommandRunner();
     await assertSmolvmAvailable(runner);
@@ -139,9 +142,10 @@ async function main(): Promise<void> {
       }
     }
     verifier = new SmolvmFactoryVerifier(verifierVms);
-    // The host-side smolvm implementer needs the validated diff import (next phase).
-    // Fail closed before any run side effect; never fall back to local execution.
-    fail('FLOWLY_EXECUTOR=smolvm cannot implement yet: the diff import is not connected.');
+    implementer = createSmolvmFactoryImplementer({
+      vms: workers,
+      runAgent: runFlueImplementer(model),
+    });
   }
   const gitAdapter = new FactoryGitAdapter({
     sourceRepository: repositoryPath,
@@ -176,7 +180,7 @@ async function main(): Promise<void> {
     planner: createModelFactoryPlanner(modelCall, repository),
     progress: createIssueCommentProgress(client),
     git,
-    implementer: createAgentFactoryImplementer(model),
+    implementer,
     verifier,
     reviewer: review.reviewer,
     publisher: new FactoryDraftPrPublisher(createGitHubFactoryPullRequestClient(client)),

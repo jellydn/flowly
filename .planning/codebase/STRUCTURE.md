@@ -22,7 +22,7 @@ flowly/
 ├── demo/              # Feature-oriented runnable examples
 ├── docs/              # Hand-maintained docs page + ADRs
 ├── skills/            # Flue skills (analyzing-repositories)
-├── tests/             # Node test-runner tests (59 files + helpers)
+├── tests/             # Node test-runner tests (60 files + helpers)
 ├── .planning/         # Codebase map + internal planning docs
 ├── .github/workflows/ # CI + event-router/review/factory workflow + examples
 ├── sandbox.ts         # Empty toolset replacing default FS/shell tools
@@ -72,7 +72,7 @@ flowly/
 **`factory/`:**
 
 - Purpose: Typed issue-to-PR state, trusted implementation/review/publication boundaries, autonomy policy, and multi-batch migration campaigns
-- Contains: `types.ts`, `schema.ts`, `store.ts`, `run-state-store.ts`, `orchestrator.ts`, `autonomy.ts`, `capabilities.ts`, `capability-guard.ts`, `workspace-lifecycle.ts`, `workspace-store.ts`, `events.ts`, `campaign-types.ts`, `campaign-schema.ts`, `campaign-store.ts`, `campaign.ts`, `campaign-run.ts`, `intake.ts`, `plan.ts`, `run.ts`, `dispatch.ts`, `defaults.ts`, `model.ts`, `model-adapters.ts`, `agent-implementer.ts`, `git.ts`, `implementation.ts`, `verification.ts`, `execution.ts`, `smolvm.ts`, `smolvm-sandbox.ts`, `smolvm-verifier.ts`, `review.ts`, `publisher.ts`, `pipeline.ts`
+- Contains: `types.ts`, `schema.ts`, `store.ts`, `run-state-store.ts`, `orchestrator.ts`, `autonomy.ts`, `capabilities.ts`, `capability-guard.ts`, `workspace-lifecycle.ts`, `workspace-store.ts`, `events.ts`, `campaign-types.ts`, `campaign-schema.ts`, `campaign-store.ts`, `campaign.ts`, `campaign-run.ts`, `intake.ts`, `plan.ts`, `run.ts`, `dispatch.ts`, `defaults.ts`, `model.ts`, `model-adapters.ts`, `agent-implementer.ts`, `git.ts`, `implementation.ts`, `verification.ts`, `execution.ts`, `smolvm.ts`, `smolvm-sandbox.ts`, `smolvm-verifier.ts`, `smolvm-implementer.ts`, `tree-import.ts`, `review.ts`, `publisher.ts`, `pipeline.ts`
 - Key files: `orchestrator.ts` (monotonic transitions + atomic event append), `autonomy.ts` (evidence-based gates), `capabilities.ts` and `capability-guard.ts` (least-capability manifests), `workspace-lifecycle.ts` and `workspace-store.ts` (run-owned workspace persistence/GC), `events.ts` (append-only events and projections), `run.ts` (pipeline), `git.ts` (trusted Git mutation), `campaign.ts` and `campaign-run.ts` (approved migration batches)
 
 **`github/`:**
@@ -120,7 +120,7 @@ flowly/
 **`tests/`:**
 
 - Purpose: All automated tests (single directory, not co-located)
-- Contains: 59 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
+- Contains: 60 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
 - Key files: `helpers.ts`, `event-router.test.ts`, `bench-runner.test.ts`
 
 ## Key File Locations

@@ -153,6 +153,11 @@ export class SmolvmExecutionAdapter implements ExecutionAdapter {
     await this.control(['machine', 'cp', hostPath, `${workspace.name}:${guestPath}`]);
   }
 
+  /** Copy one guest file to the host. The caller treats its content as untrusted. */
+  async copyOut(workspace: ExecutionWorkspace, guestPath: string, hostPath: string): Promise<void> {
+    await this.control(['machine', 'cp', `${workspace.name}:${guestPath}`, hostPath]);
+  }
+
   async prepare(input: ExecutionPrepareInput): Promise<ExecutionWorkspace> {
     if (input.attempt > this.config.maxAttempts) {
       throw new Error(
