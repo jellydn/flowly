@@ -90,7 +90,7 @@ flowly/
 **`scripts/`:**
 
 - Purpose: CI entrypoints and local operator CLIs
-- Contains: `review-pr.ts`, `run-factory.ts`, `factory.ts`, `route-event.ts`, `flowly-eval.ts`, `flue-eval.ts` (compatibility), `eval-dashboard.ts`, `eval-share.ts`, `eval-share-server.ts`, `eval-recommend.ts`, `memory.ts`, `ops-digest.ts`, `publish-ops-digest.ts`, `check-doc-tree.ts`
+- Contains: `review-pr.ts`, `run-factory.ts`, `smolvm-e2e.ts`, `factory.ts`, `route-event.ts`, `flowly-eval.ts`, `flue-eval.ts` (compatibility), `eval-dashboard.ts`, `eval-share.ts`, `eval-share-server.ts`, `eval-recommend.ts`, `memory.ts`, `ops-digest.ts`, `publish-ops-digest.ts`, `check-doc-tree.ts`
 - Key files: `review-pr.ts`, `route-event.ts`, `run-factory.ts`, `flowly-eval.ts`, `memory.ts`
 
 **`ops-digest/`:**
@@ -134,6 +134,7 @@ flowly/
 - `scripts/route-event.ts`: CI event-router entrypoint
 - `scripts/run-factory.ts`: production issue-to-draft-PR pipeline entrypoint
 - `scripts/factory.ts`: read-only factory run list/show/timeline/explain CLI
+- `scripts/smolvm-e2e.ts`: manual end-to-end check of `FLOWLY_EXECUTOR=smolvm` on a Mac (demo repository, stops before push)
 - `scripts/flowly-eval.ts`: benchmark CLI; `scripts/flue-eval.ts` is the legacy entrypoint
 - `scripts/memory.ts`: local repository-instinct inspection and trusted status mutation CLI
 - `eval/repository/scenarios.ts`: deterministic repository-evaluation entrypoint
