@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import type { FactoryGitMutator } from '../factory/implementation.ts';
 import { runControlledImplementation } from '../factory/implementation.ts';
-import { FactoryOrchestrator } from '../factory/orchestrator.ts';
+import { FactoryLeaseHeldError, FactoryOrchestrator } from '../factory/orchestrator.ts';
+import { stopBeforePush } from '../factory/smolvm-implementer.ts';
 import { MemoryFactoryRunStore } from '../factory/store.ts';
 import type { FactoryRun } from '../factory/types.ts';
 import type { FactoryVerifier } from '../factory/implementation.ts';
@@ -28,6 +29,63 @@ const plan = {
 };
 
 describe('runControlledImplementation', () => {
+  test('a refused lease neither implements nor fails the holder workspace', async () => {
+    const store = new MemoryFactoryRunStore();
+    const { orchestrator, run } = await plannedRun(store);
+    await new FactoryOrchestrator(store).beginImplementation(run.id);
+    const calls: string[] = [];
+    const git = { ...fakeGit(calls), fail: async (id: string) => void calls.push(`fail:${id}`) };
+
+    await assert.rejects(
+      runControlledImplementation(run, {
+        orchestrator,
+        git,
+        verifier: { run: async () => [] },
+        implementer: { implement: async () => void calls.push('implement') },
+      }),
+      FactoryLeaseHeldError,
+    );
+    assert.deepEqual(calls, []);
+  });
+
+  test('the smolvm git mutator stops after verification and before push', async () => {
+    const { orchestrator, run } = await plannedRun();
+    const calls: string[] = [];
+    const recorded: unknown[] = [];
+
+    await assert.rejects(
+      runControlledImplementation(run, {
+        orchestrator,
+        git: stopBeforePush(fakeGit(calls)),
+        verifier: { run: async (commands) => commands.map((command) => commandResult(command, 0)) },
+        implementer: {
+          async implement({ recordExecution }) {
+            await recordExecution?.({
+              executor: 'smolvm',
+              vmName: 'vm-1',
+              baseSha: 'c'.repeat(40),
+            });
+            recorded.push('implemented');
+          },
+        },
+      }),
+      /stops before push: commit abc123/,
+    );
+    assert.ok(!calls.some((call) => call.startsWith('push')));
+    const current = await orchestrator.get(run.id);
+    assert.equal(current.state, 'verifying');
+    assert.deepEqual(current.implementation?.commands, [
+      { command: 'npm test', exitCode: 0 },
+      { command: 'npm run typecheck', exitCode: 0 },
+    ]);
+    assert.deepEqual(current.execution, {
+      executor: 'smolvm',
+      vmName: 'vm-1',
+      baseSha: 'c'.repeat(40),
+      attempt: 1,
+    });
+  });
+
   test('implements, verifies, pushes, and persists only structured outcomes', async () => {
     const { orchestrator, run } = await plannedRun();
     const calls: string[] = [];
@@ -206,8 +264,10 @@ describe('runControlledImplementation', () => {
   });
 });
 
-async function plannedRun(): Promise<{ orchestrator: FactoryOrchestrator; run: FactoryRun }> {
-  const orchestrator = new FactoryOrchestrator(new MemoryFactoryRunStore());
+async function plannedRun(
+  store = new MemoryFactoryRunStore(),
+): Promise<{ orchestrator: FactoryOrchestrator; run: FactoryRun }> {
+  const orchestrator = new FactoryOrchestrator(store);
   const { run } = await orchestrator.start(task);
   await orchestrator.classify(run.id, classification);
   await orchestrator.plan(run.id, plan);

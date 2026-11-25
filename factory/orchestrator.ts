@@ -17,7 +17,18 @@ import {
   type FactoryAutonomyEvent,
   type FactoryAutonomyPolicy,
   type FactoryManualConfirmation,
+  type FactoryRunExecution,
 } from './types.ts';
+
+/** Another live process holds the implementation lease. Callers must not touch its workspace. */
+export class FactoryLeaseHeldError extends Error {
+  constructor(id: string, until: number) {
+    super(
+      `Factory run ${id} is being implemented by another process until ${new Date(until).toISOString()}.`,
+    );
+    this.name = 'FactoryLeaseHeldError';
+  }
+}
 
 /**
  * Trusted factory state boundary. It creates one run per issue and permits only
@@ -25,7 +36,17 @@ import {
  * another branch or PR.
  */
 export class FactoryOrchestrator {
-  constructor(private readonly store: FactoryRunStore) {}
+  /** Identifies this process as an implementation lease holder. */
+  readonly holder: string;
+  private readonly now: () => number;
+
+  constructor(
+    private readonly store: FactoryRunStore,
+    options: { holder?: string; now?: () => number } = {},
+  ) {
+    this.holder = options.holder ?? randomUUID();
+    this.now = options.now ?? Date.now;
+  }
 
   /** Load the persisted run. Callers must not treat a stale snapshot as current. */
   async get(id: string): Promise<FactoryRun> {
@@ -167,14 +188,58 @@ export class FactoryOrchestrator {
     return this.save({ ...run, plan, state: 'planned' });
   }
 
+  /**
+   * Claims planned → implementing with an exclusive lease. The holder may call
+   * it again. Another process gets FactoryLeaseHeldError while the lease is
+   * live; after expiry it reclaims the run with the next attempt number.
+   */
   async beginImplementation(id: string): Promise<FactoryRun> {
-    const run = await this.requireState(id, ['planned'], ['implementing']);
-    if (run.state === 'implementing') return run;
-    return this.save({
-      ...run,
-      state: 'implementing',
-      branch: factoryBranch(run.task.issueNumber, run.task.title, run.task.campaign),
-    });
+    const run = await this.requireState(id, ['planned', 'implementing'], []);
+    if (run.implementationLease?.holder === this.holder && run.state === 'implementing') {
+      return run;
+    }
+    this.assertImplementationLeaseFree(run);
+    try {
+      return await this.save({
+        ...run,
+        state: 'implementing',
+        branch:
+          run.branch ?? factoryBranch(run.task.issueNumber, run.task.title, run.task.campaign),
+        implementationLease: {
+          holder: this.holder,
+          attempt: (run.implementationLease?.attempt ?? 0) + 1,
+          startedAt: this.now(),
+        },
+      });
+    } catch (error) {
+      if (!isVersionConflict(error)) throw error;
+      this.assertImplementationLeaseFree(await this.get(id));
+      throw error;
+    }
+  }
+
+  /** Record the executor environment of the current implementation attempt. Lease holder only. */
+  async recordExecution(
+    id: string,
+    execution: Omit<FactoryRunExecution, 'attempt'>,
+  ): Promise<FactoryRun> {
+    const run = await this.requireState(id, ['implementing'], []);
+    const lease = run.implementationLease;
+    if (lease?.holder !== this.holder) {
+      throw new Error(
+        `Factory run ${id} cannot record execution without its implementation lease.`,
+      );
+    }
+    const next: FactoryRunExecution = { ...execution, attempt: lease.attempt };
+    if (isDeepStrictEqual(run.execution, next)) return run;
+    return this.save({ ...run, execution: next });
+  }
+
+  private assertImplementationLeaseFree(run: FactoryRun): void {
+    const lease = run.implementationLease;
+    if (run.state !== 'implementing' || !lease || lease.holder === this.holder) return;
+    const until = lease.startedAt + IMPLEMENTATION_LEASE_MS;
+    if (this.now() < until) throw new FactoryLeaseHeldError(run.id, until);
   }
 
   async recordImplementation(
@@ -275,6 +340,12 @@ export class FactoryOrchestrator {
     return next;
   }
 }
+
+/**
+ * How long an `implementing` claim is exclusive. It exceeds the implementer's
+ * 20-minute timeout, so a live attempt is never taken over.
+ */
+export const IMPLEMENTATION_LEASE_MS = 30 * 60_000;
 
 /** How long a `planning` claim is exclusive before a retried worker may take over. */
 export const PLANNING_LEASE_MS = 15 * 60_000;

@@ -7,7 +7,6 @@ import {
   readlink,
   realpath,
   rm,
-  symlink,
   writeFile,
 } from 'node:fs/promises';
 import path from 'node:path';
@@ -119,46 +118,83 @@ export function parseTreeArchive(
 }
 
 /**
- * Make the working tree at `root` equal to `entries`, ignoring the top-level
- * `.git` directory. Writes never follow a symlink, and every parent directory
- * is checked to resolve inside the root. Returns the changed paths.
+ * Paths an implementation candidate may never add, change, or delete: CI and
+ * workflow definitions, Flowly/Flue review and agent configuration, and Git
+ * attribute/submodule files that change how trusted Git reads the tree.
+ * Compared case-insensitively, because macOS file systems ignore case.
  */
-export async function importTree(root: string, entries: TreeEntry[]): Promise<string[]> {
-  const realRoot = await realpath(root);
-  const desired = new Map(entries.map((entry) => [entry.path, entry]));
-  const changed = new Set<string>();
+export const PROTECTED_PATH_PREFIXES = ['.github/', '.flowly/', '.flue/', '.agents/'] as const;
+export const PROTECTED_FILES = ['.gitmodules', '.gitattributes'] as const;
 
+export function isProtectedPath(entryPath: string): boolean {
+  const lower = entryPath.toLowerCase();
+  return (
+    (PROTECTED_FILES as readonly string[]).includes(lower) ||
+    PROTECTED_PATH_PREFIXES.some((prefix) => lower.startsWith(prefix) || `${lower}/` === prefix)
+  );
+}
+
+/**
+ * Make the working tree at `root` equal to `entries`, ignoring the top-level
+ * `.git` directory. Every change is planned first and the whole import is
+ * refused, before any write, when it touches a protected path or adds or
+ * changes a symlink (unchanged symlinks of the base tree are kept). Writes
+ * never follow a symlink, and every parent directory is checked to resolve
+ * inside the root. Returns the changed paths.
+ */
+export async function importTree(
+  root: string,
+  entries: TreeEntry[],
+  options: { isProtected?: (entryPath: string) => boolean } = {},
+): Promise<string[]> {
+  const isProtected = options.isProtected ?? isProtectedPath;
+  const realRoot = await realpath(root);
+  const desired = new Set(entries.map((entry) => entry.path));
+  const deletions: string[] = [];
   for (const [entryPath, kind] of await listTree(realRoot)) {
-    if (kind !== 'directory' && !desired.has(entryPath)) {
-      await rm(hostPath(realRoot, entryPath), { force: true });
-      changed.add(entryPath);
-    }
+    if (kind !== 'directory' && !desired.has(entryPath)) deletions.push(entryPath);
+  }
+  const writes: TreeEntry[] = [];
+  for (const entry of entries) {
+    if (!(await matches(hostPath(realRoot, entry.path), entry))) writes.push(entry);
   }
 
-  for (const entry of entries) {
+  for (const entryPath of [...deletions, ...writes.map((entry) => entry.path)]) {
+    if (isProtected(entryPath)) {
+      throw new Error(`Candidate changes the protected path "${entryPath}".`);
+    }
+  }
+  const symlinkWrite = writes.find((entry) => entry.type === 'symlink');
+  if (symlinkWrite) {
+    throw new Error(`Candidate adds or changes the symlink "${symlinkWrite.path}".`);
+  }
+
+  for (const entryPath of deletions) await rm(hostPath(realRoot, entryPath), { force: true });
+  for (const entry of writes) {
+    if (entry.type !== 'file') continue;
     const target = hostPath(realRoot, entry.path);
     await ensureDirectory(realRoot, path.dirname(target));
     const existing = await lstat(target).catch(() => undefined);
-    if (entry.type === 'symlink') {
-      if (existing?.isSymbolicLink() && (await readlink(target)) === entry.target) continue;
-      if (existing) await rm(target, { recursive: true, force: true });
-      await symlink(entry.target, target);
-    } else {
-      const mode = entry.executable ? 0o755 : 0o644;
-      if (
-        existing?.isFile() &&
-        ((existing.mode & 0o111) !== 0) === entry.executable &&
-        (await readFile(target)).equals(entry.data)
-      ) {
-        continue;
-      }
-      if (existing && !existing.isFile()) await rm(target, { recursive: true, force: true });
-      await writeFile(target, entry.data, { mode });
-      await chmod(target, mode);
-    }
-    changed.add(entry.path);
+    if (existing && !existing.isFile()) await rm(target, { recursive: true, force: true });
+    const mode = entry.executable ? 0o755 : 0o644;
+    await writeFile(target, entry.data, { mode });
+    await chmod(target, mode);
   }
-  return [...changed].sort();
+  return [...deletions, ...writes.map((entry) => entry.path)].sort();
+}
+
+/** True when the host path already holds exactly this entry. Never follows a symlink. */
+async function matches(target: string, entry: TreeEntry): Promise<boolean> {
+  const existing = await lstat(target).catch(() => undefined);
+  if (!existing) return false;
+  if (entry.type === 'symlink') {
+    return existing.isSymbolicLink() && (await readlink(target)) === entry.target;
+  }
+  return (
+    existing.isFile() &&
+    ((existing.mode & 0o111) !== 0) === entry.executable &&
+    (await readFile(target)).equals(entry.data)
+  );
 }
 
 function normalizeEntryPath(raw: string): string | undefined {

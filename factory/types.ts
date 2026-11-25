@@ -129,6 +129,22 @@ export type FactoryAutonomyAudit = {
   gateDecisions: FactoryAutonomyGateDecision[];
 };
 
+/** Exclusive claim on the `implementing` stage, like the planning lease. */
+export type FactoryImplementationLease = {
+  holder: string;
+  /** 1 for the first claim; a reclaim after expiry increments it. */
+  attempt: number;
+  startedAt: number;
+};
+
+/** Where the implementation ran. Recorded by the executor once its environment exists. */
+export type FactoryRunExecution = {
+  executor: 'local' | 'smolvm';
+  attempt: number;
+  baseSha: string;
+  vmName?: string;
+};
+
 export type FactoryRun = {
   id: string;
   task: FactoryTask;
@@ -147,6 +163,8 @@ export type FactoryRun = {
   updatedAt: number;
   /** Set when the run enters `planning`; used to reclaim a stale lease. */
   planningStartedAt?: number;
+  implementationLease?: FactoryImplementationLease;
+  execution?: FactoryRunExecution;
   /** Durable event history, persisted atomically with each run transition. */
   events?: FactoryRunEvent[];
 };

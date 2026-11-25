@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, test } from 'node:test';
 import { createSmolvmFactoryImplementer } from '../factory/smolvm-implementer.ts';
-import { importTree, parseTreeArchive } from '../factory/tree-import.ts';
+import { importTree, parseTreeArchive, type TreeEntry } from '../factory/tree-import.ts';
 
 const RUN = '3f2a9c1e-0000-4000-8000-000000000001';
 const directories: string[] = [];
@@ -29,7 +29,10 @@ async function temporary(): Promise<string> {
   return dir;
 }
 
-/** A trusted clone with one commit: keep.txt, edit.txt, gone.txt, bin/run.sh. */
+/**
+ * A trusted clone with one commit: keep.txt, edit.txt, gone.txt, bin/run.sh,
+ * the symlink bin/keep-link, and the protected .github/workflows/ci.yml.
+ */
 async function clone(): Promise<string> {
   const repo = path.join(await temporary(), RUN);
   await mkdir(path.join(repo, 'bin'), { recursive: true });
@@ -37,6 +40,9 @@ async function clone(): Promise<string> {
   await writeFile(path.join(repo, 'edit.txt'), 'old\n');
   await writeFile(path.join(repo, 'gone.txt'), 'bye\n');
   await writeFile(path.join(repo, 'bin', 'run.sh'), 'echo hi\n', { mode: 0o644 });
+  await symlink('../keep.txt', path.join(repo, 'bin', 'keep-link'));
+  await mkdir(path.join(repo, '.github', 'workflows'), { recursive: true });
+  await writeFile(path.join(repo, '.github', 'workflows', 'ci.yml'), 'on: push\n');
   execFileSync('git', ['init', '-q', repo]);
   execFileSync('git', ['-C', repo, 'add', '-A']);
   execFileSync('git', [
@@ -64,6 +70,8 @@ async function candidateArchive(format: 'gnu' | 'ustar' | 'pax'): Promise<Buffer
   await writeFile(path.join(tree, 'bin', 'run.sh'), 'echo hi\n', { mode: 0o755 });
   await writeFile(path.join(tree, deep, 'long.txt'), 'deep\n');
   await symlink('../keep.txt', path.join(tree, 'bin', 'keep-link'));
+  await mkdir(path.join(tree, '.github', 'workflows'), { recursive: true });
+  await writeFile(path.join(tree, '.github', 'workflows', 'ci.yml'), 'on: push\n');
   const out = path.join(await temporary(), 'c.tar');
   execFileSync('tar', [`--format=${format}`, '-cf', out, '-C', tree, '.']);
   return readFile(out);
@@ -97,7 +105,14 @@ describe('parseTreeArchive', () => {
       const long = `src/${'a'.repeat(60)}/${'b'.repeat(60)}/long.txt`;
       assert.deepEqual(
         [...byPath.keys()].sort(),
-        ['bin/keep-link', 'bin/run.sh', 'edit.txt', 'keep.txt', long].sort(),
+        [
+          '.github/workflows/ci.yml',
+          'bin/keep-link',
+          'bin/run.sh',
+          'edit.txt',
+          'keep.txt',
+          long,
+        ].sort(),
       );
       assert.deepEqual(byPath.get('bin/keep-link'), {
         path: 'bin/keep-link',
@@ -169,19 +184,106 @@ describe('importTree', () => {
     const changed = await importTree(repo, parseTreeArchive(await candidateArchive('gnu')));
 
     const long = `src/${'a'.repeat(60)}/${'b'.repeat(60)}/long.txt`;
-    assert.deepEqual(changed, ['bin/keep-link', 'bin/run.sh', 'edit.txt', 'gone.txt', long].sort());
+    assert.deepEqual(changed, ['bin/run.sh', 'edit.txt', 'gone.txt', long].sort());
     const status = execFileSync('git', ['-C', repo, 'status', '--porcelain=v1', '-uall'], {
       encoding: 'utf8',
     });
     assert.deepEqual(
       status.split('\n').filter(Boolean).sort(),
-      [' D gone.txt', ' M bin/run.sh', ' M edit.txt', '?? bin/keep-link', `?? ${long}`].sort(),
+      [' D gone.txt', ' M bin/run.sh', ' M edit.txt', `?? ${long}`].sort(),
     );
     assert.equal(await readlink(path.join(repo, 'bin/keep-link')), '../keep.txt');
     assert.equal(
       execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD'], { encoding: 'utf8' }),
       head,
     );
+  });
+
+  const file = (entryPath: string, data = 'x\n'): TreeEntry => ({
+    path: entryPath,
+    type: 'file',
+    data: Buffer.from(data),
+    executable: false,
+  });
+  /** The base tree of clone() as entries, so each case changes exactly one thing. */
+  const baseEntries = (): TreeEntry[] => [
+    file('keep.txt', 'same\n'),
+    file('edit.txt', 'old\n'),
+    file('gone.txt', 'bye\n'),
+    file('bin/run.sh', 'echo hi\n'),
+    { path: 'bin/keep-link', type: 'symlink', target: '../keep.txt' },
+    file('.github/workflows/ci.yml', 'on: push\n'),
+  ];
+  const hostile: Array<[string, (base: TreeEntry[]) => TreeEntry[], RegExp]> = [
+    [
+      'adds a workflow',
+      (base) => [...base, file('.github/workflows/evil.yml')],
+      /protected path ".github\/workflows\/evil.yml"/,
+    ],
+    [
+      'edits a workflow',
+      (base) =>
+        base.map((e) =>
+          e.path.startsWith('.github/') ? file(e.path, 'on: pull_request_target\n') : e,
+        ),
+      /protected path/,
+    ],
+    [
+      'deletes a workflow',
+      (base) => base.filter((e) => !e.path.startsWith('.github/')),
+      /protected path/,
+    ],
+    [
+      'uses another case for .github',
+      (base) => [...base, file('.GitHub/workflows/evil.yml')],
+      /protected path/,
+    ],
+    [
+      'adds .gitattributes',
+      (base) => [...base, file('.gitattributes', '* filter=evil\n')],
+      /protected path/,
+    ],
+    [
+      'adds Flowly review instructions',
+      (base) => [...base, file('.flowly/review-instructions.md')],
+      /protected path/,
+    ],
+    [
+      'adds a symlink inside the tree',
+      (base) => [...base, { path: 'link', type: 'symlink', target: 'keep.txt' }],
+      /adds or changes the symlink "link"/,
+    ],
+    [
+      'retargets a symlink',
+      (base) => base.map((e) => (e.type === 'symlink' ? { ...e, target: '../edit.txt' } : e)),
+      /symlink "bin\/keep-link"/,
+    ],
+    [
+      'turns a file into a symlink',
+      (base) =>
+        base.map((e) =>
+          e.path === 'edit.txt'
+            ? { path: e.path, type: 'symlink' as const, target: 'keep.txt' }
+            : e,
+        ),
+      /symlink "edit.txt"/,
+    ],
+  ];
+  for (const [label, mutate, expected] of hostile) {
+    test(`refuses a candidate that ${label} and leaves the clone unchanged`, async () => {
+      const repo = await clone();
+      await assert.rejects(importTree(repo, mutate(baseEntries())), expected);
+      assert.equal(
+        execFileSync('git', ['-C', repo, 'status', '--porcelain', '-uall'], { encoding: 'utf8' }),
+        '',
+      );
+    });
+  }
+
+  test('keeps unchanged base symlinks and accepts ordinary edits next to them', async () => {
+    const repo = await clone();
+    const edited = baseEntries().map((e) => (e.path === 'edit.txt' ? file(e.path, 'new\n') : e));
+    assert.deepEqual(await importTree(repo, edited), ['edit.txt']);
   });
 
   test('never writes through a symlink that already exists in the clone', async () => {
@@ -197,8 +299,9 @@ describe('importTree', () => {
     await symlink(outside, path.join(repo, 'dir'));
 
     await importTree(repo, [
-      { path: 'edit.txt', type: 'file', data: Buffer.from('candidate\n'), executable: false },
-      { path: 'dir/new.txt', type: 'file', data: Buffer.from('candidate\n'), executable: false },
+      ...baseEntries().filter((entry) => entry.path !== 'edit.txt'),
+      file('edit.txt', 'candidate\n'),
+      file('dir/new.txt', 'candidate\n'),
     ]);
 
     assert.equal(await readFile(path.join(outside, 'secret'), 'utf8'), 'host\n');
@@ -242,11 +345,18 @@ describe('createSmolvmFactoryImplementer', () => {
       runAgent: async (_input, env) => void agentEnv.push(env),
     });
 
+    const executions: unknown[] = [];
     await implementer.implement({
       task,
       plan,
       workspace: { id: RUN, path: repo, branch: 'factory/1-t', baseRef: 'HEAD' },
+      recordExecution: async (execution) => void executions.push(execution),
     });
+
+    const head = execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD'], {
+      encoding: 'utf8',
+    }).trim();
+    assert.deepEqual(executions, [{ executor: 'smolvm', vmName: 'vm', baseSha: head }]);
 
     assert.deepEqual(agentEnv, [{ FLOWLY_SMOLVM_RUN_ID: RUN, FLOWLY_SMOLVM_ATTEMPT: '1' }]);
     assert.deepEqual(log, [

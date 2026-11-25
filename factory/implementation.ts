@@ -9,8 +9,8 @@ import {
   bindVerifier,
 } from './capability-guard.ts';
 import type { FactoryGitWorkspace } from './git.ts';
-import type { FactoryOrchestrator } from './orchestrator.ts';
-import type { FactoryRun, FactoryTask, ImplementationPlan } from './types.ts';
+import { FactoryLeaseHeldError, type FactoryOrchestrator } from './orchestrator.ts';
+import type { FactoryRun, FactoryRunExecution, FactoryTask, ImplementationPlan } from './types.ts';
 import type { VerificationCommandResult } from './verification.ts';
 import { assertFactoryAutonomyGate } from './autonomy.ts';
 
@@ -19,6 +19,8 @@ export type FactoryImplementerInput = {
   plan: ImplementationPlan;
   workspace: FactoryGitWorkspace;
   repositoryInstincts?: string;
+  /** Records where this attempt runs (executor, VM, base SHA) in the run store. */
+  recordExecution?: (execution: Omit<FactoryRunExecution, 'attempt'>) => Promise<void>;
 };
 
 export type FactoryImplementer = {
@@ -71,7 +73,10 @@ export async function runControlledImplementation(
     }
     return await implementAndVerify(plannedRun, dependencies);
   } catch (error) {
-    await markWorkspaceFailed(dependencies.git, plannedRun.id);
+    // The lease holder owns the workspace; a refused claim must not fail it.
+    if (!(error instanceof FactoryLeaseHeldError)) {
+      await markWorkspaceFailed(dependencies.git, plannedRun.id);
+    }
     throw error;
   }
 }
@@ -108,6 +113,9 @@ async function implementAndVerify(
     plan: implementing.plan,
     workspace,
     repositoryInstincts: dependencies.repositoryInstincts,
+    recordExecution: async (execution) => {
+      await dependencies.orchestrator.recordExecution(implementing.id, execution);
+    },
   });
   const commit = await git.commit(
     workspace,

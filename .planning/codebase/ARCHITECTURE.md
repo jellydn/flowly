@@ -50,8 +50,13 @@ one offline microVM per run attempt. `smolvm-sandbox.ts` is the Flue `SandboxDri
 runs the implementer's tool calls in that VM, and `smolvm-verifier.ts` runs plan checks in a
 fresh VM built from the committed tree. `smolvm-implementer.ts` brings the candidate back as a
 tar that `tree-import.ts` parses in memory and validates (no `.git`, `..`, absolute paths,
-hard links, devices, or symlinks out of the tree) before it writes the trusted clone without
-following symlinks. The trusted Git adapter then commits and pushes as on the local path.
+hard links, devices, or symlinks out of the tree). The import then refuses, before any write,
+a candidate that adds, changes or deletes a protected path (`.github/`, `.flowly/`, `.flue/`,
+`.agents/`, `.gitmodules`, `.gitattributes`) or adds or changes a symlink, and writes the
+trusted clone without following symlinks. An implementation lease (`implementationLease`,
+30 minutes) keeps one process per run in `implementing`, and `run.execution` records the
+executor, attempt, base SHA and VM name. The smolvm path makes no GitHub writes yet: it
+logs progress to stderr and stops after verification, before `git push`.
 
 See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to add a new record.
 

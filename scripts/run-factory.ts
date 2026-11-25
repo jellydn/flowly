@@ -24,7 +24,8 @@
  *   FLOWLY_MEMORY_ISSUE    – issue that holds the bot-authored memory snapshot
  *   FLOWLY_MEMORY_STORE    – local JSON memory file (development only)
  *   FLOWLY_EXECUTOR        – local (default) or smolvm (experimental; needs FACTORY_RUN_STORE;
- *                            implementer tools and checks run in offline microVMs)
+ *                            implementer tools and checks run in offline microVMs; the run
+ *                            makes no GitHub writes and stops before push)
  *   FLOWLY_VM_IMAGE / FLOWLY_VM_BASE_PACK – smolvm guest source (exactly one)
  *   FLOWLY_VM_PREFIX, FLOWLY_VM_CPUS, FLOWLY_VM_MEMORY_MB, FLOWLY_RUN_TIMEOUT, FLOWLY_MAX_ATTEMPTS
  */
@@ -34,7 +35,7 @@ import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { createAgentFactoryImplementer, runFlueImplementer } from '../factory/agent-implementer.ts';
-import { createSmolvmFactoryImplementer } from '../factory/smolvm-implementer.ts';
+import { createSmolvmFactoryImplementer, stopBeforePush } from '../factory/smolvm-implementer.ts';
 import { createIssueCommentProgress } from '../factory/defaults.ts';
 import { dispatchFactoryLabeledIssue, factoryTaskFromIssuesEvent } from '../factory/dispatch.ts';
 import { FactoryGitAdapter } from '../factory/git.ts';
@@ -70,6 +71,7 @@ import {
 } from '../factory/smolvm.ts';
 import { SmolvmFactoryVerifier } from '../factory/smolvm-verifier.ts';
 import type { FactoryImplementer, FactoryVerifier } from '../factory/implementation.ts';
+import type { FactoryProgressPublisher } from '../factory/intake.ts';
 
 function fail(message: string): never {
   console.error(`[flowly-factory] ${message}`);
@@ -172,14 +174,25 @@ async function main(): Promise<void> {
       )
     : undefined;
   const manualConfirmation = parseManualConfirmation(process.env.FACTORY_CONFIRM_BOUNDARY);
-  const learning = createRepositoryLearningFromEnv(process.env, client, repositoryPath);
+  // Experimental smolvm runs make no GitHub writes yet: progress goes to stderr,
+  // repository learning is off, and the run stops before push.
+  const learning = smolvmConfig
+    ? undefined
+    : createRepositoryLearningFromEnv(process.env, client, repositoryPath);
+  const progress: FactoryProgressPublisher = smolvmConfig
+    ? {
+        async publish(current, body) {
+          console.error(`[flowly-factory] issue #${current.issueNumber}: ${body}`);
+        },
+      }
+    : createIssueCommentProgress(client);
 
   const run = await dispatchFactoryLabeledIssue(eventName, payload, {
     orchestrator: new FactoryOrchestrator(store),
     classifier: createModelFactoryClassifier(modelCall),
     planner: createModelFactoryPlanner(modelCall, repository),
-    progress: createIssueCommentProgress(client),
-    git,
+    progress,
+    git: smolvmConfig ? stopBeforePush(git) : git,
     implementer,
     verifier,
     reviewer: review.reviewer,
