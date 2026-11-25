@@ -221,7 +221,7 @@ Deterministic adversarial checks cover these boundaries. Run them with:
 npm test
 ```
 
-See [eval/README.md](./eval/README.md) for the `FACTORY-001` through `FACTORY-008` safety catalog and model-evaluation commands.
+See [eval/README.md](./eval/README.md) for the `FACTORY-001` through `FACTORY-009` safety catalog and model-evaluation commands.
 
 ## Useful commands
 

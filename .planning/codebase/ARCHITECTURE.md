@@ -16,7 +16,7 @@
 - Every factory stage receives a built-in least-capability manifest; optional policy overlays can only remove access
 - Factory workspace identity and append-only run events persist across retries; projections and explanations are derived from those events
 - Deterministic, key-free evaluation paths for CI alongside live provider-backed paths
-- FACTORY-001–008 adversarial tests exercise trusted factory boundaries without a live model or GitHub mutation
+- FACTORY-001–009 adversarial tests exercise trusted factory boundaries without a live model or GitHub mutation
 - Factory-function composition everywhere (`createXxx`) with Valibot schema validation at the edges
 
 ## Decisions
