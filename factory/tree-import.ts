@@ -93,6 +93,7 @@ export function parseTreeArchive(
         target: assertSymlinkTarget(entryPath, rawLink),
       });
     } else if (type === '0' || type === '7') {
+      assertNotAppleDouble(entryPath, data);
       const mode = octal(header, 100, 8, 'mode');
       entries.set(entryPath, {
         path: entryPath,
@@ -195,6 +196,22 @@ async function matches(target: string, entry: TreeEntry): Promise<boolean> {
     ((existing.mode & 0o111) !== 0) === entry.executable &&
     (await readFile(target)).equals(entry.data)
   );
+}
+
+/** Magic number that starts every AppleDouble (`._name`) resource-fork file. */
+const APPLE_DOUBLE_MAGIC = 0x00051607;
+
+/**
+ * The candidate archive always comes from `tar` in the Linux guest, which never
+ * writes AppleDouble files. One here means a macOS tool packed the tree or the
+ * guest planted macOS metadata, so the import fails closed. An ordinary file
+ * whose name starts with `._` is still accepted.
+ */
+function assertNotAppleDouble(entryPath: string, data: Buffer): void {
+  const name = entryPath.slice(entryPath.lastIndexOf('/') + 1);
+  if (name.startsWith('._') && data.length >= 4 && data.readUInt32BE(0) === APPLE_DOUBLE_MAGIC) {
+    throw new Error(`Candidate archive has the macOS AppleDouble entry "${entryPath}".`);
+  }
 }
 
 function normalizeEntryPath(raw: string): string | undefined {

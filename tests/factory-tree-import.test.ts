@@ -60,6 +60,15 @@ async function clone(): Promise<string> {
 }
 
 /** The candidate tree as a guest would leave it, packed by real GNU tar. */
+/** A GNU tar binary for the gnu format case; macOS ships bsdtar, which lacks it. */
+const gnuTar = ['gtar', 'tar'].find((binary) => {
+  try {
+    return execFileSync(binary, ['--version'], { encoding: 'utf8' }).includes('GNU tar');
+  } catch {
+    return false;
+  }
+});
+
 async function candidateArchive(format: 'gnu' | 'ustar' | 'pax'): Promise<Buffer> {
   const tree = await temporary();
   const deep = path.join('src', 'a'.repeat(60), 'b'.repeat(60));
@@ -73,7 +82,14 @@ async function candidateArchive(format: 'gnu' | 'ustar' | 'pax'): Promise<Buffer
   await mkdir(path.join(tree, '.github', 'workflows'), { recursive: true });
   await writeFile(path.join(tree, '.github', 'workflows', 'ci.yml'), 'on: push\n');
   const out = path.join(await temporary(), 'c.tar');
-  execFileSync('tar', [`--format=${format}`, '-cf', out, '-C', tree, '.']);
+  // COPYFILE_DISABLE stops macOS bsdtar from adding AppleDouble `._*` entries.
+  execFileSync(
+    format === 'gnu' ? gnuTar! : 'tar',
+    [`--format=${format}`, '-cf', out, '-C', tree, '.'],
+    {
+      env: { ...process.env, COPYFILE_DISABLE: '1' },
+    },
+  );
   return readFile(out);
 }
 
@@ -99,7 +115,8 @@ const archive = (...parts: Buffer[]) => Buffer.concat([...parts, Buffer.alloc(10
 
 describe('parseTreeArchive', () => {
   for (const format of ['gnu', 'ustar', 'pax'] as const) {
-    test(`reads ${format} archives with long paths, modes, and symlinks`, async () => {
+    const skip = format === 'gnu' && !gnuTar ? 'GNU tar is not installed' : false;
+    test(`reads ${format} archives with long paths, modes, and symlinks`, { skip }, async () => {
       const entries = parseTreeArchive(await candidateArchive(format));
       const byPath = new Map(entries.map((item) => [item.path, item]));
       const long = `src/${'a'.repeat(60)}/${'b'.repeat(60)}/long.txt`;
@@ -166,6 +183,18 @@ describe('parseTreeArchive', () => {
     test(`refuses ${label}`, () => assert.throws(() => parseTreeArchive(input), expected));
   }
 
+  test('refuses an AppleDouble entry but accepts an ordinary file named ._*', () => {
+    const appleDouble = `\u0000\u0005\u0016\u0007\u0000\u0002\u0000\u0000Mac OS X`;
+    assert.throws(
+      () => parseTreeArchive(archive(entry('src/._edit.txt', { data: appleDouble }))),
+      /AppleDouble entry "src\/._edit.txt"/,
+    );
+    assert.equal(
+      parseTreeArchive(archive(entry('._notes', { data: 'plain\n' })))[0].path,
+      '._notes',
+    );
+  });
+
   test('enforces the byte and entry limits', () => {
     const two = archive(entry('a', { data: '1' }), entry('b', { data: '2' }));
     assert.throws(() => parseTreeArchive(two, { maxBytes: 100, maxEntries: 10 }), /limit is 100/);
@@ -181,7 +210,7 @@ describe('importTree', () => {
     const repo = await clone();
     const head = execFileSync('git', ['-C', repo, 'rev-parse', 'HEAD'], { encoding: 'utf8' });
 
-    const changed = await importTree(repo, parseTreeArchive(await candidateArchive('gnu')));
+    const changed = await importTree(repo, parseTreeArchive(await candidateArchive('pax')));
 
     const long = `src/${'a'.repeat(60)}/${'b'.repeat(60)}/long.txt`;
     assert.deepEqual(changed, ['bin/run.sh', 'edit.txt', 'gone.txt', long].sort());
