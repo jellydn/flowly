@@ -344,8 +344,8 @@ describe('createSmolvmFactoryImplementer', () => {
   function fakeVms(candidate: Buffer, packExit = 0) {
     const log: string[] = [];
     const vms = {
-      async recover(input: { runId: string; attempt: number; archivePath: string }) {
-        log.push(`recover ${input.runId} a${input.attempt}`);
+      async prepare(input: { runId: string; attempt: number; archivePath: string }) {
+        log.push(`prepare ${input.runId} a${input.attempt}`);
         return { runId: input.runId, attempt: input.attempt, name: 'vm', workdir: '/work' };
       },
       async execute(_vm: unknown, command: { command: string }) {
@@ -389,12 +389,19 @@ describe('createSmolvmFactoryImplementer', () => {
 
     assert.deepEqual(agentEnv, [{ FLOWLY_SMOLVM_RUN_ID: RUN, FLOWLY_SMOLVM_ATTEMPT: '1' }]);
     assert.deepEqual(log, [
-      `recover ${RUN} a1`,
+      `cleanup ${RUN}`,
+      `prepare ${RUN} a1`,
       'exec tar -cf /tmp/flowly-candidate.tar -C /work .',
       'copyOut /tmp/flowly-candidate.tar',
       `cleanup ${RUN}`,
     ]);
     assert.equal(await readFile(path.join(repo, 'edit.txt'), 'utf8'), 'new\n');
+  });
+
+  test('abandon deletes every VM of the run', async () => {
+    const { vms, log } = fakeVms(Buffer.alloc(0));
+    await createSmolvmFactoryImplementer({ vms, runAgent: async () => {} }).abandon?.(RUN);
+    assert.deepEqual(log, [`cleanup ${RUN}`]);
   });
 
   test('refuses a malicious tree, leaves the clone unchanged, and deletes the VM', async () => {
@@ -410,7 +417,7 @@ describe('createSmolvmFactoryImplementer', () => {
       }),
       /Git metadata/,
     );
-    assert.equal(log[0], `recover ${RUN} a2`);
+    assert.deepEqual(log.slice(0, 2), [`cleanup ${RUN}`, `prepare ${RUN} a2`]);
     assert.equal(log.at(-1), `cleanup ${RUN}`);
     assert.equal(
       execFileSync('git', ['-C', repo, 'status', '--porcelain'], { encoding: 'utf8' }),

@@ -39,6 +39,7 @@ export type GitHubPullRequest = {
   state: 'open' | 'closed';
   head: { ref: string };
   base: { ref: string };
+  body?: string | null;
 };
 
 /** A GitHub issue (PR) comment as returned by the REST API. */

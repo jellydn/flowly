@@ -3,6 +3,7 @@ import { describe, test } from 'node:test';
 import { FactoryOrchestrator } from '../factory/orchestrator.ts';
 import {
   FactoryDraftPrPublisher,
+  factoryRunMarker,
   type FactoryPullRequestClient,
   type FactoryPullRequestRecord,
   renderFactoryPrBody,
@@ -43,6 +44,32 @@ describe('FactoryDraftPrPublisher', () => {
     assert.equal(first.number, 96);
     assert.equal(second.number, 96);
     assert.equal(client.created.length, 0);
+  });
+
+  test('reuses the draft with this run marker and refuses a draft of another run', async () => {
+    const run = await reviewedRun();
+    const ours = record({ number: 97, body: `x\n${factoryRunMarker(run.id)}` });
+    const other = record({
+      number: 96,
+      body: factoryRunMarker('00000000-0000-4000-8000-000000000000'),
+    });
+    assert.equal(
+      (await new FactoryDraftPrPublisher(fakeClient([other, ours])).publish(run)).number,
+      97,
+    );
+    const client = fakeClient([other]);
+    await assert.rejects(
+      new FactoryDraftPrPublisher(client).publish(run),
+      /belongs to another factory run/,
+    );
+    assert.equal(client.created.length, 0);
+  });
+
+  test('a new draft PR body carries the run marker', async () => {
+    const run = await reviewedRun();
+    const client = fakeClient([]);
+    await new FactoryDraftPrPublisher(client).publish(run);
+    assert.ok(client.created[0].body.endsWith(factoryRunMarker(run.id)));
   });
 
   test('opens a new draft when the only match is closed or merged', async () => {

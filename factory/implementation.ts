@@ -9,7 +9,12 @@ import {
   bindVerifier,
 } from './capability-guard.ts';
 import type { FactoryGitWorkspace } from './git.ts';
-import { FactoryLeaseHeldError, type FactoryOrchestrator } from './orchestrator.ts';
+import {
+  FactoryAttemptLimitError,
+  FactoryLeaseHeldError,
+  type FactoryOrchestrator,
+} from './orchestrator.ts';
+import { workspaceIdFor } from './workspace-lifecycle.ts';
 import type { FactoryRun, FactoryRunExecution, FactoryTask, ImplementationPlan } from './types.ts';
 import type { VerificationCommandResult } from './verification.ts';
 import { assertFactoryAutonomyGate } from './autonomy.ts';
@@ -25,6 +30,8 @@ export type FactoryImplementerInput = {
 
 export type FactoryImplementer = {
   implement(input: FactoryImplementerInput): Promise<void>;
+  /** Delete every executor resource of a run that stopped for good. Idempotent. */
+  abandon?(runId: string): Promise<void>;
 };
 
 export type FactoryGitMutator = {
@@ -69,13 +76,18 @@ export async function runControlledImplementation(
   assertFactoryAutonomyGate(plannedRun, 'implementation');
   try {
     if (plannedRun.state === 'verifying') {
-      return await resumeVerification(plannedRun, dependencies);
+      // Phase-boundary recovery: claim the run, then verify the committed tree again.
+      const resumed = await dependencies.orchestrator.resumeVerification(plannedRun.id);
+      return await resumeVerification(resumed, dependencies);
     }
     return await implementAndVerify(plannedRun, dependencies);
   } catch (error) {
     // The lease holder owns the workspace; a refused claim must not fail it.
-    if (!(error instanceof FactoryLeaseHeldError)) {
-      await markWorkspaceFailed(dependencies.git, plannedRun.id);
+    if (error instanceof FactoryLeaseHeldError) throw error;
+    const current = await dependencies.orchestrator.get(plannedRun.id).catch(() => plannedRun);
+    await markWorkspaceFailed(dependencies.git, currentWorkspaceId(current));
+    if (error instanceof FactoryAttemptLimitError) {
+      await dependencies.implementer.abandon?.(plannedRun.id);
     }
     throw error;
   }
@@ -103,8 +115,9 @@ async function implementAndVerify(
     assertContextSource(implementerManifest, 'repository-instincts');
   }
   const git = bindGitMutator(dependencies.git, implementerManifest);
+  // Each attempt gets a fresh clone (`<runId>-a<N>`); a dirty tree is never reused.
   const workspace = await git.createWorkspace(
-    implementing.id,
+    currentWorkspaceId(implementing),
     implementing.branch,
     dependencies.baseRef,
   );
@@ -128,6 +141,13 @@ async function implementAndVerify(
     commands: [],
   });
   return resumeVerification(verifying, dependencies);
+}
+
+/** The recorded workspace, else the clone of the current lease attempt. */
+function currentWorkspaceId(run: FactoryRun): string {
+  return (
+    run.implementation?.workspaceId ?? workspaceIdFor(run.id, run.implementationLease?.attempt ?? 1)
+  );
 }
 
 async function markWorkspaceFailed(git: FactoryGitMutator, id: string): Promise<void> {
@@ -154,7 +174,11 @@ async function resumeVerification(
   assertContextSource(verifierManifest, 'verification-commands');
   const git = bindGitMutator(dependencies.git, implementerManifest);
   const verifier = bindVerifier(dependencies.verifier, verifierManifest);
-  const workspace = await git.createWorkspace(verifying.id, verifying.branch, dependencies.baseRef);
+  const workspace = await git.createWorkspace(
+    verifying.implementation.workspaceId,
+    verifying.branch,
+    dependencies.baseRef,
+  );
   const approvedCommands = new Set(verifying.plan.verificationCommands);
   const commands = [
     ...new Set([

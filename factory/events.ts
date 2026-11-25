@@ -415,6 +415,13 @@ function stageEvents(
       return [completed(base, 'planner', next.plan?.summary ?? 'Plan recorded.')];
     case 'planned->implementing':
       return [started(base, 'implementer', 'Implementation started.')];
+    case 'implementing->failed':
+      return [failed(base, 'implementer', next.failure ?? 'Implementation failed.')];
+    case 'verifying->failed':
+      if (!next.implementation?.commands.length) {
+        return [failed(base, 'verifier', next.failure ?? 'Verification stopped.')];
+      }
+      return verificationFailed(base, next);
     case 'implementing->verifying':
       return [
         completed(base, 'implementer', 'Implementation recorded.'),
@@ -431,17 +438,6 @@ function stageEvents(
         },
         completed(base, 'verifier', 'Verification passed.'),
         started(base, 'reviewer', 'Independent review started.'),
-      ];
-    case 'verifying->failed':
-      return [
-        {
-          ...base,
-          stage: 'verifier',
-          type: 'verification.completed',
-          summary: next.failure ?? 'Verification failed.',
-          metadata: { ...base.metadata, passed: false, commands: next.implementation?.commands },
-        },
-        failed(base, 'verifier', next.failure ?? 'Verification failed.'),
       ];
     case 'reviewing->pr-created':
       return [
@@ -466,6 +462,22 @@ function stageEvents(
     default:
       return [];
   }
+}
+
+function verificationFailed(
+  base: Omit<FactoryEventInput, 'type' | 'summary' | 'stage'>,
+  next: FactoryRun,
+): FactoryEventInput[] {
+  return [
+    {
+      ...base,
+      stage: 'verifier',
+      type: 'verification.completed',
+      summary: next.failure ?? 'Verification failed.',
+      metadata: { ...base.metadata, passed: false, commands: next.implementation?.commands },
+    },
+    failed(base, 'verifier', next.failure ?? 'Verification failed.'),
+  ];
 }
 
 function started(

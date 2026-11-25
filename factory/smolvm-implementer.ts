@@ -26,7 +26,7 @@ export async function gitHeadSha(workspacePath: string): Promise<string> {
 }
 
 export type SmolvmImplementerOptions = {
-  vms: Pick<SmolvmExecutionAdapter, 'recover' | 'execute' | 'copyOut' | 'cleanup'>;
+  vms: Pick<SmolvmExecutionAdapter, 'prepare' | 'execute' | 'copyOut' | 'cleanup'>;
   /** Runs the Flue implementer agent on the host; its tools reach the VM. */
   runAgent: ImplementerRunner;
   archive?: TreeArchiver;
@@ -75,8 +75,10 @@ export function createSmolvmFactoryImplementer(
         const baseSha = await resolveHead(input.workspace.path);
         const basePath = path.join(directory, 'base.tar');
         await archive(input.workspace.path, basePath);
-        // recover: discard any VM an interrupted attempt left, then prepare a fresh one.
-        const vm = await options.vms.recover({ runId, attempt, archivePath: basePath });
+        // Reconcile at the phase boundary: delete the VMs of every earlier or
+        // interrupted attempt of this run, then prepare a fresh VM for this one.
+        await options.vms.cleanup(runId);
+        const vm = await options.vms.prepare({ runId, attempt, archivePath: basePath });
         await input.recordExecution?.({ executor: 'smolvm', vmName: vm.name, baseSha });
         await options.runAgent(input, {
           FLOWLY_SMOLVM_RUN_ID: runId,
@@ -104,5 +106,6 @@ export function createSmolvmFactoryImplementer(
         await options.vms.cleanup(runId);
       }
     },
+    abandon: (runId) => options.vms.cleanup(runId),
   };
 }

@@ -48,7 +48,7 @@ import {
   createModelFactoryReview,
 } from '../factory/model-adapters.ts';
 import { createFactoryModelCall } from '../factory/model.ts';
-import { FactoryOrchestrator } from '../factory/orchestrator.ts';
+import { FactoryOrchestrator, implementationLeaseLive } from '../factory/orchestrator.ts';
 import {
   FactoryDraftPrPublisher,
   createGitHubFactoryPullRequestClient,
@@ -133,9 +133,12 @@ async function main(): Promise<void> {
       { ...smolvmConfig, prefix: `${smolvmConfig.prefix}-verify` },
       runner,
     );
+    // Only a run with a live implementation lease may own VMs; any other
+    // prefixed VM is left over from a dead process and is deleted.
+    const now = Date.now();
     const activeRunIds = new Set(
       (await store.listByRepository(task.repository))
-        .filter((run) => run.state !== 'completed' && run.state !== 'failed')
+        .filter((run) => implementationLeaseLive(run, now))
         .map((run) => run.id),
     );
     for (const adapter of [workers, verifierVms]) {
@@ -188,7 +191,7 @@ async function main(): Promise<void> {
     : createIssueCommentProgress(client);
 
   const run = await dispatchFactoryLabeledIssue(eventName, payload, {
-    orchestrator: new FactoryOrchestrator(store),
+    orchestrator: new FactoryOrchestrator(store, { maxAttempts: smolvmConfig?.maxAttempts }),
     classifier: createModelFactoryClassifier(modelCall),
     planner: createModelFactoryPlanner(modelCall, repository),
     progress,

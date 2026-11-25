@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import {
+  FactoryAttemptLimitError,
   FactoryLeaseHeldError,
   FactoryOrchestrator,
   IMPLEMENTATION_LEASE_MS,
@@ -75,6 +76,32 @@ describe('FactoryOrchestrator', () => {
     });
     assert.equal(reclaimed.branch, claimed.branch);
     await assert.rejects(first.beginImplementation(run.id), FactoryLeaseHeldError);
+  });
+
+  test('a reclaim beyond the attempt limit fails the run and keeps its branch', async () => {
+    const store = new MemoryFactoryRunStore();
+    let now = 1_000_000;
+    const worker = (holder: string) =>
+      new FactoryOrchestrator(store, { holder, now: () => now, maxAttempts: 2 });
+    const { run } = await worker('w1').start(task);
+    await worker('w1').classify(run.id, classification);
+    await worker('w1').plan(run.id, plan);
+    const first = await worker('w1').beginImplementation(run.id);
+    now += IMPLEMENTATION_LEASE_MS;
+    assert.equal((await worker('w2').beginImplementation(run.id)).implementationLease?.attempt, 2);
+    now += IMPLEMENTATION_LEASE_MS;
+
+    await assert.rejects(worker('w3').beginImplementation(run.id), FactoryAttemptLimitError);
+
+    const failed = await worker('w3').get(run.id);
+    assert.equal(failed.state, 'failed');
+    assert.equal(failed.branch, first.branch);
+    assert.match(failed.failure ?? '', /attempt limit \(2\)/);
+    assert.ok(
+      failed.events?.some(
+        (event) => event.type === 'stage.failed' && event.stage === 'implementer',
+      ),
+    );
   });
 
   test('records execution metadata for the current attempt and persists it', async () => {

@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import type { FactoryGitMutator } from '../factory/implementation.ts';
 import { runControlledImplementation } from '../factory/implementation.ts';
-import { FactoryLeaseHeldError, FactoryOrchestrator } from '../factory/orchestrator.ts';
+import {
+  FactoryAttemptLimitError,
+  FactoryLeaseHeldError,
+  FactoryOrchestrator,
+  IMPLEMENTATION_LEASE_MS,
+} from '../factory/orchestrator.ts';
 import { stopBeforePush } from '../factory/smolvm-implementer.ts';
 import { MemoryFactoryRunStore } from '../factory/store.ts';
 import type { FactoryRun } from '../factory/types.ts';
@@ -46,6 +51,90 @@ describe('runControlledImplementation', () => {
       FactoryLeaseHeldError,
     );
     assert.deepEqual(calls, []);
+  });
+
+  test('after a restart, a new process reclaims implementing with a fresh attempt clone', async () => {
+    const store = new MemoryFactoryRunStore();
+    const { orchestrator, run } = await plannedRun(store);
+    await orchestrator.beginImplementation(run.id); // the first process dies here
+    const restarted = new FactoryOrchestrator(store, {
+      now: () => Date.now() + IMPLEMENTATION_LEASE_MS,
+      maxAttempts: 3,
+    });
+    const calls: string[] = [];
+    const workspaces: string[] = [];
+
+    const result = await runControlledImplementation(await restarted.get(run.id), {
+      orchestrator: restarted,
+      git: fakeGit(calls),
+      verifier: { run: async (commands) => commands.map((command) => commandResult(command, 0)) },
+      implementer: { implement: async ({ workspace }) => void workspaces.push(workspace.id) },
+    });
+
+    assert.equal(result.state, 'reviewing');
+    assert.deepEqual(workspaces, [`${run.id}-a2`]);
+    assert.equal(result.implementation?.workspaceId, `${run.id}-a2`);
+    assert.equal(result.implementationLease?.attempt, 2);
+    assert.equal(result.branch, (await orchestrator.get(run.id)).branch);
+  });
+
+  test('after a restart in verifying, a new process verifies the recorded commit again', async () => {
+    const store = new MemoryFactoryRunStore();
+    const { orchestrator, run } = await plannedRun(store);
+    const calls: string[] = [];
+    await assert.rejects(
+      runControlledImplementation(run, {
+        orchestrator,
+        git: stopBeforePush(fakeGit(calls)),
+        verifier: { run: async (commands) => commands.map((command) => commandResult(command, 0)) },
+        implementer: { implement: async () => {} },
+      }),
+      /stops before push/,
+    );
+    const restarted = new FactoryOrchestrator(store, {
+      now: () => Date.now() + IMPLEMENTATION_LEASE_MS,
+    });
+    calls.length = 0;
+    let implemented = false;
+
+    const result = await runControlledImplementation(await restarted.get(run.id), {
+      orchestrator: restarted,
+      git: fakeGit(calls),
+      verifier: { run: async (commands) => commands.map((command) => commandResult(command, 0)) },
+      implementer: { implement: async () => void (implemented = true) },
+    });
+
+    assert.equal(result.state, 'reviewing');
+    assert.equal(implemented, false);
+    assert.equal(result.implementationLease?.attempt, 2);
+    assert.equal(calls[0], `workspace:${run.id}:${result.branch}`);
+    assert.ok(calls.includes('push:abc123'));
+  });
+
+  test('a reclaim at the attempt limit fails the run, its workspace, and its VMs', async () => {
+    const store = new MemoryFactoryRunStore();
+    const { orchestrator, run } = await plannedRun(store);
+    await orchestrator.beginImplementation(run.id);
+    const restarted = new FactoryOrchestrator(store, {
+      now: () => Date.now() + IMPLEMENTATION_LEASE_MS,
+      maxAttempts: 1,
+    });
+    const calls: string[] = [];
+
+    await assert.rejects(
+      runControlledImplementation(await restarted.get(run.id), {
+        orchestrator: restarted,
+        git: { ...fakeGit(calls), fail: async (id: string) => void calls.push(`fail:${id}`) },
+        verifier: { run: async () => [] },
+        implementer: {
+          implement: async () => void calls.push('implement'),
+          abandon: async (id) => void calls.push(`abandon:${id}`),
+        },
+      }),
+      FactoryAttemptLimitError,
+    );
+    assert.deepEqual(calls, [`fail:${run.id}`, `abandon:${run.id}`]);
+    assert.equal((await restarted.get(run.id)).state, 'failed');
   });
 
   test('the smolvm git mutator stops after verification and before push', async () => {
