@@ -35,7 +35,6 @@ import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { createAgentFactoryImplementer, runFlueImplementer } from '../factory/agent-implementer.ts';
-import { createSmolvmFactoryImplementer, stopBeforePush } from '../factory/smolvm-implementer.ts';
 import { createIssueCommentProgress } from '../factory/defaults.ts';
 import { dispatchFactoryLabeledIssue, factoryTaskFromIssuesEvent } from '../factory/dispatch.ts';
 import { FactoryGitAdapter } from '../factory/git.ts';
@@ -48,7 +47,7 @@ import {
   createModelFactoryReview,
 } from '../factory/model-adapters.ts';
 import { createFactoryModelCall } from '../factory/model.ts';
-import { FactoryOrchestrator, implementationLeaseLive } from '../factory/orchestrator.ts';
+import { FactoryOrchestrator } from '../factory/orchestrator.ts';
 import {
   FactoryDraftPrPublisher,
   createGitHubFactoryPullRequestClient,
@@ -63,15 +62,11 @@ import { parseFactoryCapabilityPolicy } from '../factory/capabilities.ts';
 import type { FactoryManualConfirmation } from '../factory/types.ts';
 import { createRepositoryLearningFromEnv } from '../memory/config.ts';
 import { parseFactoryExecutor } from '../factory/execution.ts';
+import { parseSmolvmConfig } from '../factory/smolvm.ts';
 import {
-  SmolvmExecutionAdapter,
-  assertSmolvmAvailable,
-  createSmolvmCommandRunner,
-  parseSmolvmConfig,
-} from '../factory/smolvm.ts';
-import { SmolvmFactoryVerifier } from '../factory/smolvm-verifier.ts';
-import type { FactoryImplementer, FactoryVerifier } from '../factory/implementation.ts';
-import type { FactoryProgressPublisher } from '../factory/intake.ts';
+  createSmolvmFactoryDependencies,
+  type FactoryExecutorDependencies,
+} from '../factory/smolvm-factory.ts';
 
 function fail(message: string): never {
   console.error(`[flowly-factory] ${message}`);
@@ -123,35 +118,6 @@ async function main(): Promise<void> {
   const task = factoryTaskFromIssuesEvent(eventName, payload);
   const store = createFactoryRunStore(client, task.issueNumber);
   const events = new StoredFactoryEventLog(store, task.repository);
-  let verifier: FactoryVerifier = new FactoryVerificationRunner();
-  let implementer: FactoryImplementer = createAgentFactoryImplementer(model);
-  if (smolvmConfig) {
-    const runner = createSmolvmCommandRunner();
-    await assertSmolvmAvailable(runner);
-    const workers = new SmolvmExecutionAdapter(smolvmConfig, runner);
-    const verifierVms = new SmolvmExecutionAdapter(
-      { ...smolvmConfig, prefix: `${smolvmConfig.prefix}-verify` },
-      runner,
-    );
-    // Only a run with a live implementation lease may own VMs; any other
-    // prefixed VM is left over from a dead process and is deleted.
-    const now = Date.now();
-    const activeRunIds = new Set(
-      (await store.listByRepository(task.repository))
-        .filter((run) => implementationLeaseLive(run, now))
-        .map((run) => run.id),
-    );
-    for (const adapter of [workers, verifierVms]) {
-      for (const name of await adapter.sweepOrphans(activeRunIds)) {
-        console.error(`[flowly-factory] deleted orphan smolvm machine ${name}`);
-      }
-    }
-    verifier = new SmolvmFactoryVerifier(verifierVms);
-    implementer = createSmolvmFactoryImplementer({
-      vms: workers,
-      runAgent: runFlueImplementer(model),
-    });
-  }
   const gitAdapter = new FactoryGitAdapter({
     sourceRepository: repositoryPath,
     workspaceRoot,
@@ -177,27 +143,27 @@ async function main(): Promise<void> {
       )
     : undefined;
   const manualConfirmation = parseManualConfirmation(process.env.FACTORY_CONFIRM_BOUNDARY);
-  // Experimental smolvm runs make no GitHub writes yet: progress goes to stderr,
-  // repository learning is off, and the run stops before push.
-  const learning = smolvmConfig
-    ? undefined
-    : createRepositoryLearningFromEnv(process.env, client, repositoryPath);
-  const progress: FactoryProgressPublisher = smolvmConfig
-    ? {
-        async publish(current, body) {
-          console.error(`[flowly-factory] issue #${current.issueNumber}: ${body}`);
-        },
-      }
-    : createIssueCommentProgress(client);
+  const executorDependencies: FactoryExecutorDependencies = smolvmConfig
+    ? await createSmolvmFactoryDependencies({
+        config: smolvmConfig,
+        store,
+        repository: task.repository,
+        git,
+        runAgent: runFlueImplementer(model),
+      })
+    : {
+        orchestrator: new FactoryOrchestrator(store),
+        progress: createIssueCommentProgress(client),
+        git,
+        implementer: createAgentFactoryImplementer(model),
+        verifier: new FactoryVerificationRunner(),
+        learning: createRepositoryLearningFromEnv(process.env, client, repositoryPath),
+      };
 
   const run = await dispatchFactoryLabeledIssue(eventName, payload, {
-    orchestrator: new FactoryOrchestrator(store, { maxAttempts: smolvmConfig?.maxAttempts }),
+    ...executorDependencies,
     classifier: createModelFactoryClassifier(modelCall),
     planner: createModelFactoryPlanner(modelCall, repository),
-    progress,
-    git: smolvmConfig ? stopBeforePush(git) : git,
-    implementer,
-    verifier,
     reviewer: review.reviewer,
     publisher: new FactoryDraftPrPublisher(createGitHubFactoryPullRequestClient(client)),
     readDiff: async (current) => {
@@ -215,7 +181,6 @@ async function main(): Promise<void> {
     autonomyPolicy,
     capabilityPolicy,
     manualConfirmation,
-    learning,
   });
 
   console.error(`[flowly-factory] run ${run.id} ended in state ${run.state}`);
