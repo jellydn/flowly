@@ -5,7 +5,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import type { ImplementerRunner } from './agent-implementer.ts';
 import type { FactoryGitMutator, FactoryImplementer } from './implementation.ts';
-import type { SmolvmExecutionAdapter } from './smolvm.ts';
+import type { ExecutionAdapter } from './execution.ts';
 import { gitArchiveHead, parseWorkspaceRun, type TreeArchiver } from './smolvm-verifier.ts';
 import {
   DEFAULT_TREE_ARCHIVE_LIMITS,
@@ -26,7 +26,7 @@ export async function gitHeadSha(workspacePath: string): Promise<string> {
 }
 
 export type SmolvmImplementerOptions = {
-  vms: Pick<SmolvmExecutionAdapter, 'prepare' | 'execute' | 'copyOut' | 'cleanup'>;
+  vms: Pick<ExecutionAdapter, 'prepare' | 'execute' | 'copyOut' | 'cleanup'>;
   /** Runs the Flue implementer agent on the host; its tools reach the VM. */
   runAgent: ImplementerRunner;
   archive?: TreeArchiver;

@@ -130,6 +130,10 @@ export function createSmolvmCommandRunner(binary = 'smolvm'): SmolvmCommandRunne
     });
 }
 
+function assertRunId(runId: string): void {
+  if (!RUN_ID_PATTERN.test(runId)) throw new Error(`Invalid factory run id for smolvm: ${runId}`);
+}
+
 export class SmolvmExecutionAdapter implements ExecutionAdapter {
   constructor(
     private readonly config: SmolvmConfig,
@@ -138,7 +142,7 @@ export class SmolvmExecutionAdapter implements ExecutionAdapter {
   ) {}
 
   machineName(runId: string, attempt: number): string {
-    if (!RUN_ID_PATTERN.test(runId)) throw new Error(`Invalid factory run id for smolvm: ${runId}`);
+    assertRunId(runId);
     if (!Number.isInteger(attempt) || attempt < 1) throw new Error(`Invalid attempt: ${attempt}`);
     return `${this.config.prefix}-${runId}-a${attempt}`;
   }
@@ -260,7 +264,7 @@ export class SmolvmExecutionAdapter implements ExecutionAdapter {
   }
 
   async cleanup(runId: string): Promise<void> {
-    this.machineName(runId, 1);
+    assertRunId(runId);
     for (const machine of await this.list()) {
       if (this.ownerOf(machine.name) === runId) await this.deleteMachine(machine.name);
     }

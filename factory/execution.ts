@@ -59,6 +59,12 @@ export interface ExecutionAdapter {
   /** Run one bounded command in the repository root. */
   execute(workspace: ExecutionWorkspace, command: ExecutionCommand): Promise<ExecutionResult>;
   inspect(runId: string, attempt: number): Promise<ExecutionStatus>;
+  /** The workspace of an existing attempt environment. No side effect. */
+  attach(runId: string, attempt: number): ExecutionWorkspace;
+  /** Copy one host file into the environment. */
+  copyIn(workspace: ExecutionWorkspace, hostPath: string, guestPath: string): Promise<void>;
+  /** Copy one environment file to the host. The caller treats its content as untrusted. */
+  copyOut(workspace: ExecutionWorkspace, guestPath: string, hostPath: string): Promise<void>;
   /**
    * Phase-boundary recovery: discard any environment left by this attempt and
    * prepare it again. It never resumes inside an interrupted command.

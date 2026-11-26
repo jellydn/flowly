@@ -4,7 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { FactoryVerifier } from './implementation.ts';
-import { UUID, type SmolvmExecutionAdapter } from './smolvm.ts';
+import type { ExecutionAdapter } from './execution.ts';
+import { UUID } from './smolvm.ts';
 import { assertVerificationCommands, type VerificationCommandResult } from './verification.ts';
 
 const execFileAsync = promisify(execFile);
@@ -39,7 +40,7 @@ export const gitArchiveHead: TreeArchiver = async (workspacePath, archivePath) =
  */
 export class SmolvmFactoryVerifier implements FactoryVerifier {
   constructor(
-    private readonly vms: Pick<SmolvmExecutionAdapter, 'recover' | 'execute' | 'cleanup'>,
+    private readonly vms: Pick<ExecutionAdapter, 'recover' | 'execute' | 'cleanup'>,
     private readonly archive: TreeArchiver = gitArchiveHead,
     private readonly maxOutputBytes = DEFAULT_MAX_OUTPUT_BYTES,
   ) {}

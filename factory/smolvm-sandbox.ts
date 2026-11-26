@@ -7,10 +7,10 @@ import {
   type SandboxDriver,
   type SandboxFactory,
 } from '@flue/runtime';
-import type { ExecutionWorkspace } from './execution.ts';
+import type { ExecutionAdapter, ExecutionWorkspace } from './execution.ts';
 import { SmolvmExecutionAdapter, createSmolvmCommandRunner, parseSmolvmConfig } from './smolvm.ts';
 
-type GuestAdapter = Pick<SmolvmExecutionAdapter, 'execute' | 'copyIn'>;
+type GuestAdapter = Pick<ExecutionAdapter, 'execute' | 'copyIn'>;
 
 /**
  * Flue sandbox driver over one smolvm attempt VM. The agent loop and the model
