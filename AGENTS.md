@@ -73,6 +73,7 @@
 - Tool contexts use `data` (not `input`) and require `toolCallId` and `log` fields. Tool run functions return `{ output: value }` envelopes in v2.
 - The agent instructions forbid delegation (`task`/subagents) — there are no declared subagent profiles. Don't add them.
 - The PR reviewer never auto-approves: `review/schema.ts` restricts `verdict` to `COMMENT` | `REQUEST_CHANGES`. The trusted adapter is the only code that calls the GitHub review API, and it never uses `APPROVE`. The model never sees `GITHUB_TOKEN`. Factory draft PRs follow the same rule: `FactoryDraftPrPublisher` always sends `draft: true` and has no merge path.
+- The default PR reviewer, review advisor, and factory model is an OpenRouter `:free` endpoint. OpenRouter can log prompts on free endpoints, and these agents send diffs and repository content. For private or confidential repositories, set `REPO_ASSISTANT_MODEL`, `PR_REVIEW_ADVISOR_MODEL`, and `FACTORY_MODEL` to a model with suitable data protections.
 - `app.ts` also serves `/api/ping`; `flue.config.ts` sets `target: 'node'`.
 - Durability: `RepoAssistant.durability = { maxAttempts: 1, timeoutMs: 120_000 }` (120s submission deadline); `PrReviewer.durability = { maxAttempts: 1, timeoutMs: 900_000 }` (15 min). Flue checks the deadline at turn boundaries — it does not preempt an in-flight model call, so elapsed runtime can exceed the deadline.
 - `dist/` and `.env` are build/runtime artifacts (gitignored).
