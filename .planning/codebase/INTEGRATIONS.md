@@ -9,7 +9,7 @@
 - OpenRouter — default provider for the repo assistant and PR reviewer; also the default base URL for live benchmark runs
 - SDK/Client: Flue runtime + thin OpenAI-compatible `fetch` clients (`eval/framework/providers.ts`, `factory/model.ts`)
 - Auth: provider-specific environment variables. OpenRouter uses `OPENROUTER_API_KEY`; benchmark-wide settings use `FLOWLY_EVAL_API_KEY`, with `FLUE_EVAL_API_KEY` as a legacy fallback.
-- Model specifiers come from Flue's models.json; default `openrouter/qwen/qwen3-coder`; PR reviewer default `openrouter/cohere/north-mini-code:free`
+- Model specifiers come from Flue's models.json; default `openrouter/qwen/qwen3-coder`; PR reviewer default `openrouter/nvidia/nemotron-3-ultra-550b-a55b:free`
 
 **GitHub (REST):**
 

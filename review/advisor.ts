@@ -67,7 +67,7 @@ export function parseAdvisorConfig(env: Record<string, string | undefined>): Adv
   }
   return {
     enabled: env.PR_REVIEW_ADVISOR_ENABLED === 'true',
-    model: env.PR_REVIEW_ADVISOR_MODEL ?? 'openrouter/cohere/north-mini-code:free',
+    model: env.PR_REVIEW_ADVISOR_MODEL ?? 'openrouter/nvidia/nemotron-3-ultra-550b-a55b:free',
     timeoutMs,
   };
 }

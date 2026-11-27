@@ -22,7 +22,7 @@ describe('advisor validation', () => {
   test('parses disabled and model-specific configuration', () => {
     assert.deepEqual(parseAdvisorConfig({}), {
       enabled: false,
-      model: 'openrouter/cohere/north-mini-code:free',
+      model: 'openrouter/nvidia/nemotron-3-ultra-550b-a55b:free',
       timeoutMs: 30_000,
     });
     assert.deepEqual(
