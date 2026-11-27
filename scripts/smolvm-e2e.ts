@@ -9,7 +9,7 @@
  *
  *   FLOWLY_VM_IMAGE=node:24-alpine OPENROUTER_API_KEY=... npx tsx scripts/smolvm-e2e.ts
  *
- * Optional: FACTORY_MODEL (default openrouter/cohere/north-mini-code:free),
+ * Optional: FACTORY_MODEL (default openrouter/nvidia/nemotron-3-ultra-550b-a55b:free),
  * FLOWLY_VM_PREFIX, KEEP_SMOLVM_E2E=1 to keep the temporary directory.
  */
 import { execFileSync, spawn } from 'node:child_process';
@@ -28,7 +28,7 @@ import { isProtectedPath } from '../factory/tree-import.ts';
 
 const REPOSITORY = 'flowly-e2e/demo';
 const RUN_TIMEOUT_MS = 40 * 60_000;
-const model = process.env.FACTORY_MODEL ?? 'openrouter/cohere/north-mini-code:free';
+const model = process.env.FACTORY_MODEL ?? 'openrouter/nvidia/nemotron-3-ultra-550b-a55b:free';
 const modelKey = model.startsWith('openrouter/') ? process.env.OPENROUTER_API_KEY : undefined;
 if (model.startsWith('openrouter/') && !modelKey) {
   console.error(`${model} needs OPENROUTER_API_KEY on the host (it never enters a VM).`);

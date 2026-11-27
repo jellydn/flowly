@@ -15,14 +15,15 @@ Flowly runs in your own environment. It is not a hosted service or a one-click G
 
 ## Choose a path
 
-| Goal                                              | Start here                                        |
-| ------------------------------------------------- | ------------------------------------------------- |
-| Try Flowly without credentials                    | [Run the demos](#try-it-without-credentials)      |
-| Ask questions about a local checkout              | [Analyze a repository](#analyze-a-repository)     |
-| Automate issue-to-draft-PR work                   | [Run the GitHub factory](#run-the-github-factory) |
-| Review pull requests                              | [Run the PR reviewer](#run-the-pr-reviewer)       |
-| Benchmark models or inspect safety controls       | [Read the evaluation guide](./eval/README.md)     |
-| Prepare an approval-gated Slack operations digest | [Ops digest pilot](./docs/ops-digest.md)          |
+| Goal                                              | Start here                                                                    |
+| ------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Try Flowly without credentials                    | [Run the demos](#try-it-without-credentials)                                  |
+| Ask questions about a local checkout              | [Analyze a repository](#analyze-a-repository)                                 |
+| Automate issue-to-draft-PR work                   | [Run the GitHub factory](#run-the-github-factory)                             |
+| Run the factory in offline VMs on your Mac        | [smolvm executor (experimental)](#run-the-factory-in-smolvm-vms-experimental) |
+| Review pull requests                              | [Run the PR reviewer](#run-the-pr-reviewer)                                   |
+| Benchmark models or inspect safety controls       | [Read the evaluation guide](./eval/README.md)                                 |
+| Prepare an approval-gated Slack operations digest | [Ops digest pilot](./docs/ops-digest.md)                                      |
 
 ## What Flowly does
 
@@ -125,6 +126,104 @@ Important limits:
 - Flowly never approves, merges, or deploys.
 
 The factory autonomy defaults to `plan-only` and only proceeds on explicit policy evidence or confirmation (see `.planning/codebase/ARCHITECTURE.md`); repository memory, graduated autonomy, and migration campaigns are implemented in the factory code and covered by the deterministic safety tests, with design rationale in the [ADRs](./docs/adr/README.md).
+
+## Run the factory in smolvm VMs (experimental)
+
+> **Experimental and opt-in.** The default executor is `local`. Flowly uses smolvm only when you set `FLOWLY_EXECUTOR=smolvm`. If smolvm is not available, the run stops. It never falls back to `local`.
+
+### What it is and when to use it
+
+The smolvm executor runs the factory implementer tools and the verification commands in [smolvm](https://github.com/smol-machines/smolvm) microVMs on your own Mac. Use it when you run Flowly on a repository or an issue that you trust less, and you want:
+
+- **a fixed cost**: the VMs run on hardware that you already have; there is no usage billing;
+- **VM isolation**: each attempt gets a new microVM with its own kernel;
+- **no network in the VM**: Flowly never passes `--net` and mounts no host directory; and
+- **no tokens in the VM**: the model key, the GitHub token, the agent loop, and Git stay on the host.
+
+[ADR 0010](./docs/adr/0010-vps-pilot-and-provider-policy.md) (VPS pilot) does not change. [ADR 0012](./docs/adr/0012-experimental-sprite-executor.md) records why Flowly does not use Fly.io Sprites: usage billing has no fixed cost limit.
+
+### Requirements
+
+- macOS on Apple silicon (arm64);
+- smolvm 1.37.0 or later: `brew install smol-machines/tap/smolvm`;
+- Node.js >= 22.19.0 and `npm ci` in the Flowly checkout; and
+- a model key on the host, for example `OPENROUTER_API_KEY`.
+
+The guest image needs only `sh` and `tar`. It does not need Git. `node:24-alpine` works.
+
+### Quick start
+
+```bash
+brew install smol-machines/tap/smolvm
+npm ci
+export OPENROUTER_API_KEY=...            # stays on the host
+FLOWLY_EXECUTOR=smolvm \
+FLOWLY_VM_IMAGE=node:24-alpine \
+FACTORY_RUN_STORE=$HOME/.flowly/runs \
+FACTORY_AUTONOMY_POLICY=./autonomy-policy.json \
+GITHUB_TOKEN=... GITHUB_REPOSITORY=owner/repo \
+GITHUB_EVENT_NAME=issues GITHUB_EVENT_PATH=./event.json \
+REPOSITORY_PATH=/path/to/target-checkout \
+npm run run-factory
+```
+
+The autonomy policy must allow `implement-and-verify`. Without a policy, the run stops at `plan-only`, before any VM starts. See [`factory-autonomy.example.json`](./factory-autonomy.example.json) for the format.
+
+### Configuration
+
+| Variable                                  | Default                                             | Purpose                                                                   |
+| ----------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------- |
+| `FLOWLY_EXECUTOR`                         | `local`                                             | `smolvm` selects the VM executor. Other values fail.                      |
+| `FLOWLY_VM_IMAGE` / `FLOWLY_VM_BASE_PACK` | unset                                               | Guest source: an OCI image or a `.smolmachine` pack. Set exactly one.     |
+| `FLOWLY_VM_PREFIX`                        | `flowly`                                            | VM name prefix. VM names are `<prefix>-<run-id>-a<attempt>`.              |
+| `FLOWLY_VM_CPUS`                          | `2`                                                 | vCPUs for each VM (1–8).                                                  |
+| `FLOWLY_VM_MEMORY_MB`                     | `4096`                                              | Memory for each VM in MiB (512–16384).                                    |
+| `FLOWLY_RUN_TIMEOUT`                      | `1800`                                              | Timeout in seconds for each command in the VM (1–7200).                   |
+| `FLOWLY_MAX_ATTEMPTS`                     | `3`                                                 | Maximum attempts for each run (1–10).                                     |
+| `FACTORY_RUN_STORE`                       | required                                            | Local run-state directory. The orphan VM sweep reads it at startup.       |
+| `FACTORY_AUTONOMY_POLICY`                 | unset (`plan-only`)                                 | Policy file. It must allow `implement-and-verify` for the VMs to run.     |
+| `FACTORY_MODEL`                           | `openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` | Model for classification, planning, implementation, and review (on host). |
+| `OPENROUTER_API_KEY`                      | unset                                               | Model key. It stays on the host and never goes into a VM.                 |
+
+### Security model
+
+- The model loop runs on the host. Only the tool calls (read, write, shell) go into the VM, through a Flue `SandboxDriver` that is confined to `/work`.
+- The VM gets the committed tree as a `git archive` tar. It never gets the `.git` directory, host mounts, or credentials. Flowly refuses to pass environment variables with secret-like names into the VM.
+- Before Flowly imports the result, it parses the tar from the VM on the host and fails closed. It refuses absolute paths, `..`, `.git`, hard links, devices, symlinks that leave the tree, new or changed symlinks, macOS AppleDouble entries, and protected paths (`.github/`, `.flowly/`, `.flue/`, `.agents/`, `.gitmodules`, `.gitattributes`).
+- Verification runs in a new offline VM, made from the commit that Flowly made on the host.
+- The `FACTORY-009` safety evals in `npm test` check these boundaries. See [eval/README.md](./eval/README.md).
+
+### The stop before push
+
+The smolvm path **stops after verification, before `git push` and before PR creation**. It makes no GitHub writes: progress goes to stderr, and repository learning is off. The run ends in `verifying` with the commit and the verification results in the run store. A later PR will remove this stop, but only after approval.
+
+### Recovery and attempt limit
+
+- An implementation lease (30 minutes) makes sure that only one process implements a run at a time.
+- After a restart, Flowly reclaims a run only after its lease expires, and only at a phase boundary. It never resumes in the middle of a command.
+  - A run in `implementing` starts again with a new clone and a new VM, `-a<N+1>`. Flowly deletes the VMs of earlier attempts first.
+  - A run in `verifying` runs verification again. The implementer does not run again.
+- When a reclaim goes above `FLOWLY_MAX_ATTEMPTS`, the run goes to `failed` and Flowly deletes its VMs.
+- At startup, Flowly deletes the VMs with its prefix that belong to no run with a live lease. It deletes only VMs whose names match `<prefix>-<UUID>-a<N>`, so it does not touch other VMs on the host.
+- Each run has one `factory/*` branch, and each draft PR body has a hidden run marker. The publisher refuses a draft PR without the marker of the run.
+
+### Limits
+
+- Plan for about 4 GB of memory for each VM. One VM runs at a time for each run; use 1–2 VMs on a 32 GB Mac.
+- The Mac must stay awake while a run is active (for example, use `caffeinate`).
+- You start runs manually. There is no hosted trigger for the smolvm path yet.
+- smolvm pulls the image on the host when the VM starts, so the first run takes longer.
+
+### Check it end to end
+
+`scripts/smolvm-e2e.ts` makes a small demo repository with no dependencies and runs the real `run-factory` with `FLOWLY_EXECUTOR=smolvm`. It uses a random dummy `GITHUB_TOKEN`, so no GitHub write is possible. It runs 8 checks: the run stops before push, the run is in `verifying` with a commit, all verification commands pass, the VM of attempt 1 is recorded, no protected path changed, nothing was pushed, no flowly VM remains, and the model key is not in the output.
+
+```bash
+OPENROUTER_API_KEY=... FLOWLY_VM_IMAGE=node:24-alpine npx tsx scripts/smolvm-e2e.ts
+smolvm machine ls --json | grep -c '"name": *"flowly-' || true   # expect 0
+```
+
+Set `KEEP_SMOLVM_E2E=1` to keep the temporary directory.
 
 ## Run the PR reviewer
 
