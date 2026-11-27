@@ -75,15 +75,12 @@ export function createSmolvmFactoryImplementer(
         const baseSha = await resolveHead(input.workspace.path);
         const basePath = path.join(directory, 'base.tar');
         await archive(input.workspace.path, basePath);
-        // Reconcile at the phase boundary: delete the VMs of every earlier or
-        // interrupted attempt of this run, then prepare a fresh VM for this one.
-        await options.vms.cleanup(runId);
+        // Reconcile at the phase boundary: delete the VMs of earlier or interrupted
+        // attempts of this run (never later ones), then prepare a fresh VM.
+        await options.vms.cleanup(runId, attempt);
         const vm = await options.vms.prepare({ runId, attempt, archivePath: basePath });
         await input.recordExecution?.({ executor: 'smolvm', vmName: vm.name, baseSha });
-        await options.runAgent(input, {
-          FLOWLY_SMOLVM_RUN_ID: runId,
-          FLOWLY_SMOLVM_ATTEMPT: String(attempt),
-        });
+        await options.runAgent(input, { FLOWLY_SMOLVM_VM: vm.name });
 
         const packed = await options.vms.execute(vm, {
           command: `tar -cf ${GUEST_OUTPUT} -C ${vm.workdir} .`,
@@ -103,7 +100,8 @@ export function createSmolvmFactoryImplementer(
         await importTree(input.workspace.path, entries);
       } finally {
         await rm(directory, { recursive: true, force: true });
-        await options.vms.cleanup(runId);
+        // Only this attempt and earlier ones: a newer lease holder owns later VMs.
+        await options.vms.cleanup(runId, attempt);
       }
     },
     abandon: (runId) => options.vms.cleanup(runId),

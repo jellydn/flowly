@@ -74,18 +74,26 @@ export async function runControlledImplementation(
   dependencies: ControlledImplementationDependencies,
 ): Promise<FactoryRun> {
   assertFactoryAutonomyGate(plannedRun, 'implementation');
+  // The workspace this call allocated. On failure only it is failed: after a
+  // lease expiry, the run's current workspace may belong to a newer attempt.
+  const owned: OwnedWorkspace = {};
   try {
     if (plannedRun.state === 'verifying') {
       // Phase-boundary recovery: claim the run, then verify the committed tree again.
       const resumed = await dependencies.orchestrator.resumeVerification(plannedRun.id);
-      return await resumeVerification(resumed, dependencies);
+      return await resumeVerification(resumed, dependencies, owned);
     }
-    return await implementAndVerify(plannedRun, dependencies);
+    return await implementAndVerify(plannedRun, dependencies, owned);
   } catch (error) {
     // The lease holder owns the workspace; a refused claim must not fail it.
     if (error instanceof FactoryLeaseHeldError) throw error;
-    const current = await dependencies.orchestrator.get(plannedRun.id).catch(() => plannedRun);
-    await markWorkspaceFailed(dependencies.git, currentWorkspaceId(current));
+    if (owned.id) {
+      await markWorkspaceFailed(dependencies.git, owned.id);
+    } else if (error instanceof FactoryAttemptLimitError) {
+      // The run failed for good, so no newer attempt exists: fail the last one.
+      const current = await dependencies.orchestrator.get(plannedRun.id).catch(() => plannedRun);
+      await markWorkspaceFailed(dependencies.git, currentWorkspaceId(current));
+    }
     if (error instanceof FactoryAttemptLimitError) {
       await dependencies.implementer.abandon?.(plannedRun.id);
     }
@@ -93,9 +101,15 @@ export async function runControlledImplementation(
   }
 }
 
+type OwnedWorkspace = { id?: string };
+
+/** How often a long verification extends the implementation lease. */
+export const LEASE_HEARTBEAT_MS = 5 * 60_000;
+
 async function implementAndVerify(
   plannedRun: FactoryRun,
   dependencies: ControlledImplementationDependencies,
+  owned: OwnedWorkspace,
 ): Promise<FactoryRun> {
   const implementing = await dependencies.orchestrator.beginImplementation(plannedRun.id);
   if (!implementing.plan || !implementing.branch) {
@@ -116,11 +130,8 @@ async function implementAndVerify(
   }
   const git = bindGitMutator(dependencies.git, implementerManifest);
   // Each attempt gets a fresh clone (`<runId>-a<N>`); a dirty tree is never reused.
-  const workspace = await git.createWorkspace(
-    currentWorkspaceId(implementing),
-    implementing.branch,
-    dependencies.baseRef,
-  );
+  owned.id = currentWorkspaceId(implementing);
+  const workspace = await git.createWorkspace(owned.id, implementing.branch, dependencies.baseRef);
   await dependencies.implementer.implement({
     task: implementing.task,
     plan: implementing.plan,
@@ -140,7 +151,7 @@ async function implementAndVerify(
     changedFiles: commit.changedFiles,
     commands: [],
   });
-  return resumeVerification(verifying, dependencies);
+  return resumeVerification(verifying, dependencies, owned);
 }
 
 /** The recorded workspace, else the clone of the current lease attempt. */
@@ -148,6 +159,26 @@ function currentWorkspaceId(run: FactoryRun): string {
   return (
     run.implementation?.workspaceId ?? workspaceIdFor(run.id, run.implementationLease?.attempt ?? 1)
   );
+}
+
+async function withLeaseHeartbeat<T>(
+  orchestrator: FactoryOrchestrator,
+  id: string,
+  work: () => Promise<T>,
+): Promise<T> {
+  let renewal = Promise.resolve();
+  const timer = setInterval(() => {
+    // A lost lease is detected by the fenced writes that follow verification.
+    renewal = renewal.then(() => orchestrator.renewImplementationLease(id).then(() => undefined));
+    renewal = renewal.catch(() => undefined);
+  }, LEASE_HEARTBEAT_MS);
+  timer.unref?.();
+  try {
+    return await work();
+  } finally {
+    clearInterval(timer);
+    await renewal;
+  }
 }
 
 async function markWorkspaceFailed(git: FactoryGitMutator, id: string): Promise<void> {
@@ -161,6 +192,7 @@ async function markWorkspaceFailed(git: FactoryGitMutator, id: string): Promise<
 async function resumeVerification(
   verifying: FactoryRun,
   dependencies: ControlledImplementationDependencies,
+  owned: OwnedWorkspace,
 ): Promise<FactoryRun> {
   if (!verifying.plan || !verifying.branch || !verifying.implementation) {
     throw new Error(`Factory run ${verifying.id} cannot resume verification.`);
@@ -174,11 +206,8 @@ async function resumeVerification(
   assertContextSource(verifierManifest, 'verification-commands');
   const git = bindGitMutator(dependencies.git, implementerManifest);
   const verifier = bindVerifier(dependencies.verifier, verifierManifest);
-  const workspace = await git.createWorkspace(
-    verifying.implementation.workspaceId,
-    verifying.branch,
-    dependencies.baseRef,
-  );
+  owned.id = verifying.implementation.workspaceId;
+  const workspace = await git.createWorkspace(owned.id, verifying.branch, dependencies.baseRef);
   const approvedCommands = new Set(verifying.plan.verificationCommands);
   const commands = [
     ...new Set([
@@ -188,7 +217,12 @@ async function resumeVerification(
       ),
     ]),
   ];
-  const verification = await verifier.run(commands, workspace.path);
+  // A new lease period starts here, and a heartbeat keeps it live while the
+  // commands run. No other store write happens during verifier.run.
+  await dependencies.orchestrator.renewImplementationLease(verifying.id);
+  const verification = await withLeaseHeartbeat(dependencies.orchestrator, verifying.id, () =>
+    verifier.run(commands, workspace.path),
+  );
   const pristine = await bindGitMutator(dependencies.git, verifierManifest).isPristine(
     workspace,
     verifying.implementation.commitSha,

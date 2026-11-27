@@ -70,6 +70,9 @@ export interface ExecutionAdapter {
    * prepare it again. It never resumes inside an interrupted command.
    */
   recover(input: ExecutionPrepareInput): Promise<ExecutionWorkspace>;
-  /** Delete every environment of the run. Idempotent. */
-  cleanup(runId: string): Promise<void>;
+  /**
+   * Delete the run's environments. Idempotent. With `upToAttempt`, only that
+   * attempt and earlier ones, so a stale attempt cannot delete a newer one.
+   */
+  cleanup(runId: string, upToAttempt?: number): Promise<void>;
 }

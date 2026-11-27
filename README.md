@@ -175,7 +175,7 @@ The autonomy policy must allow `implement-and-verify`. Without a policy, the run
 | ----------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------- |
 | `FLOWLY_EXECUTOR`                         | `local`                                             | `smolvm` selects the VM executor. Other values fail.                      |
 | `FLOWLY_VM_IMAGE` / `FLOWLY_VM_BASE_PACK` | unset                                               | Guest source: an OCI image or a `.smolmachine` pack. Set exactly one.     |
-| `FLOWLY_VM_PREFIX`                        | `flowly`                                            | VM name prefix. VM names are `<prefix>-<run-id>-a<attempt>`.              |
+| `FLOWLY_VM_PREFIX`                        | `flowly`                                            | Prefix. VM names are `<prefix>-<repo hash>-<run-id>-a<attempt>`.          |
 | `FLOWLY_VM_CPUS`                          | `2`                                                 | vCPUs for each VM (1–8).                                                  |
 | `FLOWLY_VM_MEMORY_MB`                     | `4096`                                              | Memory for each VM in MiB (512–16384).                                    |
 | `FLOWLY_RUN_TIMEOUT`                      | `1800`                                              | Timeout in seconds for each command in the VM (1–7200).                   |
@@ -191,20 +191,21 @@ The autonomy policy must allow `implement-and-verify`. Without a policy, the run
 - The VM gets the committed tree as a `git archive` tar. It never gets the `.git` directory, host mounts, or credentials. Flowly refuses to pass environment variables with secret-like names into the VM.
 - Before Flowly imports the result, it parses the tar from the VM on the host and fails closed. It refuses absolute paths, `..`, `.git`, hard links, devices, symlinks that leave the tree, new or changed symlinks, macOS AppleDouble entries, and protected paths (`.github/`, `.flowly/`, `.flue/`, `.agents/`, `.gitmodules`, `.gitattributes`).
 - Verification runs in a new offline VM, made from the commit that Flowly made on the host.
+- Git reads `.gitattributes` and `.gitmodules` in every directory, so Flowly protects them at any depth. The base tree goes into the VM without `export-ignore` or `export-subst` changes.
 - The `FACTORY-009` safety evals in `npm test` check these boundaries. See [eval/README.md](./eval/README.md).
 
 ### The stop before push
 
-The smolvm path **stops after verification, before `git push` and before PR creation**. It makes no GitHub writes: progress goes to stderr, and repository learning is off. The run ends in `verifying` with the commit and the verification results in the run store. A later PR will remove this stop, but only after approval.
+The smolvm path **stops after verification, before `git push` and before PR creation**. It makes no GitHub writes: progress goes to stderr, repository learning is off, and the draft PR publisher refuses, also for a stored run that already reached review. The run ends in `verifying` with the commit and the verification results in the run store. A later PR will remove this stop, but only after approval.
 
 ### Recovery and attempt limit
 
-- An implementation lease (30 minutes) makes sure that only one process implements a run at a time.
+- An implementation lease (30 minutes) makes sure that only one process implements a run at a time. The holder renews it before verification and every 5 minutes while the checks run. A process that lost its lease cannot write results, and it deletes only its own attempt's VMs, never a later attempt's VM.
 - After a restart, Flowly reclaims a run only after its lease expires, and only at a phase boundary. It never resumes in the middle of a command.
   - A run in `implementing` starts again with a new clone and a new VM, `-a<N+1>`. Flowly deletes the VMs of earlier attempts first.
   - A run in `verifying` runs verification again. The implementer does not run again.
 - When a reclaim goes above `FLOWLY_MAX_ATTEMPTS`, the run goes to `failed` and Flowly deletes its VMs.
-- At startup, Flowly deletes the VMs with its prefix that belong to no run with a live lease. It deletes only VMs whose names match `<prefix>-<UUID>-a<N>`, so it does not touch other VMs on the host.
+- At startup, Flowly deletes the VMs with its prefix that belong to no run with a live lease. It deletes only VMs whose names match `<prefix>-<repo hash>-<UUID>-a<N>`, so it does not touch other tools' VMs or another repository's VMs on the same host. It reads each run again before it deletes its VM.
 - Each run has one `factory/*` branch, and each draft PR body has a hidden run marker. The publisher refuses a draft PR without the marker of the run.
 
 ### Limits
@@ -216,7 +217,7 @@ The smolvm path **stops after verification, before `git push` and before PR crea
 
 ### Check it end to end
 
-`scripts/smolvm-e2e.ts` makes a small demo repository with no dependencies and runs the real `run-factory` with `FLOWLY_EXECUTOR=smolvm`. It uses a random dummy `GITHUB_TOKEN`, so no GitHub write is possible. It runs 8 checks: the run stops before push, the run is in `verifying` with a commit, all verification commands pass, the VM of attempt 1 is recorded, no protected path changed, nothing was pushed, no flowly VM remains, and the model key is not in the output.
+`scripts/smolvm-e2e.ts` makes a small demo repository with no dependencies and runs the real `run-factory` with `FLOWLY_EXECUTOR=smolvm`. It uses a random dummy `GITHUB_TOKEN`, so no GitHub write is possible. It runs 8 checks: the run stops before push, the run is in `verifying` with a commit, all verification commands pass, the VM of attempt 1 is recorded, no protected path changed, nothing was pushed, no VM of this e2e run remains, and the model key is not in the output. The script uses its own random VM prefix, so it never touches the VMs of other runs.
 
 ```bash
 OPENROUTER_API_KEY=... FLOWLY_VM_IMAGE=node:24-alpine npx tsx scripts/smolvm-e2e.ts

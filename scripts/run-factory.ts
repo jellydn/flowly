@@ -158,6 +158,7 @@ async function main(): Promise<void> {
         implementer: createAgentFactoryImplementer(model),
         verifier: new FactoryVerificationRunner(),
         learning: createRepositoryLearningFromEnv(process.env, client, repositoryPath),
+        publisher: new FactoryDraftPrPublisher(createGitHubFactoryPullRequestClient(client)),
       };
 
   const run = await dispatchFactoryLabeledIssue(eventName, payload, {
@@ -165,7 +166,6 @@ async function main(): Promise<void> {
     classifier: createModelFactoryClassifier(modelCall),
     planner: createModelFactoryPlanner(modelCall, repository),
     reviewer: review.reviewer,
-    publisher: new FactoryDraftPrPublisher(createGitHubFactoryPullRequestClient(client)),
     readDiff: async (current) => {
       if (!current.branch || !current.implementation) {
         throw new Error(`Factory run ${current.id} has no branch or implementation to diff.`);

@@ -5,6 +5,7 @@ import {
   FactoryLeaseHeldError,
   FactoryOrchestrator,
   IMPLEMENTATION_LEASE_MS,
+  FactoryLeaseLostError,
 } from '../factory/orchestrator.ts';
 import { parseFactoryRun } from '../factory/schema.ts';
 import { MemoryFactoryRunStore } from '../factory/store.ts';
@@ -102,6 +103,63 @@ describe('FactoryOrchestrator', () => {
         (event) => event.type === 'stage.failed' && event.stage === 'implementer',
       ),
     );
+  });
+
+  test('a process that lost its lease cannot write results; the new holder can', async () => {
+    const store = new MemoryFactoryRunStore();
+    let now = 1_000_000;
+    const first = new FactoryOrchestrator(store, { holder: 'worker-1', now: () => now });
+    const second = new FactoryOrchestrator(store, { holder: 'worker-2', now: () => now });
+    const { run } = await first.start(task);
+    await first.classify(run.id, classification);
+    await first.plan(run.id, plan);
+    await first.beginImplementation(run.id);
+    now += IMPLEMENTATION_LEASE_MS;
+    await second.beginImplementation(run.id);
+
+    await assert.rejects(first.recordImplementation(run.id, implementation), FactoryLeaseLostError);
+    await assert.rejects(first.renewImplementationLease(run.id), FactoryLeaseLostError);
+    const verifying = await second.recordImplementation(run.id, {
+      ...implementation,
+      commands: [],
+    });
+    assert.equal(verifying.state, 'verifying');
+    await assert.rejects(first.recordVerification(run.id, true), FactoryLeaseLostError);
+
+    // Verification after a restart may give new results for the same commit.
+    now += IMPLEMENTATION_LEASE_MS;
+    const third = new FactoryOrchestrator(store, { holder: 'worker-3', now: () => now });
+    await third.resumeVerification(run.id);
+    await third.recordImplementation(run.id, implementation);
+    const rerun = await third.recordImplementation(run.id, {
+      ...implementation,
+      commands: [{ command: 'npm test', exitCode: 1 }],
+    });
+    assert.deepEqual(rerun.implementation?.commands, [{ command: 'npm test', exitCode: 1 }]);
+    assert.equal(
+      (await third.recordVerification(run.id, false, 'npm test failed')).state,
+      'failed',
+    );
+  });
+
+  test('renewing the lease restarts its period for the holder only', async () => {
+    const store = new MemoryFactoryRunStore();
+    let now = 1_000_000;
+    const first = new FactoryOrchestrator(store, { holder: 'worker-1', now: () => now });
+    const second = new FactoryOrchestrator(store, { holder: 'worker-2', now: () => now });
+    const { run } = await first.start(task);
+    await first.classify(run.id, classification);
+    await first.plan(run.id, plan);
+    await first.beginImplementation(run.id);
+    now += IMPLEMENTATION_LEASE_MS - 1;
+    const renewed = await first.renewImplementationLease(run.id);
+    assert.deepEqual(renewed.implementationLease, {
+      holder: 'worker-1',
+      attempt: 1,
+      startedAt: now,
+    });
+    now += IMPLEMENTATION_LEASE_MS - 1;
+    await assert.rejects(second.beginImplementation(run.id), FactoryLeaseHeldError);
   });
 
   test('records execution metadata for the current attempt and persists it', async () => {

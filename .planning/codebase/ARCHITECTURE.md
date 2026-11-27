@@ -54,14 +54,14 @@ hard links, devices, or symlinks out of the tree). The import then refuses, befo
 a candidate that adds, changes or deletes a protected path (`.github/`, `.flowly/`, `.flue/`,
 `.agents/`, `.gitmodules`, `.gitattributes`) or adds or changes a symlink, and writes the
 trusted clone without following symlinks. An implementation lease (`implementationLease`,
-30 minutes) keeps one process per run in `implementing`, and `run.execution` records the
+30 minutes, renewed before and during verification; results and cleanup are fenced to the holder's attempt) keeps one process per run in `implementing`, and `run.execution` records the
 executor, attempt, base SHA and VM name. After a restart, a run in `implementing` or
 `verifying` is reclaimed only after its lease expires, with the next attempt number:
 implementation restarts in a fresh `<runId>-a<N>` clone and VM (earlier VMs are deleted),
 and verification reruns on the recorded commit. With `FLOWLY_MAX_ATTEMPTS`, a reclaim
 beyond the limit fails the run and deletes its VMs. Draft PR bodies carry a hidden
 `flowly-factory-run` marker, and the publisher reuses only the draft with this run's marker;
-it refuses any other draft on the branch, also one with no marker (fail closed). The smolvm path makes no GitHub writes yet: it
+it refuses any other draft on the branch, also one with no marker (fail closed). The smolvm path makes no GitHub writes yet (its publisher refuses; VM names carry a repository hash): it
 logs progress to stderr and stops after verification, before `git push`.
 
 See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to add a new record.

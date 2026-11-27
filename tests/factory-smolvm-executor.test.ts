@@ -4,10 +4,14 @@ import { parseFactoryExecutor } from '../factory/execution.ts';
 import {
   SmolvmExecutionAdapter,
   parseSmolvmConfig,
+  parseSmolvmMachineName,
+  smolvmRepositoryPrefix,
   type SmolvmCommandResult,
   type SmolvmConfig,
 } from '../factory/smolvm.ts';
+import { createSmolvmFactoryDependencies } from '../factory/smolvm-factory.ts';
 import { createSmolvmSandboxDriver } from '../factory/smolvm-sandbox.ts';
+import type { FactoryRun } from '../factory/types.ts';
 import { SmolvmFactoryVerifier } from '../factory/smolvm-verifier.ts';
 
 const RUN = '3f2a9c1e-0000-4000-8000-000000000001';
@@ -203,6 +207,40 @@ describe('SmolvmExecutionAdapter', () => {
     assert.deepEqual([...smolvm.machines.keys()], [`flowly-${OTHER}-a1`]);
   });
 
+  test('cleanup up to an attempt never deletes a later attempt', async () => {
+    const smolvm = fakeSmolvm([
+      { name: `flowly-${RUN}-a1`, state: 'stopped' },
+      { name: `flowly-${RUN}-a2`, state: 'running' },
+    ]);
+    await new SmolvmExecutionAdapter(config, smolvm.runner).cleanup(RUN, 1);
+    assert.deepEqual([...smolvm.machines.keys()], [`flowly-${RUN}-a2`]);
+  });
+
+  test('repository-scoped prefixes keep two repositories apart on one host', async () => {
+    const mine = smolvmRepositoryPrefix('flowly', 'owner/mine');
+    const theirs = smolvmRepositoryPrefix('flowly', 'owner/theirs');
+    assert.notEqual(mine, theirs);
+    assert.match(mine, /^flowly-[0-9a-f]{8}$/);
+    const smolvm = fakeSmolvm([
+      { name: `${mine}-${RUN}-a1`, state: 'running' },
+      { name: `${mine}-verify-${RUN}-a1`, state: 'running' },
+      { name: `${theirs}-${OTHER}-a1`, state: 'running' },
+    ]);
+
+    const deleted = await new SmolvmExecutionAdapter(
+      { ...config, prefix: mine },
+      smolvm.runner,
+    ).sweepOrphans(() => false);
+
+    assert.deepEqual(deleted, [`${mine}-${RUN}-a1`]);
+    assert.deepEqual(parseSmolvmMachineName(`${mine}-verify-${RUN}-a3`), {
+      prefix: `${mine}-verify`,
+      runId: RUN,
+      attempt: 3,
+    });
+    assert.equal(parseSmolvmMachineName(`flowly-${RUN}-a1`), undefined);
+  });
+
   test('execute passes the guest exit code through, and reports a vanished VM', async () => {
     const smolvm = fakeSmolvm([{ name: `flowly-${RUN}-a1`, state: 'running' }]);
     const runner = async (args: string[]) =>
@@ -231,7 +269,7 @@ describe('SmolvmExecutionAdapter', () => {
         attempt: 1,
         archivePath: '/a.tar',
       }),
-      /networking off/,
+      /has networking on; it must be off/,
     );
     assert.equal(smolvm.machines.size, 0);
   });
@@ -265,7 +303,7 @@ describe('SmolvmExecutionAdapter', () => {
     ]);
     const adapter = new SmolvmExecutionAdapter(config, smolvm.runner);
 
-    const deleted = await adapter.sweepOrphans(new Set([RUN]));
+    const deleted = await adapter.sweepOrphans((runId) => runId === RUN);
 
     assert.deepEqual(deleted, [`flowly-${OTHER}-a3`]);
     assert.deepEqual([...smolvm.machines.keys()].sort(), [
@@ -275,6 +313,53 @@ describe('SmolvmExecutionAdapter', () => {
       `orb-${OTHER}-a1`,
       `orb-amp-${OTHER}`,
     ]);
+  });
+});
+
+describe('createSmolvmFactoryDependencies', () => {
+  test('sweeps only dead runs of this repository and refuses publication', async () => {
+    const prefix = smolvmRepositoryPrefix('flowly', 'owner/repo');
+    const smolvm = fakeSmolvm([
+      { name: `${prefix}-${RUN}-a1`, state: 'running' },
+      { name: `${prefix}-verify-${OTHER}-a1`, state: 'running' },
+      { name: `${smolvmRepositoryPrefix('flowly', 'owner/other')}-${OTHER}-a1`, state: 'running' },
+    ]);
+    const loads: string[] = [];
+    const live = { state: 'implementing', implementationLease: { startedAt: Date.now() } };
+    const store = {
+      async load(id: string) {
+        loads.push(id);
+        return (id === RUN ? live : null) as FactoryRun | null;
+      },
+    };
+    const logs: string[] = [];
+
+    const deps = await createSmolvmFactoryDependencies({
+      config: { ...config, source: { image: 'img' } },
+      store: store as never,
+      repository: 'owner/repo',
+      git: {} as never,
+      runAgent: async () => {},
+      runner: smolvm.runner,
+      log: (line) => logs.push(line),
+    });
+
+    assert.deepEqual(
+      [...smolvm.machines.keys()].sort(),
+      [
+        `${smolvmRepositoryPrefix('flowly', 'owner/other')}-${OTHER}-a1`,
+        `${prefix}-${RUN}-a1`,
+      ].sort(),
+    );
+    assert.deepEqual(loads.sort(), [OTHER, RUN].sort());
+    assert.equal(deps.learning, undefined);
+    const reviewed = {
+      id: RUN,
+      branch: 'factory/1-x',
+      review: { readyForHumanReview: true },
+      task: { repository: 'owner/repo' },
+    } as unknown as FactoryRun;
+    await assert.rejects(deps.publisher.publish(reviewed), /makes no GitHub writes/);
   });
 });
 

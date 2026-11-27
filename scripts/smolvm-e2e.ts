@@ -10,9 +10,11 @@
  *   FLOWLY_VM_IMAGE=node:24-alpine OPENROUTER_API_KEY=... npx tsx scripts/smolvm-e2e.ts
  *
  * Optional: FACTORY_MODEL (default openrouter/nvidia/nemotron-3-ultra-550b-a55b:free),
- * FLOWLY_VM_PREFIX, KEEP_SMOLVM_E2E=1 to keep the temporary directory.
+ * KEEP_SMOLVM_E2E=1 to keep the temporary directory. The run uses its own
+ * random VM prefix, so it never touches the VMs of other runs on the host.
  */
 import { execFileSync, spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -22,6 +24,7 @@ import {
   assertSmolvmAvailable,
   createSmolvmCommandRunner,
   parseSmolvmConfig,
+  smolvmRepositoryPrefix,
 } from '../factory/smolvm.ts';
 import { FileFactoryRunStore } from '../factory/store.ts';
 import { isProtectedPath } from '../factory/tree-import.ts';
@@ -34,7 +37,10 @@ if (model.startsWith('openrouter/') && !modelKey) {
   console.error(`${model} needs OPENROUTER_API_KEY on the host (it never enters a VM).`);
   process.exit(2);
 }
-const config = parseSmolvmConfig(process.env);
+// A prefix unique to this invocation, so cleanup never touches another run's VMs.
+const e2ePrefix = `flowly-e2e-${randomBytes(3).toString('hex')}`;
+const config = parseSmolvmConfig({ ...process.env, FLOWLY_VM_PREFIX: e2ePrefix });
+const vmPrefix = smolvmRepositoryPrefix(e2ePrefix, REPOSITORY);
 const runner = createSmolvmCommandRunner();
 await assertSmolvmAvailable(runner);
 
@@ -143,6 +149,7 @@ try {
     FACTORY_WORKSPACE_ROOT: path.join(tmp, 'workspaces'),
     FACTORY_MODEL: model,
     FLOWLY_EXECUTOR: 'smolvm',
+    FLOWLY_VM_PREFIX: e2ePrefix,
     FACTORY_AUTONOMY_POLICY: policyPath,
   });
 
@@ -172,8 +179,7 @@ try {
   );
   check(
     'execution recorded the smolvm VM of attempt 1',
-    run?.execution?.executor === 'smolvm' &&
-      run.execution.vmName === `${config.prefix}-${run.id}-a1`,
+    run?.execution?.executor === 'smolvm' && run.execution.vmName === `${vmPrefix}-${run.id}-a1`,
     run?.execution?.vmName,
   );
   check(
@@ -189,16 +195,16 @@ try {
   ).trim();
   check('nothing was pushed to origin', heads === 'refs/heads/main', heads.replace(/\n/g, ', '));
   const leftovers = flowlyMachines();
-  check('no flowly VMs remain', leftovers.length === 0, leftovers.join(', '));
+  check('no VMs of this e2e run remain', leftovers.length === 0, leftovers.join(', '));
   check(
     'the model key never appears in the output',
     !modelKey || !result.output.includes(modelKey),
   );
 } finally {
   rmSync(policyPath, { force: true });
-  for (const prefix of [config.prefix, `${config.prefix}-verify`]) {
+  for (const prefix of [vmPrefix, `${vmPrefix}-verify`]) {
     await new SmolvmExecutionAdapter({ ...config, prefix }, runner)
-      .sweepOrphans(new Set())
+      .sweepOrphans(() => false)
       .catch(() => []);
   }
   if (process.env.KEEP_SMOLVM_E2E === '1') console.log(`kept ${tmp}`);
@@ -231,12 +237,12 @@ function runFactory(env: Record<string, string>): Promise<{ exitCode: number; ou
   });
 }
 
-/** Every VM on the host whose name starts with the flowly prefix. */
+/** Every VM on the host that this e2e invocation created. */
 function flowlyMachines(): string[] {
   const list = JSON.parse(
     execFileSync('smolvm', ['machine', 'ls', '--json'], { encoding: 'utf8' }),
   );
   return (list as Array<{ name: string }>)
     .map((machine) => machine.name)
-    .filter((name) => name.startsWith(`${config.prefix}-`));
+    .filter((name) => name.startsWith(`${e2ePrefix}-`));
 }

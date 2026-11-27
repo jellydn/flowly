@@ -8,7 +8,12 @@ import {
   type SandboxFactory,
 } from '@flue/runtime';
 import type { ExecutionAdapter, ExecutionWorkspace } from './execution.ts';
-import { SmolvmExecutionAdapter, createSmolvmCommandRunner, parseSmolvmConfig } from './smolvm.ts';
+import {
+  SmolvmExecutionAdapter,
+  createSmolvmCommandRunner,
+  parseSmolvmConfig,
+  parseSmolvmMachineName,
+} from './smolvm.ts';
 
 type GuestAdapter = Pick<ExecutionAdapter, 'execute' | 'copyIn'>;
 
@@ -98,17 +103,22 @@ export function createSmolvmSandboxDriver(
 }
 
 /**
- * Sandbox for the implementer agent process. The host-side implementer sets
- * FLOWLY_SMOLVM_RUN_ID and FLOWLY_SMOLVM_ATTEMPT; without them the agent keeps
- * its local just-bash sandbox.
+ * Sandbox factory for the implementer agent process. The parent passes the
+ * attempt's VM name in FLOWLY_SMOLVM_VM; without it the agent keeps the local
+ * just-bash sandbox.
  */
 export function createSmolvmSandboxFactory(
   env: Record<string, string | undefined>,
 ): SandboxFactory | undefined {
-  const runId = env.FLOWLY_SMOLVM_RUN_ID;
-  if (!runId) return undefined;
-  const adapter = new SmolvmExecutionAdapter(parseSmolvmConfig(env), createSmolvmCommandRunner());
-  const workspace = adapter.attach(runId, Number(env.FLOWLY_SMOLVM_ATTEMPT ?? '1'));
+  const vmName = env.FLOWLY_SMOLVM_VM;
+  if (!vmName) return undefined;
+  const owner = parseSmolvmMachineName(vmName);
+  if (!owner) throw new Error(`FLOWLY_SMOLVM_VM is not a Flowly smolvm machine name: ${vmName}`);
+  const adapter = new SmolvmExecutionAdapter(
+    { ...parseSmolvmConfig(env), prefix: owner.prefix },
+    createSmolvmCommandRunner(),
+  );
+  const workspace = adapter.attach(owner.runId, owner.attempt);
   return {
     createSandbox: async () =>
       sandboxFromDriver(createSmolvmSandboxDriver(adapter, workspace), workspace.workdir),

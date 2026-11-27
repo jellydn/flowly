@@ -137,6 +137,36 @@ describe('runControlledImplementation', () => {
     assert.equal((await restarted.get(run.id)).state, 'failed');
   });
 
+  test('a stale attempt that fails does not fail the newer attempt workspace', async () => {
+    const store = new MemoryFactoryRunStore();
+    const { orchestrator, run } = await plannedRun(store);
+    const newer = new FactoryOrchestrator(store, {
+      now: () => Date.now() + IMPLEMENTATION_LEASE_MS,
+    });
+    const calls: string[] = [];
+
+    await assert.rejects(
+      runControlledImplementation(run, {
+        orchestrator,
+        git: { ...fakeGit(calls), fail: async (id: string) => void calls.push(`fail:${id}`) },
+        verifier: { run: async () => [] },
+        implementer: {
+          // The lease expires while attempt 1 runs, and another process takes attempt 2.
+          implement: async () => {
+            await newer.beginImplementation(run.id);
+            throw new Error('attempt 1 crashed late');
+          },
+        },
+      }),
+      /attempt 1 crashed late/,
+    );
+    assert.deepEqual(
+      calls.filter((call) => call.startsWith('fail:')),
+      [`fail:${run.id}`],
+    );
+    assert.equal((await newer.get(run.id)).implementationLease?.attempt, 2);
+  });
+
   test('the smolvm git mutator stops after verification and before push', async () => {
     const { orchestrator, run } = await plannedRun();
     const calls: string[] = [];

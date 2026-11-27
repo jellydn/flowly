@@ -38,6 +38,14 @@ export class FactoryLeaseHeldError extends Error {
   }
 }
 
+/** This process no longer holds the implementation lease; another attempt owns the run. */
+export class FactoryLeaseLostError extends Error {
+  constructor(id: string) {
+    super(`Factory run ${id} lost its implementation lease to another process.`);
+    this.name = 'FactoryLeaseLostError';
+  }
+}
+
 /**
  * Trusted factory state boundary. It creates one run per issue and permits only
  * monotonic stage transitions, preventing duplicate deliveries from creating
@@ -264,6 +272,27 @@ export class FactoryOrchestrator {
     return this.save({ ...run, execution: next });
   }
 
+  /**
+   * Extend the current lease at a phase boundary or during a long phase. Only
+   * the holder may renew; a process that lost the lease gets FactoryLeaseLostError.
+   */
+  async renewImplementationLease(id: string): Promise<FactoryRun> {
+    const run = await this.requireState(id, ['implementing', 'verifying'], []);
+    this.assertLeaseHolder(run);
+    if (!run.implementationLease) return run;
+    return this.save({
+      ...run,
+      implementationLease: { ...run.implementationLease, startedAt: this.now() },
+    });
+  }
+
+  /** Fence: a write of an implementation-stage result needs this process's lease. */
+  private assertLeaseHolder(run: FactoryRun): void {
+    if (run.implementationLease && run.implementationLease.holder !== this.holder) {
+      throw new FactoryLeaseLostError(run.id);
+    }
+  }
+
   private assertImplementationLeaseFree(run: FactoryRun): void {
     const lease = run.implementationLease;
     if (!lease || lease.holder === this.holder || !implementationLeaseLive(run, this.now())) return;
@@ -277,18 +306,20 @@ export class FactoryOrchestrator {
     const run = await this.requireState(id, ['implementing'], ['verifying']);
     if (run.state === 'verifying') {
       if (isDeepStrictEqual(run.implementation, implementation)) return run;
+      // The same commit may be verified again after a restart, with new results.
       if (
         run.implementation &&
-        run.implementation.commands.length === 0 &&
         isDeepStrictEqual(
           { ...run.implementation, commands: implementation.commands },
           implementation,
         )
       ) {
+        this.assertLeaseHolder(run);
         return this.save({ ...run, implementation });
       }
       throw new Error(`Factory run ${id} already has an implementation result.`);
     }
+    this.assertLeaseHolder(run);
     if (!run.branch) throw new Error(`Factory run ${id} has no factory-owned branch.`);
     return this.save({ ...run, implementation, state: 'verifying' });
   }
@@ -303,6 +334,7 @@ export class FactoryOrchestrator {
       if (!matches) throw new Error(`Factory run ${id} already has a verification result.`);
       return run;
     }
+    this.assertLeaseHolder(run);
     return this.save({
       ...run,
       state: passed ? 'reviewing' : 'failed',
