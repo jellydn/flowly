@@ -47,6 +47,7 @@ const check = (label: string, ok: boolean, detail = '') => {
 const tmp = mkdtempSync(path.join(os.tmpdir(), 'flowly-smolvm-e2e-'));
 const origin = path.join(tmp, 'origin.git');
 const source = path.join(tmp, 'source');
+const policyPath = path.join(tmp, 'autonomy-policy.json');
 const git = (cwd: string, ...args: string[]) =>
   execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8' });
 
@@ -112,6 +113,25 @@ try {
     }),
   );
 
+  // Without a policy, run-factory defaults to plan-only and stops before implementation.
+  // implement-and-verify allows the VM phases; the publication gate stays closed, and
+  // stopBeforePush refuses the push, so no PR is possible.
+  writeFileSync(
+    policyPath,
+    JSON.stringify({
+      version: 'smolvm-e2e-v1',
+      promotionEnabled: false,
+      defaultLevel: 'implement-and-verify',
+      maximumLevel: 'implement-and-verify',
+      minimumSamples: { implementAndVerify: 1, publishDraftPr: 1 },
+      promotionThresholds: {
+        verificationSuccessRate: 1,
+        reviewReadyRate: 1,
+        publicationSuccessRate: 1,
+      },
+    }),
+  );
+
   const runStore = path.join(tmp, 'runs');
   const result = await runFactory({
     GITHUB_TOKEN: 'unused',
@@ -123,9 +143,16 @@ try {
     FACTORY_WORKSPACE_ROOT: path.join(tmp, 'workspaces'),
     FACTORY_MODEL: model,
     FLOWLY_EXECUTOR: 'smolvm',
+    FACTORY_AUTONOMY_POLICY: policyPath,
   });
 
   const [run] = await new FileFactoryRunStore(runStore).listByRepository(REPOSITORY);
+  if (run?.state === 'planned') {
+    throw new Error(
+      'smolvm e2e: the run stopped in `planned` before implementation, so no VM ran. ' +
+        `Check the autonomy policy in ${policyPath}. Run failure: ${run.failure ?? 'none'}.`,
+    );
+  }
   const implementation = run?.implementation;
   check(
     'run-factory stopped before push',
@@ -168,6 +195,7 @@ try {
     !modelKey || !result.output.includes(modelKey),
   );
 } finally {
+  rmSync(policyPath, { force: true });
   for (const prefix of [config.prefix, `${config.prefix}-verify`]) {
     await new SmolvmExecutionAdapter({ ...config, prefix }, runner)
       .sweepOrphans(new Set())
