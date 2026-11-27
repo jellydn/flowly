@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import type {
   ExecutionAdapter,
   ExecutionCommand,
@@ -48,6 +49,27 @@ const START_TIMEOUT_MS = 600_000;
 const PREFIX_PATTERN = /^[a-z][a-z0-9-]{0,30}$/;
 /** Factory run ids are UUIDs; requiring that shape keeps the name filter strict. */
 export const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+/** A repository-scoped prefix: `<FLOWLY_VM_PREFIX>-<8 hex>`, optionally with a role suffix. */
+const SCOPED_PREFIX_PATTERN = /^[a-z][a-z0-9-]{0,30}-[0-9a-f]{8}(?:-[a-z]+)?$/;
+
+/**
+ * VM name prefix for one repository. Each repository's run store only knows
+ * its own runs, so its orphan sweep must only see its own VMs, also when two
+ * repositories share a host and FLOWLY_VM_PREFIX.
+ */
+export function smolvmRepositoryPrefix(prefix: string, repository: string): string {
+  const digest = createHash('sha256').update(repository).digest('hex').slice(0, 8);
+  return `${prefix}-${digest}`;
+}
+
+/** Prefix, run id, and attempt of a repository-scoped VM name, or undefined. */
+export function parseSmolvmMachineName(
+  name: string,
+): { prefix: string; runId: string; attempt: number } | undefined {
+  const match = new RegExp(`^(.+)-(${UUID})-a([1-9]\\d*)$`).exec(name);
+  if (!match || !SCOPED_PREFIX_PATTERN.test(match[1])) return undefined;
+  return { prefix: match[1], runId: match[2], attempt: Number(match[3]) };
+}
 const RUN_ID_PATTERN = new RegExp(`^${UUID}$`);
 const SECRET_ENV_PATTERN = /TOKEN|SECRET|PASSWORD|API_?KEY|CREDENTIAL/i;
 /**
@@ -192,8 +214,9 @@ export class SmolvmExecutionAdapter implements ExecutionAdapter {
       ]);
       await this.control(['machine', 'start', '--name', name], START_TIMEOUT_MS);
       const created = (await this.list()).find((machine) => machine.name === name);
-      if (!created || created.network) {
-        throw new Error(`smolvm machine ${name} must exist with networking off.`);
+      if (!created) throw new Error(`smolvm machine ${name} is not listed after start.`);
+      if (created.network) {
+        throw new Error(`smolvm machine ${name} has networking on; it must be off.`);
       }
       await this.control(['machine', 'cp', input.archivePath, `${name}:${GUEST_ARCHIVE}`]);
       await this.control([
@@ -263,19 +286,27 @@ export class SmolvmExecutionAdapter implements ExecutionAdapter {
     return this.prepare(input);
   }
 
-  async cleanup(runId: string): Promise<void> {
+  async cleanup(runId: string, upToAttempt?: number): Promise<void> {
     assertRunId(runId);
     for (const machine of await this.list()) {
-      if (this.ownerOf(machine.name) === runId) await this.deleteMachine(machine.name);
+      const owner = this.ownerOf(machine.name);
+      if (owner?.runId !== runId) continue;
+      // An attempt never deletes a later attempt's VM, which a newer lease holder owns.
+      if (upToAttempt !== undefined && owner.attempt > upToAttempt) continue;
+      await this.deleteMachine(machine.name);
     }
   }
 
-  /** Delete prefixed machines that belong to no active run. Returns the deleted names. */
-  async sweepOrphans(activeRunIds: ReadonlySet<string>): Promise<string[]> {
+  /**
+   * Delete prefixed machines that belong to no active run. `isActive` is asked
+   * per machine after the list, so a run claimed before its VM was created is
+   * always seen as active. Returns the deleted names.
+   */
+  async sweepOrphans(isActive: (runId: string) => boolean | Promise<boolean>): Promise<string[]> {
     const deleted: string[] = [];
     for (const machine of await this.list()) {
-      const runId = this.ownerOf(machine.name);
-      if (runId && !activeRunIds.has(runId)) {
+      const owner = this.ownerOf(machine.name);
+      if (owner && !(await isActive(owner.runId))) {
         await this.deleteMachine(machine.name);
         deleted.push(machine.name);
       }
@@ -283,9 +314,10 @@ export class SmolvmExecutionAdapter implements ExecutionAdapter {
     return deleted;
   }
 
-  /** Run id of a machine this executor owns, or undefined for every other VM on the host. */
-  private ownerOf(name: string): string | undefined {
-    return new RegExp(`^${this.config.prefix}-(${UUID})-a[1-9]\\d*$`).exec(name)?.[1];
+  /** Run and attempt of a machine this executor owns, or undefined for every other VM. */
+  private ownerOf(name: string): { runId: string; attempt: number } | undefined {
+    const match = new RegExp(`^${this.config.prefix}-(${UUID})-a([1-9]\\d*)$`).exec(name);
+    return match ? { runId: match[1], attempt: Number(match[2]) } : undefined;
   }
 
   /** `machine ls --json` lists every VM on the host, including other tools' machines. */

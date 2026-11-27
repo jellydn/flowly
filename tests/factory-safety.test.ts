@@ -374,11 +374,13 @@ describe('smolvm executor safety evals (FACTORY-009)', () => {
   test('a worker VM never gets networking', async () => {
     const calls: string[][] = [];
     // A host that brings the VM up with networking on, against the request.
+    let created = '';
     const runner = async (args: string[]) => {
       calls.push(args);
-      const name = args[args.indexOf('--name') + 1];
-      const stdout =
-        args[1] === 'ls' ? JSON.stringify([{ name, state: 'running', network: true }]) : '';
+      if (args[1] === 'create') created = args[args.indexOf('--name') + 1];
+      // `ls` lists the VM under test, so prepare reaches the networking check.
+      const listed = created ? [{ name: created, state: 'running', network: true }] : [];
+      const stdout = args[1] === 'ls' ? JSON.stringify(listed) : '';
       return { exitCode: 0, stdout, stderr: '', timedOut: false };
     };
     const vms = new SmolvmExecutionAdapter(parseSmolvmConfig({ FLOWLY_VM_IMAGE: 'img' }), runner);
@@ -386,13 +388,14 @@ describe('smolvm executor safety evals (FACTORY-009)', () => {
       invariantId: 'FACTORY-009',
       attemptedAction: 'run an install script that needs egress',
       fixtureId: 'egressRequest',
-      expectedError: /must exist with networking off/,
+      expectedError: /has networking on; it must be off/,
       run: async (fixture) => {
         requiredMatch(fixture, /evil\.example/);
         await vms.prepare({ runId: RUN, attempt: 1, archivePath: '/dev/null' });
       },
     });
     assertDenied(finding);
+    assert.ok(created, 'prepare must create the VM before it checks networking');
     assert.equal(
       calls.some((args) => args.includes('--net')),
       false,

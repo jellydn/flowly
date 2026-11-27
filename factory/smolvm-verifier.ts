@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -21,15 +21,32 @@ export function parseWorkspaceRun(workspaceId: string): { runId: string; attempt
 
 export type TreeArchiver = (workspacePath: string, archivePath: string) => Promise<void>;
 
-/** Archive the committed tree only: no working-tree edits and no `.git` metadata. */
+/** Makes `git archive` write the committed tree as Git checks it out. */
+const RAW_ARCHIVE_ATTRIBUTES = '* -export-ignore -export-subst';
+
+/**
+ * Archive the committed tree only: no working-tree edits and no `.git`
+ * metadata. In-tree `export-ignore` and `export-subst` attributes would drop
+ * or rewrite files, and the import would then delete or change them in the
+ * clone, so the clone's `info/attributes` (which wins over in-tree files)
+ * turns both off. That file is not tracked and changes no other Git output.
+ */
 export const gitArchiveHead: TreeArchiver = async (workspacePath, archivePath) => {
-  await execFileAsync(
-    'git',
-    ['-C', workspacePath, 'archive', '--format=tar', '-o', archivePath, 'HEAD'],
-    {
-      timeout: 120_000,
-    },
+  const git = (args: string[]) =>
+    execFileAsync('git', ['-C', workspacePath, ...args], { timeout: 120_000 });
+  const attributesPath = path.resolve(
+    workspacePath,
+    (await git(['rev-parse', '--git-path', 'info/attributes'])).stdout.trim(),
   );
+  const current = await readFile(attributesPath, 'utf8').catch(() => '');
+  if (!current.split('\n').includes(RAW_ARCHIVE_ATTRIBUTES)) {
+    await mkdir(path.dirname(attributesPath), { recursive: true });
+    await writeFile(
+      attributesPath,
+      `${current}${current && !current.endsWith('\n') ? '\n' : ''}${RAW_ARCHIVE_ATTRIBUTES}\n`,
+    );
+  }
+  await git(['archive', '--format=tar', '-o', archivePath, 'HEAD']);
 };
 
 /**
@@ -68,7 +85,7 @@ export class SmolvmFactoryVerifier implements FactoryVerifier {
       return results;
     } finally {
       await rm(directory, { recursive: true, force: true });
-      await this.vms.cleanup(runId);
+      await this.vms.cleanup(runId, attempt);
     }
   }
 

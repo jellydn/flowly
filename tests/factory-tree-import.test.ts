@@ -14,7 +14,13 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, test } from 'node:test';
 import { createSmolvmFactoryImplementer } from '../factory/smolvm-implementer.ts';
-import { importTree, parseTreeArchive, type TreeEntry } from '../factory/tree-import.ts';
+import { gitArchiveHead } from '../factory/smolvm-verifier.ts';
+import {
+  importTree,
+  isProtectedPath,
+  parseTreeArchive,
+  type TreeEntry,
+} from '../factory/tree-import.ts';
 
 const RUN = '3f2a9c1e-0000-4000-8000-000000000001';
 const directories: string[] = [];
@@ -340,6 +346,58 @@ describe('importTree', () => {
   });
 });
 
+describe('import policy', () => {
+  test('protects Git attribute and submodule files at any depth', () => {
+    for (const file of [
+      '.gitattributes',
+      'docs/.gitattributes',
+      'a/b/.GITATTRIBUTES',
+      'x/.gitmodules',
+    ]) {
+      assert.equal(isProtectedPath(file), true, file);
+    }
+    assert.equal(isProtectedPath('docs/gitattributes.md'), false);
+  });
+
+  test('gitArchiveHead keeps export-ignore files and does not expand export-subst', async () => {
+    const repo = path.join(await temporary(), RUN);
+    await mkdir(path.join(repo, 'hidden'), { recursive: true });
+    await writeFile(path.join(repo, 'hidden', 'x.txt'), 'kept\n');
+    await writeFile(path.join(repo, 'v.txt'), '$Format:%H$\n');
+    await writeFile(
+      path.join(repo, '.gitattributes'),
+      'hidden export-ignore\nv.txt export-subst\n',
+    );
+    execFileSync('git', ['init', '-q', repo]);
+    execFileSync('git', ['-C', repo, 'add', '-A']);
+    execFileSync('git', [
+      '-C',
+      repo,
+      '-c',
+      'user.name=t',
+      '-c',
+      'user.email=t@t',
+      'commit',
+      '-qm',
+      'b',
+    ]);
+    const archivePath = path.join(await temporary(), 'tree.tar');
+    await gitArchiveHead(repo, archivePath);
+    const entries = parseTreeArchive(await readFile(archivePath));
+    const file = (name: string) =>
+      entries.find((entry) => entry.path === name && entry.type === 'file') as
+        | { data: Buffer }
+        | undefined;
+    assert.equal(file('hidden/x.txt')?.data.toString(), 'kept\n');
+    assert.equal(file('v.txt')?.data.toString(), '$Format:%H$\n');
+    // The clone stays clean: info/attributes is not part of the tree.
+    assert.equal(
+      execFileSync('git', ['-C', repo, 'status', '--porcelain'], { encoding: 'utf8' }),
+      '',
+    );
+  });
+});
+
 describe('createSmolvmFactoryImplementer', () => {
   function fakeVms(candidate: Buffer, packExit = 0) {
     const log: string[] = [];
@@ -356,8 +414,8 @@ describe('createSmolvmFactoryImplementer', () => {
         log.push(`copyOut ${guest}`);
         await writeFile(host, candidate);
       },
-      async cleanup(runId: string) {
-        log.push(`cleanup ${runId}`);
+      async cleanup(runId: string, upToAttempt?: number) {
+        log.push(`cleanup ${runId} up to a${upToAttempt}`);
       },
     };
     return { vms, log };
@@ -387,13 +445,14 @@ describe('createSmolvmFactoryImplementer', () => {
     }).trim();
     assert.deepEqual(executions, [{ executor: 'smolvm', vmName: 'vm', baseSha: head }]);
 
-    assert.deepEqual(agentEnv, [{ FLOWLY_SMOLVM_RUN_ID: RUN, FLOWLY_SMOLVM_ATTEMPT: '1' }]);
+    assert.deepEqual(agentEnv, [{ FLOWLY_SMOLVM_VM: 'vm' }]);
+    // Cleanup never reaches later attempts, which a newer lease holder owns.
     assert.deepEqual(log, [
-      `cleanup ${RUN}`,
+      `cleanup ${RUN} up to a1`,
       `prepare ${RUN} a1`,
       'exec tar -cf /tmp/flowly-candidate.tar -C /work .',
       'copyOut /tmp/flowly-candidate.tar',
-      `cleanup ${RUN}`,
+      `cleanup ${RUN} up to a1`,
     ]);
     assert.equal(await readFile(path.join(repo, 'edit.txt'), 'utf8'), 'new\n');
   });
@@ -401,7 +460,7 @@ describe('createSmolvmFactoryImplementer', () => {
   test('abandon deletes every VM of the run', async () => {
     const { vms, log } = fakeVms(Buffer.alloc(0));
     await createSmolvmFactoryImplementer({ vms, runAgent: async () => {} }).abandon?.(RUN);
-    assert.deepEqual(log, [`cleanup ${RUN}`]);
+    assert.deepEqual(log, [`cleanup ${RUN} up to aundefined`]);
   });
 
   test('refuses a malicious tree, leaves the clone unchanged, and deletes the VM', async () => {
@@ -417,8 +476,8 @@ describe('createSmolvmFactoryImplementer', () => {
       }),
       /Git metadata/,
     );
-    assert.deepEqual(log.slice(0, 2), [`cleanup ${RUN}`, `prepare ${RUN} a2`]);
-    assert.equal(log.at(-1), `cleanup ${RUN}`);
+    assert.deepEqual(log.slice(0, 2), [`cleanup ${RUN} up to a2`, `prepare ${RUN} a2`]);
+    assert.equal(log.at(-1), `cleanup ${RUN} up to a2`);
     assert.equal(
       execFileSync('git', ['-C', repo, 'status', '--porcelain'], { encoding: 'utf8' }),
       '',

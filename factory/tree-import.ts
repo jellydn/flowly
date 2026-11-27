@@ -121,7 +121,7 @@ export function parseTreeArchive(
 /**
  * Paths an implementation candidate may never add, change, or delete: CI and
  * workflow definitions, Flowly/Flue review and agent configuration, and Git
- * attribute/submodule files that change how trusted Git reads the tree.
+ * attribute/submodule files (at any depth) that change how trusted Git reads the tree.
  * Compared case-insensitively, because macOS file systems ignore case.
  */
 export const PROTECTED_PATH_PREFIXES = ['.github/', '.flowly/', '.flue/', '.agents/'] as const;
@@ -129,8 +129,10 @@ export const PROTECTED_FILES = ['.gitmodules', '.gitattributes'] as const;
 
 export function isProtectedPath(entryPath: string): boolean {
   const lower = entryPath.toLowerCase();
+  // Git reads these files in every directory, not only at the root.
+  const name = lower.slice(lower.lastIndexOf('/') + 1);
   return (
-    (PROTECTED_FILES as readonly string[]).includes(lower) ||
+    (PROTECTED_FILES as readonly string[]).includes(name) ||
     PROTECTED_PATH_PREFIXES.some((prefix) => lower.startsWith(prefix) || `${lower}/` === prefix)
   );
 }
