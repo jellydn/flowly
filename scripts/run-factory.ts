@@ -93,7 +93,7 @@ async function main(): Promise<void> {
   const model =
     process.env.FACTORY_MODEL ??
     process.env.REPO_ASSISTANT_MODEL ??
-    'openrouter/cohere/north-mini-code:free';
+    'openrouter/nvidia/nemotron-3-ultra-550b-a55b:free';
   const modelCall = createFactoryModelCall(model, process.env);
   const repository = await createRepositoryReader(repositoryPath);
   const review = createModelFactoryReview(modelCall);

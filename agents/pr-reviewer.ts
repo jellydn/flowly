@@ -96,7 +96,8 @@ export function PrReviewer() {
     ? withRepositoryReviewLearning(basePublisher, learning, prNumber)
     : basePublisher;
 
-  const reviewerModel = env.REPO_ASSISTANT_MODEL ?? 'openrouter/cohere/north-mini-code:free';
+  const reviewerModel =
+    env.REPO_ASSISTANT_MODEL ?? 'openrouter/nvidia/nemotron-3-ultra-550b-a55b:free';
   const advisorConfig = parseAdvisorConfig(env);
   const publisher = createReviewPipelinePublisher({
     publisher: githubPublisher,

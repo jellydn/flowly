@@ -15,7 +15,7 @@
  * Optional:
  *   OPENROUTER_API_KEY   – LLM provider key (or another provider's key depending on REPO_ASSISTANT_MODEL)
  *   REPOSITORY_PATH    – checkout root (defaults to the current directory)
- *   REPO_ASSISTANT_MODEL – model specifier (defaults to openrouter/cohere/north-mini-code:free)
+ *   REPO_ASSISTANT_MODEL – model specifier (defaults to openrouter/nvidia/nemotron-3-ultra-550b-a55b:free)
  *   PR_REVIEW_MAX_*    – file-aware limits (see review/limits.ts)
  *   PR_REVIEW_SPECIALISTS / PR_REVIEW_SPECIALIST_TIMEOUT_MS – specialist pipeline
  *   PR_REVIEW_ADVISOR_* – optional final advisor validation
