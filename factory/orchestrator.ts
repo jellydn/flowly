@@ -17,7 +17,34 @@ import {
   type FactoryAutonomyEvent,
   type FactoryAutonomyPolicy,
   type FactoryManualConfirmation,
+  type FactoryRunExecution,
 } from './types.ts';
+
+/** A lease reclaim would exceed the attempt limit; the run is now `failed`. */
+export class FactoryAttemptLimitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'FactoryAttemptLimitError';
+  }
+}
+
+/** Another live process holds the implementation lease. Callers must not touch its workspace. */
+export class FactoryLeaseHeldError extends Error {
+  constructor(id: string, until: number) {
+    super(
+      `Factory run ${id} is being implemented by another process until ${new Date(until).toISOString()}.`,
+    );
+    this.name = 'FactoryLeaseHeldError';
+  }
+}
+
+/** This process no longer holds the implementation lease; another attempt owns the run. */
+export class FactoryLeaseLostError extends Error {
+  constructor(id: string) {
+    super(`Factory run ${id} lost its implementation lease to another process.`);
+    this.name = 'FactoryLeaseLostError';
+  }
+}
 
 /**
  * Trusted factory state boundary. It creates one run per issue and permits only
@@ -25,7 +52,20 @@ import {
  * another branch or PR.
  */
 export class FactoryOrchestrator {
-  constructor(private readonly store: FactoryRunStore) {}
+  /** Identifies this process as an implementation lease holder. */
+  readonly holder: string;
+  private readonly now: () => number;
+  /** Total lease claims a run may use; unset means no limit (the local default). */
+  private readonly maxAttempts: number | undefined;
+
+  constructor(
+    private readonly store: FactoryRunStore,
+    options: { holder?: string; now?: () => number; maxAttempts?: number } = {},
+  ) {
+    this.holder = options.holder ?? randomUUID();
+    this.now = options.now ?? Date.now;
+    this.maxAttempts = options.maxAttempts;
+  }
 
   /** Load the persisted run. Callers must not treat a stale snapshot as current. */
   async get(id: string): Promise<FactoryRun> {
@@ -167,14 +207,96 @@ export class FactoryOrchestrator {
     return this.save({ ...run, plan, state: 'planned' });
   }
 
+  /**
+   * Claims planned → implementing with an exclusive lease. The holder may call
+   * it again. Another process gets FactoryLeaseHeldError while the lease is
+   * live; after expiry it reclaims the run with the next attempt number. A
+   * reclaim beyond the attempt limit fails the run (FactoryAttemptLimitError).
+   */
   async beginImplementation(id: string): Promise<FactoryRun> {
-    const run = await this.requireState(id, ['planned'], ['implementing']);
-    if (run.state === 'implementing') return run;
+    const run = await this.requireState(id, ['planned', 'implementing'], []);
+    return this.claimLease(run, 'implementing');
+  }
+
+  /**
+   * Phase-boundary recovery of a run found in `verifying` after a restart.
+   * Verification restarts from the committed tree, so only the lease moves.
+   * The same holder, expiry, and attempt-limit rules as implementation apply.
+   */
+  async resumeVerification(id: string): Promise<FactoryRun> {
+    const run = await this.requireState(id, ['verifying'], []);
+    return this.claimLease(run, 'verifying');
+  }
+
+  private async claimLease(
+    run: FactoryRun,
+    state: 'implementing' | 'verifying',
+  ): Promise<FactoryRun> {
+    if (run.implementationLease?.holder === this.holder && run.state === state) return run;
+    this.assertImplementationLeaseFree(run);
+    const attempt = (run.implementationLease?.attempt ?? 0) + 1;
+    if (this.maxAttempts !== undefined && attempt > this.maxAttempts) {
+      const failure = `Factory run ${run.id} reached its attempt limit (${this.maxAttempts}) in ${run.state}.`;
+      await this.save({ ...run, state: 'failed', failure });
+      throw new FactoryAttemptLimitError(failure);
+    }
+    try {
+      return await this.save({
+        ...run,
+        state,
+        branch:
+          run.branch ?? factoryBranch(run.task.issueNumber, run.task.title, run.task.campaign),
+        implementationLease: { holder: this.holder, attempt, startedAt: this.now() },
+      });
+    } catch (error) {
+      if (!isVersionConflict(error)) throw error;
+      this.assertImplementationLeaseFree(await this.get(run.id));
+      throw error;
+    }
+  }
+
+  /** Record the executor environment of the current implementation attempt. Lease holder only. */
+  async recordExecution(
+    id: string,
+    execution: Omit<FactoryRunExecution, 'attempt'>,
+  ): Promise<FactoryRun> {
+    const run = await this.requireState(id, ['implementing'], []);
+    const lease = run.implementationLease;
+    if (lease?.holder !== this.holder) {
+      throw new Error(
+        `Factory run ${id} cannot record execution without its implementation lease.`,
+      );
+    }
+    const next: FactoryRunExecution = { ...execution, attempt: lease.attempt };
+    if (isDeepStrictEqual(run.execution, next)) return run;
+    return this.save({ ...run, execution: next });
+  }
+
+  /**
+   * Extend the current lease at a phase boundary or during a long phase. Only
+   * the holder may renew; a process that lost the lease gets FactoryLeaseLostError.
+   */
+  async renewImplementationLease(id: string): Promise<FactoryRun> {
+    const run = await this.requireState(id, ['implementing', 'verifying'], []);
+    this.assertLeaseHolder(run);
+    if (!run.implementationLease) return run;
     return this.save({
       ...run,
-      state: 'implementing',
-      branch: factoryBranch(run.task.issueNumber, run.task.title, run.task.campaign),
+      implementationLease: { ...run.implementationLease, startedAt: this.now() },
     });
+  }
+
+  /** Fence: a write of an implementation-stage result needs this process's lease. */
+  private assertLeaseHolder(run: FactoryRun): void {
+    if (run.implementationLease && run.implementationLease.holder !== this.holder) {
+      throw new FactoryLeaseLostError(run.id);
+    }
+  }
+
+  private assertImplementationLeaseFree(run: FactoryRun): void {
+    const lease = run.implementationLease;
+    if (!lease || lease.holder === this.holder || !implementationLeaseLive(run, this.now())) return;
+    throw new FactoryLeaseHeldError(run.id, lease.startedAt + IMPLEMENTATION_LEASE_MS);
   }
 
   async recordImplementation(
@@ -184,18 +306,20 @@ export class FactoryOrchestrator {
     const run = await this.requireState(id, ['implementing'], ['verifying']);
     if (run.state === 'verifying') {
       if (isDeepStrictEqual(run.implementation, implementation)) return run;
+      // The same commit may be verified again after a restart, with new results.
       if (
         run.implementation &&
-        run.implementation.commands.length === 0 &&
         isDeepStrictEqual(
           { ...run.implementation, commands: implementation.commands },
           implementation,
         )
       ) {
+        this.assertLeaseHolder(run);
         return this.save({ ...run, implementation });
       }
       throw new Error(`Factory run ${id} already has an implementation result.`);
     }
+    this.assertLeaseHolder(run);
     if (!run.branch) throw new Error(`Factory run ${id} has no factory-owned branch.`);
     return this.save({ ...run, implementation, state: 'verifying' });
   }
@@ -210,6 +334,7 @@ export class FactoryOrchestrator {
       if (!matches) throw new Error(`Factory run ${id} already has a verification result.`);
       return run;
     }
+    this.assertLeaseHolder(run);
     return this.save({
       ...run,
       state: passed ? 'reviewing' : 'failed',
@@ -274,6 +399,22 @@ export class FactoryOrchestrator {
     await this.store.save(next, run.version);
     return next;
   }
+}
+
+/**
+ * How long an `implementing` claim is exclusive. It exceeds the implementer's
+ * 20-minute timeout, so a live attempt is never taken over.
+ */
+export const IMPLEMENTATION_LEASE_MS = 30 * 60_000;
+
+/**
+ * True while a process holds the lease of a run in `implementing` or
+ * `verifying`. Only such runs may own executor resources at startup.
+ */
+export function implementationLeaseLive(run: FactoryRun, now = Date.now()): boolean {
+  if (run.state !== 'implementing' && run.state !== 'verifying') return false;
+  const lease = run.implementationLease;
+  return lease !== undefined && now < lease.startedAt + IMPLEMENTATION_LEASE_MS;
 }
 
 /** How long a `planning` claim is exclusive before a retried worker may take over. */

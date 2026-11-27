@@ -157,6 +157,21 @@ export const factoryRunSchema = v.object({
   failure: v.optional(v.string()),
   updatedAt: v.pipe(v.number(), v.integer(), v.minValue(0)),
   planningStartedAt: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
+  implementationLease: v.optional(
+    v.object({
+      holder: v.pipe(v.string(), v.minLength(1)),
+      attempt: v.pipe(v.number(), v.integer(), v.minValue(1)),
+      startedAt: v.pipe(v.number(), v.integer(), v.minValue(0)),
+    }),
+  ),
+  execution: v.optional(
+    v.object({
+      executor: v.picklist(['local', 'smolvm'] as const),
+      attempt: v.pipe(v.number(), v.integer(), v.minValue(1)),
+      baseSha: v.pipe(v.string(), v.regex(/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/)),
+      vmName: v.optional(v.pipe(v.string(), v.minLength(1))),
+    }),
+  ),
   events: v.optional(v.array(factoryRunEventSchema)),
 });
 

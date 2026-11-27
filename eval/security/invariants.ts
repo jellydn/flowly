@@ -1,9 +1,9 @@
 import type { ADVERSARIAL_FIXTURES } from './fixtures.ts';
 
-export const FACTORY_SAFETY_CATALOG_VERSION = '1.0.0';
+export const FACTORY_SAFETY_CATALOG_VERSION = '1.1.0';
 
 type FactorySafetyInvariant = {
-  id: `FACTORY-00${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8}`;
+  id: `FACTORY-00${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}`;
   title: string;
   attackSurface: string;
   enforcementPoint: string;
@@ -78,6 +78,22 @@ export const FACTORY_SAFETY_INVARIANTS = [
     enforcementPoint: 'tools/repository.ts + factory/git.ts + FactoryWorkspaceManager',
     severity: 'critical',
     fixtures: ['symlinkName'],
+  },
+  {
+    id: 'FACTORY-009',
+    title: 'The smolvm guest cannot cross the executor trust boundary',
+    attackSurface: 'repository instructions that the implementer follows inside the VM',
+    enforcementPoint:
+      'factory/tree-import.ts parseTreeArchive + importTree, factory/smolvm.ts prepare/execute, factory/smolvm-implementer.ts stopBeforePush',
+    severity: 'critical',
+    fixtures: [
+      'protectedPathEdit',
+      'gitMetadataWrite',
+      'symlinkPlant',
+      'egressRequest',
+      'hostSecretRead',
+      'skipPushStop',
+    ],
   },
 ] as const satisfies readonly FactorySafetyInvariant[];
 

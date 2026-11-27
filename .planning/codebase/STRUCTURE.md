@@ -22,7 +22,7 @@ flowly/
 ├── demo/              # Feature-oriented runnable examples
 ├── docs/              # Hand-maintained docs page + ADRs
 ├── skills/            # Flue skills (analyzing-repositories)
-├── tests/             # Node test-runner tests (58 files + helpers)
+├── tests/             # Node test-runner tests (60 files + helpers)
 ├── .planning/         # Codebase map + internal planning docs
 ├── .github/workflows/ # CI + event-router/review/factory workflow + examples
 ├── sandbox.ts         # Empty toolset replacing default FS/shell tools
@@ -72,7 +72,7 @@ flowly/
 **`factory/`:**
 
 - Purpose: Typed issue-to-PR state, trusted implementation/review/publication boundaries, autonomy policy, and multi-batch migration campaigns
-- Contains: `types.ts`, `schema.ts`, `store.ts`, `run-state-store.ts`, `orchestrator.ts`, `autonomy.ts`, `capabilities.ts`, `capability-guard.ts`, `workspace-lifecycle.ts`, `workspace-store.ts`, `events.ts`, `campaign-types.ts`, `campaign-schema.ts`, `campaign-store.ts`, `campaign.ts`, `campaign-run.ts`, `intake.ts`, `plan.ts`, `run.ts`, `dispatch.ts`, `defaults.ts`, `model.ts`, `model-adapters.ts`, `agent-implementer.ts`, `git.ts`, `implementation.ts`, `verification.ts`, `review.ts`, `publisher.ts`, `pipeline.ts`
+- Contains: `types.ts`, `schema.ts`, `store.ts`, `run-state-store.ts`, `orchestrator.ts`, `autonomy.ts`, `capabilities.ts`, `capability-guard.ts`, `workspace-lifecycle.ts`, `workspace-store.ts`, `events.ts`, `campaign-types.ts`, `campaign-schema.ts`, `campaign-store.ts`, `campaign.ts`, `campaign-run.ts`, `intake.ts`, `plan.ts`, `run.ts`, `dispatch.ts`, `defaults.ts`, `model.ts`, `model-adapters.ts`, `agent-implementer.ts`, `git.ts`, `implementation.ts`, `verification.ts`, `execution.ts`, `smolvm.ts`, `smolvm-sandbox.ts`, `smolvm-verifier.ts`, `smolvm-implementer.ts`, `tree-import.ts`, `review.ts`, `publisher.ts`, `pipeline.ts`
 - Key files: `orchestrator.ts` (monotonic transitions + atomic event append), `autonomy.ts` (evidence-based gates), `capabilities.ts` and `capability-guard.ts` (least-capability manifests), `workspace-lifecycle.ts` and `workspace-store.ts` (run-owned workspace persistence/GC), `events.ts` (append-only events and projections), `run.ts` (pipeline), `git.ts` (trusted Git mutation), `campaign.ts` and `campaign-run.ts` (approved migration batches)
 
 **`github/`:**
@@ -90,7 +90,7 @@ flowly/
 **`scripts/`:**
 
 - Purpose: CI entrypoints and local operator CLIs
-- Contains: `review-pr.ts`, `run-factory.ts`, `factory.ts`, `route-event.ts`, `flowly-eval.ts`, `flue-eval.ts` (compatibility), `eval-dashboard.ts`, `eval-share.ts`, `eval-share-server.ts`, `eval-recommend.ts`, `memory.ts`, `ops-digest.ts`, `publish-ops-digest.ts`, `check-doc-tree.ts`
+- Contains: `review-pr.ts`, `run-factory.ts`, `smolvm-e2e.ts`, `factory.ts`, `route-event.ts`, `flowly-eval.ts`, `flue-eval.ts` (compatibility), `eval-dashboard.ts`, `eval-share.ts`, `eval-share-server.ts`, `eval-recommend.ts`, `memory.ts`, `ops-digest.ts`, `publish-ops-digest.ts`, `check-doc-tree.ts`
 - Key files: `review-pr.ts`, `route-event.ts`, `run-factory.ts`, `flowly-eval.ts`, `memory.ts`
 
 **`ops-digest/`:**
@@ -120,7 +120,7 @@ flowly/
 **`tests/`:**
 
 - Purpose: All automated tests (single directory, not co-located)
-- Contains: 58 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
+- Contains: 60 `.test.ts` files + `helpers.ts` (fixture builders, tool invocation)
 - Key files: `helpers.ts`, `event-router.test.ts`, `bench-runner.test.ts`
 
 ## Key File Locations
@@ -134,6 +134,7 @@ flowly/
 - `scripts/route-event.ts`: CI event-router entrypoint
 - `scripts/run-factory.ts`: production issue-to-draft-PR pipeline entrypoint
 - `scripts/factory.ts`: read-only factory run list/show/timeline/explain CLI
+- `scripts/smolvm-e2e.ts`: manual end-to-end check of `FLOWLY_EXECUTOR=smolvm` on a Mac (demo repository, stops before push)
 - `scripts/flowly-eval.ts`: benchmark CLI; `scripts/flue-eval.ts` is the legacy entrypoint
 - `scripts/memory.ts`: local repository-instinct inspection and trusted status mutation CLI
 - `eval/repository/scenarios.ts`: deterministic repository-evaluation entrypoint

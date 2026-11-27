@@ -16,7 +16,7 @@
 - Every factory stage receives a built-in least-capability manifest; optional policy overlays can only remove access
 - Factory workspace identity and append-only run events persist across retries; projections and explanations are derived from those events
 - Deterministic, key-free evaluation paths for CI alongside live provider-backed paths
-- FACTORY-001–008 adversarial tests exercise trusted factory boundaries without a live model or GitHub mutation
+- FACTORY-001–009 adversarial tests exercise trusted factory boundaries without a live model or GitHub mutation
 - Factory-function composition everywhere (`createXxx`) with Valibot schema validation at the edges
 
 ## Decisions
@@ -41,6 +41,28 @@ map, record an ADR and keep both documents in sync:
 Proposed [ADR 0011](../../docs/adr/0011-projects-and-runners.md) extends this design
 with project identity, risk-based local/VPS execution and connected local runners.
 It is not implemented; existing environment-based entrypoints remain unchanged.
+
+[ADR 0012](../../docs/adr/0012-experimental-sprite-executor.md) records a rejected
+proposal for a Fly.io Sprite executor. Usage-based billing has no fixed cost limit,
+so Flowly does not implement it. `FLOWLY_EXECUTOR` selects `local` (default) or the
+experimental fixed-cost `smolvm` executor (`factory/execution.ts`, `factory/smolvm.ts`):
+one offline microVM per run attempt. `smolvm-sandbox.ts` is the Flue `SandboxDriver` that
+runs the implementer's tool calls in that VM, and `smolvm-verifier.ts` runs plan checks in a
+fresh VM built from the committed tree. `smolvm-implementer.ts` brings the candidate back as a
+tar that `tree-import.ts` parses in memory and validates (no `.git`, `..`, absolute paths,
+hard links, devices, or symlinks out of the tree). The import then refuses, before any write,
+a candidate that adds, changes or deletes a protected path (`.github/`, `.flowly/`, `.flue/`,
+`.agents/`, `.gitmodules`, `.gitattributes`) or adds or changes a symlink, and writes the
+trusted clone without following symlinks. An implementation lease (`implementationLease`,
+30 minutes, renewed before and during verification; results and cleanup are fenced to the holder's attempt) keeps one process per run in `implementing`, and `run.execution` records the
+executor, attempt, base SHA and VM name. After a restart, a run in `implementing` or
+`verifying` is reclaimed only after its lease expires, with the next attempt number:
+implementation restarts in a fresh `<runId>-a<N>` clone and VM (earlier VMs are deleted),
+and verification reruns on the recorded commit. With `FLOWLY_MAX_ATTEMPTS`, a reclaim
+beyond the limit fails the run and deletes its VMs. Draft PR bodies carry a hidden
+`flowly-factory-run` marker, and the publisher reuses only the draft with this run's marker;
+it refuses any other draft on the branch, also one with no marker (fail closed). The smolvm path makes no GitHub writes yet (its publisher refuses; VM names carry a repository hash): it
+logs progress to stderr and stops after verification, before `git push`.
 
 See [`docs/adr/README.md`](../../docs/adr/README.md) for conventions and how to add a new record.
 

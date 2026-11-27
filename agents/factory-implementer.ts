@@ -1,25 +1,31 @@
 'use agent';
 import { bash, useModel, useSandbox } from '@flue/runtime';
 import { Bash, ReadWriteFs } from 'just-bash';
+import { createSmolvmSandboxFactory } from '../factory/smolvm-sandbox.ts';
 
 export const description =
   'Implements one approved factory plan inside an isolated writable repository clone. It cannot publish or merge.';
 
 export function FactoryImplementer() {
-  const workspace = process.env.FACTORY_WORKSPACE_PATH;
-  if (!workspace)
-    throw new Error('FACTORY_WORKSPACE_PATH is required for the factory implementer.');
-
   useModel(process.env.FACTORY_IMPLEMENTER_MODEL ?? 'openrouter/qwen/qwen3-coder');
-  useSandbox(
-    bash(
-      () =>
-        new Bash({
-          fs: new ReadWriteFs({ root: workspace }),
-          executionLimitProfile: 'hardened',
-        }),
-    ),
-  );
+  // FLOWLY_EXECUTOR=smolvm: tool calls run in the run's offline VM; the model loop stays here.
+  const smolvm = createSmolvmSandboxFactory(process.env);
+  if (smolvm) {
+    useSandbox(smolvm);
+  } else {
+    const workspace = process.env.FACTORY_WORKSPACE_PATH;
+    if (!workspace)
+      throw new Error('FACTORY_WORKSPACE_PATH is required for the factory implementer.');
+    useSandbox(
+      bash(
+        () =>
+          new Bash({
+            fs: new ReadWriteFs({ root: workspace }),
+            executionLimitProfile: 'hardened',
+          }),
+      ),
+    );
+  }
 
   return `
 You are Flowly's implementation stage. You receive only the issue and an

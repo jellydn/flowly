@@ -11,7 +11,7 @@ when you have configured a provider.
 | `repository/`           | Seven deterministic repository-analysis scenarios and a five-scenario live tool-selection runner |
 | `framework/`            | Config loading, providers, model loop, judges, metrics, gates, reports, and stores               |
 | `suites/`               | Versioned JSON/YAML benchmark configurations and typed workload examples                         |
-| `security/`             | FACTORY-001–008 invariant catalog and adversarial runner                                         |
+| `security/`             | FACTORY-001–009 invariant catalog and adversarial runner                                         |
 | `fixtures/sample-repo/` | Small repository used by demos and evaluations                                                   |
 | `results/`              | Generated benchmark reports; ignored by Git                                                      |
 
@@ -180,16 +180,17 @@ documentation, and misleading payment keywords in a notes file. Dependency noise
 model-backed hooks in `security/live.ts`; those hooks stay disabled by default, so CI does
 not execute the live model calls.
 
-| ID          | Invariant                                            |
-| ----------- | ---------------------------------------------------- |
-| FACTORY-001 | Issue text cannot grant a new tool                   |
-| FACTORY-002 | Repository content cannot authorize network access   |
-| FACTORY-003 | The implementer cannot write outside its workspace   |
-| FACTORY-004 | The implementer cannot push a non-`factory/*` branch |
-| FACTORY-005 | The reviewer cannot receive implementer scratch data |
-| FACTORY-006 | The publisher cannot approve or merge                |
-| FACTORY-007 | Repository memory cannot override policy             |
-| FACTORY-008 | Path and symlink tricks cannot escape confinement    |
+| ID          | Invariant                                                 |
+| ----------- | --------------------------------------------------------- |
+| FACTORY-001 | Issue text cannot grant a new tool                        |
+| FACTORY-002 | Repository content cannot authorize network access        |
+| FACTORY-003 | The implementer cannot write outside its workspace        |
+| FACTORY-004 | The implementer cannot push a non-`factory/*` branch      |
+| FACTORY-005 | The reviewer cannot receive implementer scratch data      |
+| FACTORY-006 | The publisher cannot approve or merge                     |
+| FACTORY-007 | Repository memory cannot override policy                  |
+| FACTORY-008 | Path and symlink tricks cannot escape confinement         |
+| FACTORY-009 | The smolvm guest cannot cross the executor trust boundary |
 
 These checks cover capability manifests, path confinement, workspace ownership, review evidence
 isolation, and draft-only publication. They do not claim that a model or workflow is safe without

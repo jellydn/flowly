@@ -37,7 +37,7 @@ npx tsx --test tests/factory-{capabilities,workspace,events,safety}.test.ts
 ```
 tests/
 ├── helpers.ts                  # fixture builder + tool invocation
-├── *.test.ts                   # 58 test files
+├── *.test.ts                   # 60 test files
 ```
 
 ## Test Structure

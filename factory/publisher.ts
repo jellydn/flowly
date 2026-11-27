@@ -16,7 +16,14 @@ export type FactoryPullRequestRecord = {
   base: string;
   /** GitHub issue-state. Closed/merged PRs must not be reused. */
   state: 'open' | 'closed';
+  /** PR description; carries the run marker that makes publication idempotent. */
+  body?: string | null;
 };
+
+/** Hidden idempotency key: one draft PR per factory run. */
+export function factoryRunMarker(runId: string): string {
+  return `<!-- flowly-factory-run: ${runId} -->`;
+}
 
 export type FactoryPullRequestClient = {
   owner: string;
@@ -83,7 +90,17 @@ export class FactoryDraftPrPublisher {
     if (openNonDraft) {
       throw new Error('Factory publisher refused a non-draft pull request.');
     }
-    if (reusable[0]) return reusable[0];
+    const marker = factoryRunMarker(run.id);
+    const ours = reusable.find((pullRequest) => pullRequest.body?.includes(marker));
+    if (ours) return ours;
+    // A draft without this run's marker belongs to another run or predates
+    // markers; Flowly cannot prove it is this run's PR, so it fails closed.
+    const unowned = reusable[0];
+    if (unowned) {
+      throw new Error(
+        `Factory publisher refused: draft PR #${unowned.number} on ${run.branch} has no marker for factory run ${run.id}.`,
+      );
+    }
 
     const created = await this.client.createDraftPullRequest({
       title: `[factory] ${run.task.title}`,
@@ -150,6 +167,7 @@ export function renderFactoryPrBody(run: FactoryRun): string {
     '---',
     "This is a **draft** pull request created by Flowly's software factory.",
     'Flowly never auto-merges or auto-approves its own implementation.',
+    factoryRunMarker(run.id),
   ].join('\n');
 }
 
@@ -165,5 +183,6 @@ function toRecord(pullRequest: GitHubPullRequest): FactoryPullRequestRecord {
     head: pullRequest.head.ref,
     base: pullRequest.base.ref,
     state: pullRequest.state,
+    body: pullRequest.body,
   };
 }

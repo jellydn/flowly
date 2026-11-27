@@ -23,13 +23,18 @@
  *   FLOWLY_LEARNING_POLICY – repository-relative learning-policy JSON file
  *   FLOWLY_MEMORY_ISSUE    – issue that holds the bot-authored memory snapshot
  *   FLOWLY_MEMORY_STORE    – local JSON memory file (development only)
+ *   FLOWLY_EXECUTOR        – local (default) or smolvm (experimental; needs FACTORY_RUN_STORE;
+ *                            implementer tools and checks run in offline microVMs; the run
+ *                            makes no GitHub writes and stops before push)
+ *   FLOWLY_VM_IMAGE / FLOWLY_VM_BASE_PACK – smolvm guest source (exactly one)
+ *   FLOWLY_VM_PREFIX, FLOWLY_VM_CPUS, FLOWLY_VM_MEMORY_MB, FLOWLY_RUN_TIMEOUT, FLOWLY_MAX_ATTEMPTS
  */
 
 import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
-import { createAgentFactoryImplementer } from '../factory/agent-implementer.ts';
+import { createAgentFactoryImplementer, runFlueImplementer } from '../factory/agent-implementer.ts';
 import { createIssueCommentProgress } from '../factory/defaults.ts';
 import { dispatchFactoryLabeledIssue, factoryTaskFromIssuesEvent } from '../factory/dispatch.ts';
 import { FactoryGitAdapter } from '../factory/git.ts';
@@ -56,6 +61,12 @@ import { parseFactoryAutonomyPolicy } from '../factory/autonomy.ts';
 import { parseFactoryCapabilityPolicy } from '../factory/capabilities.ts';
 import type { FactoryManualConfirmation } from '../factory/types.ts';
 import { createRepositoryLearningFromEnv } from '../memory/config.ts';
+import { parseFactoryExecutor } from '../factory/execution.ts';
+import { parseSmolvmConfig } from '../factory/smolvm.ts';
+import {
+  createSmolvmFactoryDependencies,
+  type FactoryExecutorDependencies,
+} from '../factory/smolvm-factory.ts';
 
 function fail(message: string): never {
   console.error(`[flowly-factory] ${message}`);
@@ -74,6 +85,13 @@ for (const name of REQUIRED_ENV) {
 }
 
 async function main(): Promise<void> {
+  const executor = parseFactoryExecutor(process.env);
+  const smolvmConfig = executor === 'smolvm' ? parseSmolvmConfig(process.env) : undefined;
+  if (smolvmConfig && !process.env.FACTORY_RUN_STORE) {
+    fail(
+      'FLOWLY_EXECUTOR=smolvm requires FACTORY_RUN_STORE, so the orphan VM sweep sees every run.',
+    );
+  }
   const eventName = process.env.GITHUB_EVENT_NAME!;
   const eventPath = process.env.GITHUB_EVENT_PATH!;
   let payload: unknown;
@@ -125,18 +143,29 @@ async function main(): Promise<void> {
       )
     : undefined;
   const manualConfirmation = parseManualConfirmation(process.env.FACTORY_CONFIRM_BOUNDARY);
-  const learning = createRepositoryLearningFromEnv(process.env, client, repositoryPath);
+  const executorDependencies: FactoryExecutorDependencies = smolvmConfig
+    ? await createSmolvmFactoryDependencies({
+        config: smolvmConfig,
+        store,
+        repository: task.repository,
+        git,
+        runAgent: runFlueImplementer(model),
+      })
+    : {
+        orchestrator: new FactoryOrchestrator(store),
+        progress: createIssueCommentProgress(client),
+        git,
+        implementer: createAgentFactoryImplementer(model),
+        verifier: new FactoryVerificationRunner(),
+        learning: createRepositoryLearningFromEnv(process.env, client, repositoryPath),
+        publisher: new FactoryDraftPrPublisher(createGitHubFactoryPullRequestClient(client)),
+      };
 
   const run = await dispatchFactoryLabeledIssue(eventName, payload, {
-    orchestrator: new FactoryOrchestrator(store),
+    ...executorDependencies,
     classifier: createModelFactoryClassifier(modelCall),
     planner: createModelFactoryPlanner(modelCall, repository),
-    progress: createIssueCommentProgress(client),
-    git,
-    implementer: createAgentFactoryImplementer(model),
-    verifier: new FactoryVerificationRunner(),
     reviewer: review.reviewer,
-    publisher: new FactoryDraftPrPublisher(createGitHubFactoryPullRequestClient(client)),
     readDiff: async (current) => {
       if (!current.branch || !current.implementation) {
         throw new Error(`Factory run ${current.id} has no branch or implementation to diff.`);
@@ -152,7 +181,6 @@ async function main(): Promise<void> {
     autonomyPolicy,
     capabilityPolicy,
     manualConfirmation,
-    learning,
   });
 
   console.error(`[flowly-factory] run ${run.id} ended in state ${run.state}`);
